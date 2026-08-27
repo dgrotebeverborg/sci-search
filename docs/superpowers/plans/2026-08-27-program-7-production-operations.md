@@ -43,10 +43,10 @@
 **Interfaces:**
 - Produces validated settings and HTTPS/security-header proxy configuration.
 
-- [ ] Write failing tests for every insecure production setting and a literal valid SURFconext-style configuration.
-- [ ] Implement typed settings with secret-file support and redacted representations.
-- [ ] Configure TLS, request limits, HSTS after TLS validation, CSP, frame denial, no-sniff, referrer policy, and trusted proxy headers.
-- [ ] Run production-startup smoke tests and commit.
+- [x] Write failing tests for every insecure production setting and a literal valid SURFconext-style configuration.
+- [x] Implement typed settings with secret-file support and redacted representations.
+- [x] Configure TLS, request limits, HSTS after TLS validation, CSP, frame denial, no-sniff, referrer policy, and trusted proxy headers.
+- [x] Run production-startup smoke tests and commit.
 
 ### Task 3: Structured logging, health, and metrics
 

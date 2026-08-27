@@ -24,6 +24,7 @@ from sci_search.application.projects import (
 )
 from sci_search.application.research_api import InMemoryResearchApiService
 from sci_search.application.sessions import InMemorySessionRepository, SessionService
+from sci_search.infrastructure.settings import ProductionSettings
 
 _DEVELOPMENT_USER = "development-researcher"
 
@@ -34,20 +35,29 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
     environment = os.environ.get("SCI_SEARCH_ENVIRONMENT", "development").strip().lower()
     if environment not in {"development", "test", "production"}:
         raise ValueError("SCI_SEARCH_ENVIRONMENT must be development, test, or production")
-    origins = tuple(
-        value.strip()
-        for value in os.environ.get("SCI_SEARCH_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(
-            ","
+    production_settings: ProductionSettings | None = None
+    if environment == "production":
+        if unsafe_development:
+            raise ValueError("development authentication is forbidden in production")
+        production_settings = ProductionSettings.from_environment()
+        origins = production_settings.allowed_origins
+        secret = production_settings.session_secret
+        callback = production_settings.oidc_callback_url
+    else:
+        origins = tuple(
+            value.strip()
+            for value in os.environ.get(
+                "SCI_SEARCH_ALLOWED_ORIGINS", "http://127.0.0.1:8000"
+            ).split(",")
+            if value.strip()
         )
-        if value.strip()
-    )
-    secret = os.environ.get("SCI_SEARCH_SESSION_SECRET", "").strip()
-    if not secret and environment != "production":
-        secret = secrets.token_urlsafe(48)
-    callback = os.environ.get(
-        "SCI_SEARCH_OIDC_CALLBACK_URL",
-        "http://127.0.0.1:8000/auth/callback",
-    )
+        secret = os.environ.get("SCI_SEARCH_SESSION_SECRET", "").strip()
+        if not secret:
+            secret = secrets.token_urlsafe(48)
+        callback = os.environ.get(
+            "SCI_SEARCH_OIDC_CALLBACK_URL",
+            "http://127.0.0.1:8000/auth/callback",
+        )
     now = datetime.now(UTC)
     projects = InMemoryProjectRepository()
     workspace = Workspace(str(uuid4()), "Personal workspace", _DEVELOPMENT_USER, True, now)
@@ -108,10 +118,13 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         development_auth_enabled=unsafe_development,
         development_user_id=_DEVELOPMENT_USER,
     )
-    return create_app(
+    app = create_app(
         settings,
         ApiServices(sessions=sessions, projects=project_service, research=research_service),
     )
+    if production_settings is not None:
+        app.state.production_settings = production_settings
+    return app
 
 
 def run_api_server(app: FastAPI, host: str, port: int) -> None:

@@ -21,6 +21,7 @@ def test_production_compose_only_publishes_caddy_ports() -> None:
         env={
             **os.environ,
             "SCI_SEARCH_ALLOWED_ORIGINS": "https://search.example.test",
+            "SCI_SEARCH_PUBLIC_BASE_URL": "https://search.example.test",
             "SCI_SEARCH_OIDC_ISSUER": "https://idp.example.test",
             "SCI_SEARCH_OIDC_CLIENT_ID": "test-client",
             "SCI_SEARCH_OIDC_CALLBACK_URL": "https://search.example.test/auth/callback",

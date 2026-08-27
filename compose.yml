@@ -11,6 +11,7 @@ x-app: &app
     - /tmp/sci-search:rw,noexec,nosuid,size=256m,uid=10001,gid=10001
   environment: &app-environment
     SCI_SEARCH_ENVIRONMENT: production
+    SCI_SEARCH_PUBLIC_BASE_URL: ${SCI_SEARCH_PUBLIC_BASE_URL:?set HTTPS public base URL}
     SCI_SEARCH_DATABASE_URL_FILE: /run/secrets/database_url
     SCI_SEARCH_REDIS_URL_FILE: /run/secrets/redis_url
     SCI_SEARCH_S3_ENDPOINT: http://minio:9000
@@ -47,6 +48,7 @@ services:
         condition: service_healthy
     environment:
       SCI_SEARCH_HOSTNAME: ${SCI_SEARCH_HOSTNAME:?set public hostname}
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:-ops@example.invalid}
     ports:
       - "80:80"
       - "443:443"
