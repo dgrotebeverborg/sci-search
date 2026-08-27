@@ -101,7 +101,7 @@
 
 ### Task 6: Program 2 verification
 
-- [ ] Run focused identity, session, OIDC, authorization, and isolation tests.
-- [ ] Run `python -m pytest -q`, Ruff, Pyright, and package build.
-- [ ] Verify logs and exceptions never include access tokens, ID tokens, cookie values, or OIDC client secrets.
-- [ ] Verify production configuration refuses local development login and insecure callback URLs.
+- [x] Run focused identity, session, OIDC, authorization, and isolation tests.
+- [x] Run `python -m pytest -q`, Ruff, Pyright, and package build.
+- [x] Verify logs and exceptions never include access tokens, ID tokens, cookie values, or OIDC client secrets.
+- [x] Verify production configuration refuses local development login and insecure callback URLs.

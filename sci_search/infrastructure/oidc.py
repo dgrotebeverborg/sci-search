@@ -32,6 +32,7 @@ class OidcConfiguration:
     redirect_uri: str
     post_logout_redirect_uri: str
     production: bool = True
+    local_login_enabled: bool = False
 
     def __post_init__(self) -> None:
         _require_secure_url("discovery URL", self.discovery_url, production=self.production)
@@ -43,6 +44,8 @@ class OidcConfiguration:
         )
         if not self.client_id or not self.client_secret:
             raise ValueError("OIDC client credentials must not be empty")
+        if self.production and self.local_login_enabled:
+            raise ValueError("local login is forbidden in production")
 
 
 @dataclass(frozen=True, slots=True)

@@ -34,6 +34,7 @@ class FakeOidcServer(ThreadingHTTPServer):
         self.expected_nonce = ""
         self.expected_challenge = ""
         self.last_token_request: dict[str, list[str]] = {}
+        self.last_id_token = ""
 
     def id_token(self) -> str:
         now = int(time.time())
@@ -101,11 +102,12 @@ class FakeOidcHandler(BaseHTTPRequestHandler):
         ):
             self._json({"error": "invalid_grant"}, status=400)
             return
+        self.server.last_id_token = self.server.id_token()
         self._json(
             {
                 "access_token": "provider-access-token",
                 "token_type": "Bearer",
-                "id_token": self.server.id_token(),
+                "id_token": self.server.last_id_token,
             }
         )
 
@@ -212,6 +214,22 @@ def test_pkce_verifier_is_not_written_to_debug_logs(
     assert "code_verifier" not in caplog.text
 
 
+def test_provider_tokens_and_client_secret_are_not_written_to_logs(
+    oidc_client: tuple[TestClient, FakeOidcServer],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, server = oidc_client
+    caplog.set_level(logging.DEBUG)
+    query = _start_login(client, server)
+
+    response = client.get(f"/auth/callback?code=valid&state={query['state'][0]}")
+
+    assert response.status_code == 200
+    assert "provider-access-token" not in caplog.text
+    assert "client-secret" not in caplog.text
+    assert server.last_id_token not in caplog.text
+
+
 def test_callback_rejects_mismatched_state(
     oidc_client: tuple[TestClient, FakeOidcServer],
 ) -> None:
@@ -230,6 +248,18 @@ def test_production_configuration_rejects_insecure_callback_url() -> None:
             client_secret="secret",
             redirect_uri="http://app.example.test/auth/callback",
             post_logout_redirect_uri="https://app.example.test/",
+        )
+
+
+def test_production_configuration_rejects_local_login_fallback() -> None:
+    with pytest.raises(ValueError, match="local login is forbidden in production"):
+        OidcConfiguration(
+            discovery_url="https://idp.example.test/.well-known/openid-configuration",
+            client_id="client",
+            client_secret="secret",
+            redirect_uri="https://app.example.test/auth/callback",
+            post_logout_redirect_uri="https://app.example.test/",
+            local_login_enabled=True,
         )
 
 
