@@ -1,0 +1,12 @@
+{
+  "question": "What measured round-trip efficiency is reported?",
+  "profile_id": "generic",
+  "intent": "method",
+  "evidence_ids": [
+    "generic-evidence:4ed3444c24887bac15ec"
+  ],
+  "answer_adequacy": "partial",
+  "publications_available": 3,
+  "publications_with_relevant_evidence": 1,
+  "relevant_passages": 1
+}

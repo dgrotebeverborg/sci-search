@@ -66,13 +66,13 @@
 **Interfaces:**
 - Produces: `StageContext`, `StageResult`, `ResearchStage.run(context)`, stable stage names, and explicit version strings.
 
-- [ ] Capture a current end-to-end run fixture and its hand-checked stage-relevant artifacts.
-- [ ] Write failing contract tests invoking desired stage classes with injected providers, repositories, clock, and blob store.
-- [ ] Move planning/discovery logic behind stages without changing serialized outputs; run current discovery tests.
-- [ ] Move acquisition/screening/study-matrix logic; run current full-text tests.
-- [ ] Move extraction/coverage/synthesis/report logic; run current scientific and reporting tests.
-- [ ] Keep `ResearchRunManager.run_sync` as a compatibility composition of the same stages.
-- [ ] Compare old fixture and staged output after removing only newly documented operational metadata; commit.
+- [x] Capture a current end-to-end run fixture and its hand-checked stage-relevant artifacts.
+- [x] Write failing contract tests invoking desired stage classes with injected providers, repositories, clock, and blob store.
+- [x] Move planning/discovery logic behind stages without changing serialized outputs; run current discovery tests.
+- [x] Move acquisition/screening/study-matrix logic; run current full-text tests.
+- [x] Move extraction/coverage/synthesis/report logic; run current scientific and reporting tests.
+- [x] Keep `ResearchRunManager.run_sync` as a compatibility composition of the same stages.
+- [x] Compare old fixture and staged output after removing only newly documented operational metadata; commit.
 
 ### Task 4: Cancellation, quotas, and backpressure
 

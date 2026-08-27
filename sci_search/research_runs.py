@@ -24,8 +24,8 @@ from sci_search.corpus import load_corpus
 from sci_search.coverage import coverage_follow_up_queries, gate_model_analysis
 from sci_search.discovery import (
     PublicationCandidate,
+    SearchQuery,
     merge_candidates,
-    plan_search_queries,
     screen_candidates,
 )
 from sci_search.fulltext_acquisition import AcquisitionOutcome, acquire_full_text
@@ -40,7 +40,13 @@ from sci_search.literature_review import (
 )
 from sci_search.mistral_analysis import MistralAnalyzer, analyze_if_configured
 from sci_search.models import dataclass_to_dict
-from sci_search.question_planning import plan_question
+from sci_search.question_planning import ResearchPlan, plan_question
+from sci_search.research.stages.acquisition import AcquisitionStage
+from sci_search.research.stages.analysis import AnalysisStage
+from sci_search.research.stages.base import StageContext
+from sci_search.research.stages.discovery import DiscoveryStage
+from sci_search.research.stages.planning import PlanningStage
+from sci_search.research.stages.reporting import ReportingStage
 from sci_search.research_landscape import build_research_landscape
 from sci_search.scholarly_providers import (
     CrossrefProvider,
@@ -819,7 +825,9 @@ class ResearchRunManager:
             stage="planning",
             message="Translating the question into inspectable search strategies.",
         )
-        plan, queries = plan_search_queries(question)
+        planning_checkpoint = PlanningStage().run(_stage_context(run_id, question, inputs={}))
+        plan = _research_plan(planning_checkpoint.output["plan"])
+        queries = tuple(_search_query(item) for item in planning_checkpoint.output["queries"])
         memory_candidates: tuple[PublicationCandidate, ...] = ()
         memory_assessment = None
         if self.memory is not None:
@@ -843,9 +851,29 @@ class ResearchRunManager:
             stage="discovering",
             message="Searching OpenAlex, Europe PMC and Crossref metadata.",
         )
-        discovered, search_log = discover_with_providers(
-            queries, self.providers, per_query=limits.per_query
+
+        def discover_stage(
+            serialized_queries: list[dict[str, Any]], per_query: int
+        ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+            found, log = discover_with_providers(
+                tuple(_search_query(item) for item in serialized_queries),
+                self.providers,
+                per_query=per_query,
+            )
+            return dataclass_to_dict(found), list(log)
+
+        discovery_checkpoint = DiscoveryStage(discover_stage).run(
+            _stage_context(
+                run_id,
+                question,
+                inputs={"queries": dataclass_to_dict(queries), "per_query": limits.per_query},
+                prior={"planning": planning_checkpoint.output},
+            )
         )
+        discovered = tuple(
+            _publication_candidate(item) for item in discovery_checkpoint.output["candidates"]
+        )
+        search_log = tuple(discovery_checkpoint.output["search_log"])
         raw = (*memory_candidates, *discovered)
         if memory_candidates:
             search_log = (
@@ -948,27 +976,40 @@ class ResearchRunManager:
             ):
                 candidate = candidate_queue.pop(0)
                 attempts += 1
-                reused = (
-                    self.memory.reuse_document(candidate, corpus_directory)
-                    if self.memory is not None
-                    else None
-                )
-                if reused:
-                    relative_path, byte_count, download_relative_path = reused
-                    outcome = AcquisitionOutcome(
-                        candidate.id,
-                        "acquired",
-                        "scientific_memory_cache",
-                        relative_path,
-                        None,
-                        byte_count,
-                        0,
-                        None,
-                        download_relative_path,
-                        "scientific_memory_cache",
+
+                def acquire_candidate(serialized: dict[str, Any]) -> dict[str, Any]:
+                    current_candidate = _publication_candidate(serialized)
+                    reused = (
+                        self.memory.reuse_document(current_candidate, corpus_directory)
+                        if self.memory is not None
+                        else None
                     )
-                else:
-                    outcome = self.acquirer(candidate, corpus_directory)
+                    if reused:
+                        relative_path, byte_count, download_relative_path = reused
+                        acquired_outcome = AcquisitionOutcome(
+                            current_candidate.id,
+                            "acquired",
+                            "scientific_memory_cache",
+                            relative_path,
+                            None,
+                            byte_count,
+                            0,
+                            None,
+                            download_relative_path,
+                            "scientific_memory_cache",
+                        )
+                    else:
+                        acquired_outcome = self.acquirer(current_candidate, corpus_directory)
+                    return dataclass_to_dict(acquired_outcome)
+
+                acquisition_checkpoint = AcquisitionStage(acquire_candidate).run(
+                    _stage_context(
+                        run_id,
+                        question,
+                        inputs={"candidate": dataclass_to_dict(candidate)},
+                    )
+                )
+                outcome = AcquisitionOutcome(**acquisition_checkpoint.output)
                 outcome = _validated_acquisition_outcome(outcome, corpus_directory)
                 outcomes.append(outcome)
                 if outcome.status == "acquired" and outcome.relative_path:
@@ -1222,11 +1263,28 @@ class ResearchRunManager:
             message="Analyzing acquired full texts and attaching findings to exact source passages.",
         )
         documents = load_corpus(corpus_directory)
-        investigation = GenericResearchEngine(
-            documents,
-            lifecycle_lookup=self.memory.evidence_states if self.memory is not None else None,
-        ).investigate(question, session_id=f"research:{run_id}")
-        payload = investigation.to_dict()
+        analysis_checkpoint = AnalysisStage(
+            lambda context: (
+                GenericResearchEngine(
+                    documents,
+                    lifecycle_lookup=self.memory.evidence_states
+                    if self.memory is not None
+                    else None,
+                )
+                .investigate(context.question, session_id=f"research:{context.run_id}")
+                .to_dict()
+            )
+        ).run(
+            _stage_context(
+                run_id,
+                question,
+                inputs={
+                    "document_ids": [document.publication.id for document in documents],
+                    "full_text_screening": fulltext_screening,
+                },
+            )
+        )
+        payload = analysis_checkpoint.output
         coverage_search["final_assessment"] = payload.get("answer_adequacy")
         discovery_path = run_directory / "discovery.json"
         discovery = json.loads(discovery_path.read_text(encoding="utf-8"))
@@ -1292,15 +1350,19 @@ class ResearchRunManager:
                 run_id, question, corpus_directory, payload
             )
             payload["memory_stats"] = self.memory.stats()
-        payload["research_landscape"] = build_research_landscape(payload)
-        review = build_literature_review(payload)
+        reporting_checkpoint = ReportingStage().run(
+            _stage_context(
+                run_id,
+                question,
+                inputs={"analysis": payload},
+                prior={"analysis": analysis_checkpoint.output},
+            )
+        )
+        payload["research_landscape"] = reporting_checkpoint.output["research_landscape"]
+        review = reporting_checkpoint.output["literature_review_report"]
         _write_json(run_directory / "literature_review.json", review)
         payload["literature_review_report"] = review
-        payload["literature_review"] = {
-            "available": True,
-            "schema_version": review["schema_version"],
-            "artifact": "literature_review.json",
-        }
+        payload["literature_review"] = reporting_checkpoint.output["literature_review"]
         _write_json(run_directory / "investigation.json", payload)
         final_progress = dict(self.get(run_id).get("progress") or {})
         final_progress["full_texts_included"] = len(active_acquired)
@@ -1666,6 +1728,90 @@ def _prioritize_acquisition_candidates(
 
 def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _stage_context(
+    run_id: str,
+    question: str,
+    *,
+    inputs: dict[str, Any],
+    prior: dict[str, dict[str, Any]] | None = None,
+) -> StageContext:
+    return StageContext(
+        project_id="legacy-local",
+        run_id=run_id,
+        question=question,
+        inputs=inputs,
+        prior_checkpoints=prior or {},
+    )
+
+
+def _research_plan(payload: object) -> ResearchPlan:
+    if not isinstance(payload, dict):
+        raise ValueError("planning stage returned an invalid plan")
+    return ResearchPlan(
+        question=str(payload["question"]),
+        profile_id=str(payload["profile_id"]),
+        intent=str(payload["intent"]),
+        concepts=tuple(str(item) for item in payload["concepts"]),
+        entity_phrases=tuple(str(item) for item in payload["entity_phrases"]),
+        expanded_terms=tuple(str(item) for item in payload["expanded_terms"]),
+        evidence_preferences=tuple(str(item) for item in payload["evidence_preferences"]),
+        comparison_dimensions=tuple(str(item) for item in payload["comparison_dimensions"]),
+    )
+
+
+def _search_query(payload: object) -> SearchQuery:
+    if not isinstance(payload, dict):
+        raise ValueError("discovery stage received an invalid query")
+    return SearchQuery(str(payload["id"]), str(payload["text"]), str(payload["purpose"]))
+
+
+def _publication_candidate(payload: object) -> PublicationCandidate:
+    if not isinstance(payload, dict):
+        raise ValueError("discovery stage returned an invalid candidate")
+
+    def optional_text(key: str) -> str | None:
+        value = payload.get(key)
+        return str(value) if value is not None else None
+
+    def texts(key: str) -> tuple[str, ...]:
+        value = payload.get(key, [])
+        return tuple(str(item) for item in value) if isinstance(value, (list, tuple)) else ()
+
+    year_value = payload.get("year")
+    return PublicationCandidate(
+        id=str(payload["id"]),
+        title=str(payload["title"]),
+        abstract=str(payload.get("abstract") or ""),
+        year=int(year_value) if year_value is not None else None,
+        doi=optional_text("doi"),
+        authors=texts("authors"),
+        publication_type=str(payload.get("publication_type") or "article"),
+        source_url=optional_text("source_url"),
+        full_text_url=optional_text("full_text_url"),
+        document_fingerprint=optional_text("document_fingerprint"),
+        author_ids=texts("author_ids"),
+        institutions=texts("institutions"),
+        institution_ids=texts("institution_ids"),
+        affiliations=texts("affiliations"),
+        openalex_id=optional_text("openalex_id"),
+        pmcid=optional_text("pmcid"),
+        cited_by_count=int(payload.get("cited_by_count") or 0),
+        is_open_access=bool(payload.get("is_open_access", False)),
+        license=optional_text("license"),
+        has_pdf=bool(payload.get("has_pdf", False)),
+        has_structured_fulltext=bool(payload.get("has_structured_fulltext", False)),
+        has_local_fulltext=bool(payload.get("has_local_fulltext", False)),
+        is_retracted=bool(payload.get("is_retracted", False)),
+        providers=texts("providers"),
+        matched_query_ids=texts("matched_query_ids"),
+        citation_relations=texts("citation_relations"),
+        relevance_score=float(payload.get("relevance_score") or 0.0),
+        concept_coverage=float(payload.get("concept_coverage") or 0.0),
+        screening_status=str(payload.get("screening_status") or "candidate"),
+        screening_reason=str(payload.get("screening_reason") or "not screened"),
+    )
 
 
 def _validated_acquisition_outcome(
