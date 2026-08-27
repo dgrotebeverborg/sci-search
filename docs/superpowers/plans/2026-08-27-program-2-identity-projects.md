@@ -61,11 +61,11 @@
 **Interfaces:**
 - Produces: `SessionService.create`, `authenticate`, `rotate`, `revoke`, and `revoke_user` using opaque random tokens whose digests alone are persisted.
 
-- [ ] Write failing tests for token hashing, expiry, rotation invalidating the old token, explicit logout, and user-wide revocation.
-- [ ] Verify RED with `python -m pytest tests/application/test_sessions.py -q`.
-- [ ] Implement 256-bit URL-safe tokens, SHA-256 persisted digests, injected clock/random source, absolute expiry, idle expiry, and rotation.
-- [ ] Mutation-check by changing the expiry comparison and token digest in a temporary diff; confirm tests fail, then restore.
-- [ ] Run the focused suite and commit with `git commit -m "feat: add revocable opaque sessions"`.
+- [x] Write failing tests for token hashing, expiry, rotation invalidating the old token, explicit logout, and user-wide revocation.
+- [x] Verify RED with `python -m pytest tests/application/test_sessions.py -q`.
+- [x] Implement 256-bit URL-safe tokens, SHA-256 persisted digests, injected clock/random source, absolute expiry, idle expiry, and rotation.
+- [x] Mutation-check by changing the expiry comparison and token digest in a temporary diff; confirm tests fail, then restore.
+- [x] Run the focused suite and commit with `git commit -m "feat: add revocable opaque sessions"`.
 
 ### Task 4: OIDC adapter and callback validation
 
