@@ -46,11 +46,11 @@
 **Interfaces:**
 - Produces: `JobQueue.enqueue(job_id, stage_name)` and `Worker.execute(job_id, stage_name)`.
 
-- [ ] Write a failing test delivering the same message twice and assert the stage side effect occurs once.
-- [ ] Write a failing test that kills execution after checkpoint commit but before acknowledgement; redelivery must advance without repeating the stage.
-- [ ] Implement Dramatiq Redis delivery with PostgreSQL claim/checkpoint authority.
-- [ ] Add bounded retry classification and dead-letter audit behavior.
-- [ ] Run Redis/PostgreSQL recovery tests and commit.
+- [x] Write a failing test delivering the same message twice and assert the stage side effect occurs once.
+- [x] Write a failing test that kills execution after checkpoint commit but before acknowledgement; redelivery must advance without repeating the stage.
+- [x] Implement Dramatiq Redis delivery with PostgreSQL claim/checkpoint authority.
+- [x] Add bounded retry classification and dead-letter audit behavior.
+- [x] Run Redis/PostgreSQL recovery tests and commit.
 
 ### Task 3: Extract versioned stage contracts
 

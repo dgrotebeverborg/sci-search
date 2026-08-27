@@ -121,6 +121,13 @@ class SqlJobRepository:
             raise ResourceNotFound
         return _job(row)
 
+    def get_for_worker(self, job_id: str) -> Job:
+        """Trusted worker lookup; browser/API callers must use project-scoped ``get``."""
+        row = self._session.get(JobRow, _uuid(job_id))
+        if row is None:
+            raise ResourceNotFound
+        return _job(row)
+
     def claim(
         self,
         job_id: str,
@@ -291,6 +298,31 @@ class SqlJobRepository:
             raise LeaseRejected
         self._audit(row, action="job.cancel_requested", occurred_at=now)
         return _job(row)
+
+    def retry_failed(self, job_id: str, *, now: datetime) -> Job:
+        transition(JobStatus.FAILED, JobStatus.QUEUED)
+        row = self._session.scalar(
+            update(JobRow)
+            .where(JobRow.id == _uuid(job_id), JobRow.status == JobStatus.FAILED.value)
+            .values(
+                status=JobStatus.QUEUED.value,
+                updated_at=now,
+                version=JobRow.version + 1,
+            )
+            .returning(JobRow)
+        )
+        if row is None:
+            raise LeaseRejected
+        self._audit(row, action="job.retry_scheduled", occurred_at=now)
+        return _job(row)
+
+    def record_dead_letter(self, job_id: str, *, error: dict[str, Any], now: datetime) -> None:
+        row = self._session.get(JobRow, _uuid(job_id))
+        if row is None:
+            raise ResourceNotFound
+        if row.status != JobStatus.FAILED.value:
+            raise LeaseRejected
+        self._audit(row, action="job.dead_lettered", occurred_at=now, payload=error)
 
     def _terminal_from_active_lease(
         self,
