@@ -359,3 +359,66 @@ class LegacyImportRow(Base):
     manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     counts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class JobRow(Base):
+    __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("project_id", "idempotency_key"),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'cancel_requested', 'cancelled', 'failed', 'completed')",
+            name="valid_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    current_stage: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lease_owner: Mapped[str | None] = mapped_column(String(200))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
+class JobCheckpointRow(Base):
+    __tablename__ = "job_checkpoints"
+    __table_args__ = (
+        UniqueConstraint("job_id", "stage_name", "input_fingerprint", "implementation_version"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    job_id: Mapped[UUID] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stage_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
+    implementation_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    output_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StageAttemptRow(Base):
+    __tablename__ = "stage_attempts"
+    __table_args__ = (UniqueConstraint("job_id", "attempt_number"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    job_id: Mapped[UUID] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    stage_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str | None] = mapped_column(String(50))
+    error_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)

@@ -23,18 +23,18 @@
 
 **Files:**
 - Create: `sci_search/application/jobs.py`
-- Create: `migrations/versions/0003_jobs.py`
+- Create: `migrations/versions/0004_jobs.py`
 - Extend: `sci_search/infrastructure/repositories.py`
 - Test: `tests/integration/test_jobs.py`
 
 **Interfaces:**
 - Produces: `JobStatus`, `Job`, `StageAttempt`, `JobRepository.create`, `claim`, `heartbeat`, `checkpoint`, `fail`, `request_cancel`, and `complete`.
 
-- [ ] Write failing table-driven tests for every valid transition and literal invalid transition.
-- [ ] Write lease tests using an injected clock: one owner, heartbeat extension, expired reclaim, stale owner rejection.
-- [ ] Implement schema and transactional compare-and-swap lease methods.
-- [ ] Add idempotency-key tests proving repeated start requests return one job.
-- [ ] Run focused tests and commit.
+- [x] Write failing table-driven tests for every valid transition and literal invalid transition.
+- [x] Write lease tests using an injected clock: one owner, heartbeat extension, expired reclaim, stale owner rejection.
+- [x] Implement schema and transactional compare-and-swap lease methods.
+- [x] Add idempotency-key tests proving repeated start requests return one job.
+- [x] Run focused tests and commit.
 
 ### Task 2: Queue adapter and worker recovery
 

@@ -26,6 +26,7 @@ from sci_search.application.projects import (
     Workspace,
 )
 from sci_search.application.sessions import Session, SessionRepository
+from sci_search.infrastructure.jobs import SqlJobRepository
 from sci_search.infrastructure.tables import (
     ArtifactRow,
     AuditEventRow,
@@ -766,5 +767,6 @@ class SqlUnitOfWork:
         self.projects = SqlProjectRepository(session)
         self.sessions = SqlSessionRepository(session)
         self.audit = SqlAuditRepository(session)
+        self.jobs = SqlJobRepository(session)
         self.research = SqlResearchRepository(session)
         self.provisioning = ProvisioningRepositories(self.identities, self.projects)
