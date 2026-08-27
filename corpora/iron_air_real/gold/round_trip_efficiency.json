@@ -1,0 +1,41 @@
+{
+  "description": "Manually reviewed contextual RTE results in the ten-document pilot corpus",
+  "results": [
+    {
+      "publication_id": "cra-2023-system-model",
+      "value": 40,
+      "unit": "%",
+      "page": 4,
+      "section": "introduction",
+      "passage_contains": "Round-trip efficiency % 85% 70% 40%",
+      "conditions": {"storage_duration": "72 h"}
+    },
+    {
+      "publication_id": "form-2024-pnw",
+      "value": 42.5,
+      "unit": "%",
+      "page": 31,
+      "section": "results",
+      "passage_contains": "Round trip efficiency** 40 - 45%",
+      "conditions": {"storage_duration": "100 h"}
+    },
+    {
+      "publication_id": "tang-2022-proton-ir",
+      "value": 61.9,
+      "unit": "%",
+      "page": null,
+      "section": "long‐term_performance_evaluation",
+      "passage_contains": "RTE = 61.9%",
+      "conditions": {"temperature": "500 degC", "current_density": "10 mA/cm^2", "storage_duration": "2.5 h"}
+    },
+    {
+      "publication_id": "tang-2022-proton-ir",
+      "value": 82.9,
+      "unit": "%",
+      "page": null,
+      "section": "long‐term_performance_evaluation",
+      "passage_contains": "RTE = 82.9%",
+      "conditions": {"temperature": "550 degC", "current_density": "10 mA/cm^2", "storage_duration": "2.5 h"}
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "questions": [
+    {
+      "id": "vegetation-foraging",
+      "question": "How does vegetation structure affect goat foraging behaviour?",
+      "expected_evidence": [
+        {"publication_id": "chebli-2020-forest", "passage_contains": "Diet selection was not necessarily correlated with the availability"},
+        {"publication_id": "nyamukanza-2020-leaf", "passage_contains": "The switch from broad- to fine-leaved woody species"},
+        {"publication_id": "ventura-2022-experience", "passage_contains": "heterogeneous vegetation of the tropical deciduous forest"}
+      ]
+    },
+    {
+      "id": "season-foraging",
+      "question": "Does season change goat foraging behaviour?",
+      "expected_evidence": [
+        {"publication_id": "nyamukanza-2020-leaf", "passage_contains": "between wet and dry season"},
+        {"publication_id": "chebli-2022-gps", "passage_contains": "During spring, goats spent most of their time on grazing"}
+      ]
+    },
+    {
+      "id": "leaves-grass",
+      "question": "Do goats prefer leaves or grass?",
+      "expected_evidence": [
+        {"publication_id": "neave-2022-posture", "passage_contains": "goats consumed more poplar leaves compared to cut grass"},
+        {"publication_id": "goat-welfare-2026", "passage_contains": "goats are naturally leaf-eating animals and prefer leaves to grass"}
+      ]
+    },
+    {
+      "id": "unsupported-cross-domain",
+      "question": "How does lunar geology affect goat foraging?",
+      "expect_no_evidence": true,
+      "expected_evidence": []
+    }
+  ]
+}

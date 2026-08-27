@@ -1,0 +1,19 @@
+{
+  "review_status": "manually verified against the full-text specification table and boundary footnote",
+  "results": [
+    {
+      "value": 42.5,
+      "lower_bound": 40,
+      "upper_bound": 45,
+      "original_text": "Round trip efficiency 40–45%",
+      "anchor": "Round trip efficiency** 40 - 45%",
+      "conditions": [
+        {"name": "storage_duration", "value": 100, "unit": "hours"}
+      ],
+      "assumptions": [
+        "performance specification for approximately 2030 gigawatt-scale manufacturing",
+        "full charge and full discharge at rated power"
+      ]
+    }
+  ]
+}

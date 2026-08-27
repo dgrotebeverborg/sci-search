@@ -1,0 +1,532 @@
+{
+  "answer_summary": "Sci-Search found 12 relevant evidence passages across 8 of 10 available full texts. 10 selected passages appear empirical. The strongest source-reported patterns are: Diet selection was not necessarily correlated with the availability of each consumed plant species; it depended rather on the instantaneous foraging behavior of goats, which adapted their diet according to their energy intake requirements and plant species palatability. Feeding behavior studies in the heterogeneous vegetation of the tropical deciduous forest have shown that goats can consume up to 51 plant species during the rainy season [8] and up to 33 species during the dry season [9]. These are retrieval-ranked findings, not yet a causal meta-analysis.",
+  "coverage": {
+    "full_texts_analyzed": 10,
+    "publications_available": 10,
+    "publications_with_relevant_evidence": 8,
+    "relevant_passages": 12
+  },
+  "evidence": [
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:dec5bdaec0c668a85d84",
+      "matched_terms": [
+        "goat",
+        "goats",
+        "foraging",
+        "behavior",
+        "feeding",
+        "diet",
+        "selection",
+        "grazing",
+        "plant",
+        "availability",
+        "species",
+        "woody"
+      ],
+      "numerical_mentions": [],
+      "page": null,
+      "passage": "The results emphasize the high goat preference for the woody species for which the level depends on grazing seasons. Despite their low availability, Q. suber contributed largely to the diet of goats across seasons. Diet selection was not necessarily correlated with the availability of each consumed plant species; it depended rather on the instantaneous foraging behavior of goats, which adapted their diet according to their energy intake requirements and plant species palatability. Despite the high variability of climate conditions in the Southern part of the Mediterranean region, this study confirms the high adaptability and plasticity of goats for the North Moroccan forest rangelands. This high dynamism and ability of goats to select woody species independently to the season and the year enables them to benefit from free feeding, thus allow herders to maintain their goats in a production system without feed supplementation costs. Overall, these findings are the first database about seasonal and year-to-year variations of foraging behavior of goats in Southern Mediterranean forest rangeland. These results could be used as the first guide about foraging strategies of grazing goats for future studies, decision-makers, and rangeland managers.",
+      "passage_end": 37556,
+      "passage_start": 36297,
+      "publication_id": "chebli-2020-forest",
+      "publication_title": "Foraging Behavior of Goats Browsing in Southern Mediterranean Forest Rangeland",
+      "result_nature": "measured",
+      "retrieval_score": 157.3264,
+      "section": "5._conclusions",
+      "source_document": "papers/chebli_2020_forest_foraging.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7070397/",
+      "statement": "Diet selection was not necessarily correlated with the availability of each consumed plant species; it depended rather on the instantaneous foraging behavior of goats, which adapted their diet according to their energy intake requirements and plant species palatability.",
+      "study_design": "laboratory_experiment"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:b011f4b7a7b26bfe8064",
+      "matched_terms": [
+        "goats",
+        "foraging",
+        "behavior",
+        "feeding",
+        "diet",
+        "selection",
+        "browsing",
+        "grazing",
+        "vegetation",
+        "plant",
+        "availability",
+        "species"
+      ],
+      "numerical_mentions": [
+        "51 ",
+        "8",
+        "33 ",
+        "9"
+      ],
+      "page": null,
+      "passage": "Dietary selection and intake of a diversified diet generally allow browsing herbivores to cover their nutritional requirements [1], although it may not be the case under specific circumstances, as shown recently for goats browsing the Mediterranean forest [2]. However, several factors modify the selection and intake of plant resources consumed by goats. Under some conditions, the higher the abundance of a given resource in the field, the more likely it is that goats will select and consume that resource [3,4]. The latter agrees with the optimal foraging theory which indicates that a greater presence of any resource in the patch allows a lower expenditure of energy used to search for food, and goats will remain for longer periods of time in that same patch [5]. On the other hand, when there is low biomass availability, goats may extend grazing time (increasing their search for food) to compensate for the low intake rate [6]. Thus, goats\u2019 behavior can be an example of the model for a \u201cpatchy habitat\u201d proposed by Charnov [7]. Feeding behavior studies in the heterogeneous vegetation of the tropical deciduous forest have shown that goats can consume up to 51 plant species during the rainy season [8] and up to 33 species during the dry season [9]. Among these plants, some species have been identified as relevant forages for browsing goats due to their high relative importance value (biomass availability) in the tropical deciduous forest ecosystem [10]. Meanwhile, some plant species seem to be selected, but animals only achieve a low intake. It is unknown whether the observed intake and selection by goats was constrained by their biomass availability or if other factors are involved in modifying selection and intake.",
+      "passage_end": 4897,
+      "passage_start": 3158,
+      "publication_id": "ventura-2022-experience",
+      "publication_title": "Selection of Forage Resources by Juvenile Goats in a Cafeteria Trial: Effect of Browsing Experience, Nutrient and Secondary Compound Content",
+      "result_nature": "measured",
+      "retrieval_score": 153.7152,
+      "section": "1._introduction",
+      "source_document": "papers/ventura_2022_browsing_experience.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9137546/",
+      "statement": "Feeding behavior studies in the heterogeneous vegetation of the tropical deciduous forest have shown that goats can consume up to 51 plant species during the rainy season [8] and up to 33 species during the dry season [9].",
+      "study_design": "observational_study"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:bdc267ed9b20575ec1c9",
+      "matched_terms": [
+        "goats",
+        "foraging",
+        "feeding",
+        "grazing",
+        "forage",
+        "availability"
+      ],
+      "numerical_mentions": [
+        "32",
+        "49",
+        "50",
+        "51"
+      ],
+      "page": null,
+      "passage": "According to our direct observations, due to the low forage availability in the summer and fall, goats spent more time moving between feeding stations to maximize their instantaneous intake rate, in line with the Optimal Foraging Theory (OFT) that explains instantaneous decisions of foraging herbivores with regards to energy and time trade-offs of the grazing process [32,49,50,51]. Indeed, as noted by Charnov [32], the reduced forage availability causes the reduced time spent by animals at each feeding station and, consequently, conducts an increase in traveling duration spent between feeding stations and patches. Utsumi et al. [52] reported that the increasing distance between feeding stations decreased the average intake rate. It also could be assumed that goats make decisions to maximize their instantaneous intake rate during a foraging bout by increasing their biting rate or by mostly selecting plants with a large bite mass. The intake rate variation is related to the seasonal variations in both biting rate and bite mass. Our result shows that the smaller the bite mass, the higher the biting rate, through a possible compensatory mechanism to maintain short term intake rates. It is consistent with previous findings that show that animals must display compensatory mechanisms [14,19]; increasing the biting rate is one of these mechanisms.",
+      "passage_end": 27134,
+      "passage_start": 25773,
+      "publication_id": "chebli-2020-forest",
+      "publication_title": "Foraging Behavior of Goats Browsing in Southern Mediterranean Forest Rangeland",
+      "result_nature": "measured",
+      "retrieval_score": 151.2779,
+      "section": "4.2._foraging_behavior_decisions_of_goats",
+      "source_document": "papers/chebli_2020_forest_foraging.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7070397/",
+      "statement": "According to our direct observations, due to the low forage availability in the summer and fall, goats spent more time moving between feeding stations to maximize their instantaneous intake rate, in line with the Optimal Foraging Theory (OFT) that explains instantaneous decisions of foraging herbivores with regards to energy and time trade-offs of the grazing process [32,49,50,51].",
+      "study_design": "observational_study"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:dab1d471af25b25e5730",
+      "matched_terms": [
+        "goat",
+        "goats",
+        "foraging",
+        "behaviour",
+        "selection",
+        "availability",
+        "species",
+        "leaf",
+        "broad-leaved",
+        "fine-leaved",
+        "woody"
+      ],
+      "numerical_mentions": [],
+      "page": null,
+      "passage": "Our results were in support of the first hypothesis that free-ranging goats select broad-leaved more than fine-leaved woody species during wet (growth) season and fine-leaved more than broad-leaved woody species during dry season. This means that goats switched from broad-leaved Z. mucronata and S. tenuinervis to fine-leaved A. nilotica, A. karroo and D. cinerea between wet and dry season presumably in response to changes in shoot and leaf availability. Broad-leaved woody species were sprouting and had plenty of foliage during wet season but shed their leaves in the dry season, while fine-leaved species retained their leaves well into the dry season (Nyamukanza personal observations). This implies that when both broad- and fine-leaved woody species have plentiful foliage, goats will select broad- over fine-leaved, only switching to fine-leaved when broad-leaved species have lost most of their foliage. The higher selection of broad-leaved than fine-leaved species during wet season was presumably due to their high foliar mass [4]. The switch from broad- to fine-leaved woody species between wet and dry season shows the plasticity of the foraging behaviour of goats in response to changes in foliage availability. Mellado [5] suggested that goat flexibility in browse choice was aimed at achieving feed intake of approximately 3% of body weight of highly digestible diets for most of the year to meet their nutritional requirements. Goats are able to adapt to seasonal changes in browse availability and quality [5,42]. In agreement with our findings, Mellado [5] reported goats as selecting fine-leaved woody species more than broad-leaved species during dry season and broad-leaved over fine-leaved during early wet season. Goats tend to select deciduous woody species that retain leaves well into the dry season [4]. Schroeder et al. [43] reported goats browse selection as influenced by foliage availability.",
+      "passage_end": 20264,
+      "passage_start": 18338,
+      "publication_id": "nyamukanza-2020-leaf",
+      "publication_title": "Effect of leaf type on browse selection by free-ranging goats in a southern African savanna",
+      "result_nature": "measured",
+      "retrieval_score": 145.3934,
+      "section": "discussion",
+      "source_document": "papers/nyamukanza_2020_leaf_selection.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7657486/",
+      "statement": "The switch from broad- to fine-leaved woody species between wet and dry season shows the plasticity of the foraging behaviour of goats in response to changes in foliage availability.",
+      "study_design": "observational_study"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:750f6d58e93ff83fb2c7",
+      "matched_terms": [
+        "goat",
+        "goats",
+        "behavior",
+        "feeding",
+        "browsing",
+        "grazing",
+        "forage",
+        "availability"
+      ],
+      "numerical_mentions": [
+        "48%",
+        "<31%",
+        "0.001"
+      ],
+      "page": null,
+      "passage": "AbstractThe Global Positioning System (GPS) and sensors technologies are increasingly used to study the grazing behavior of animals. This work was conducted to understand the grazing behavior and energy balance of goats browsing in forest rangeland using GPS and sensors technologies. Forage availability was estimated using the quadrat method during three grazing seasons. Simultaneously, eight indigenous goats were selected to explore their feeding behavior, grazing activities, and energy requirements. The experimental goats were fitted with GPS collars and leg sensors to monitor their grazing activities. At the same time, direct observation was used as a method to study their feeding behavior. Forage availability was higher during spring compared to the summer and autumn seasons. Goats recorded the highest biting rate during summer and autumn (about 22 bites/min). The highest intake rate was recorded during spring (5.6 g DM/min). During spring, goats spent most of their time on grazing (48%) in contrast to the summer and autumn (<31%; p < 0.001). They prolonged their lying down time in summer at the expense of standing duration. The time devoted exclusively to grazing (eating) was longer in spring. Walking time in summer and autumn was longer than in spring (p < 0.001). During summer and autumn, the energy balance of goats under grazing conditions was in deficit. Using GPS collars and leg sensors appears to be a useful and easily replicable method to explore and understand the seasonal changes in the grazing areas and activities of goats in a mountainous region. The results could help goat herders and managers to develop feeding and grazing systems while increasing the performance of goats in the Mediterranean forest rangeland.Keywords: GPS collar, sensor, grazing activity, goat, Mediterranean region, forest rangeland",
+      "passage_end": 1862,
+      "passage_start": 13,
+      "publication_id": "chebli-2022-gps",
+      "publication_title": "Using GPS Collars and Sensors to Investigate the Grazing Behavior and Energy Balance of Goats Browsing in a Mediterranean Forest Rangeland",
+      "result_nature": "measured",
+      "retrieval_score": 116.4906,
+      "section": "abstract",
+      "source_document": "papers/chebli_2022_gps_sensors.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8839820/",
+      "statement": "During spring, goats spent most of their time on grazing (48%) in contrast to the summer and autumn (<31%; p < 0.001).",
+      "study_design": "controlled_experiment"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:de065a22f4677999cd6c",
+      "matched_terms": [
+        "goats",
+        "feeding",
+        "grazing",
+        "forage",
+        "availability"
+      ],
+      "numerical_mentions": [
+        "42.3%",
+        "0.0238",
+        "1 ",
+        "3 ",
+        "3",
+        "9",
+        "11 ",
+        "0.0009"
+      ],
+      "page": null,
+      "passage": "ABSTRACTBackground and Aim:Milk yield and composition in goats are heavily influenced by feeding and management practices, especially in arid areas where forage availability varies. Native goats in northern Mexico are well adapted to tough environments, yet there is limited evidence on how different production systems impact their milk quality. This study aimed to compare milk yield, chemical makeup, and the fatty acid (FA) profile, particularly conjugated linoleic acid (CLA), of early-lactation native goats managed under grazing and housed systems.Materials and Methods:Ten clinically healthy native goats in early-lactation were randomly assigned to two treatments: grazing (n = 5) and housed (n = 5). Housed goats received a mixed ration, while grazing goats foraged daily on native rangeland. Milk yield was recorded weekly, and 100 mL composite milk samples were analyzed for fat, protein, lactose, and FA profile using infrared spectrophotometry and gas chromatography. The experimental period included 14 days of adaptation and 42 days of data collection. Data were analyzed using a completely randomized design with repeated-measures in PROC MIXED (SAS v9.4), and Tukey\u2019s test was applied for comparisons (p < 0.05).Results:Housed goats showed significantly higher (p < 0.05) daily milk yield (1.41 vs. 0.81 kg per day) and fat-corrected milk (1.22 vs. 0.83 kg per day). Protein and lactose concentrations were also greater in housed goats. In contrast, grazing goats produced milk with higher fat concentration (+42.3%; p = 0.0238) and a more favorable FA profile, including increased unsaturated FAs such as oleic acid (C18:1 c9), \u03b1-linolenic acid (C18:3 n-3), and cis-9, trans-11 CLA (p = 0.0009). Grazing also decreased medium-chain saturated FAs while increasing long-chain FAs and total monounsaturated FAs.Conclusion:Grazing boosts the nutritional quality of milk from native goats by increasing unsaturated FAs and significantly raising CLA levels, though it comes with a reduction in milk volume. These results underscore the importance of native goats and extensive grazing systems for producing nutrient-rich milk in arid areas, supporting both sustainability and potential markets for functional foods.",
+      "passage_end": 2241,
+      "passage_start": 13,
+      "publication_id": "grazing-housing-2026",
+      "publication_title": "Grazing versus housing in native dairy goats: Impacts on milk yield, composition, and conjugated linoleic acid enrichment under arid conditions",
+      "result_nature": "measured",
+      "retrieval_score": 116.3854,
+      "section": "abstract",
+      "source_document": "papers/grazing_housing_2026_trial.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12914004/",
+      "statement": "In contrast, grazing goats produced milk with higher fat concentration (+42.3%; p = 0.0238) and a more favorable FA profile, including increased unsaturated FAs such as oleic acid (C18:1 c9), \u03b1-linolenic acid (C18:3 n-3), and cis-9, trans-11 CLA (p = 0.0009).",
+      "study_design": "controlled_experiment"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:589d18b429f9e08687af",
+      "matched_terms": [
+        "goats",
+        "feeding",
+        "grazing",
+        "forage",
+        "availability",
+        "species"
+      ],
+      "numerical_mentions": [
+        "48%",
+        "27%",
+        "31%"
+      ],
+      "page": null,
+      "passage": "The grazing activities of goats vary throughout the three studied seasons. Several authors [45,46,47] confirmed this finding. Safari et al. [46] reported that goats in the semi-arid area of Tanzania increased their grazing (eating) time (57\u201368%) and decreased standing time (6.8\u20131.4%) from the rainy to late summer, while their time spent walking was similar (27%). In a similar region of Zimbabwe, goats spent most of the time eating in the wet season (52\u201375%) in contrast to the summer (29\u201350%) [45]. Similarly to the current results, goats spent 48% of their feeding duration on grazing (eating) during the green season in contrast to the summer (27%) and autumn (31%) seasons. This result could be explained by the high abundance of preferred shrubs (Cistus spp. and L. stoechas) and herbaceous plants during the green season. Similarly, Zampaligr\u00e9 and Schlecht [48] reported that the abundance of preferred species by goats increased the reserved time for grazing. Likewise, the seasonal changes in goats\u2019 grazing activities could also be explained by the duration of the grazing day recorded during each season, which was shorter in spring and longer during the summer and autumn seasons in the current study. Thus, it could be suspected that to increase the feeding intake of the goats, the duration of the grazing day was extended to recover lost time that was allocated for walking during the autumn, and for lying and walking in the summer. Similarly, Safari et al. [46] and Rodrigues et al. [47] reported that a longer duration of the grazing day was observed in goats grazing during seasons of low forage availability. In summer, the time dedicated to lying was observed mainly during the middle of the day because goats prefer lying under shady trees when the sun is highest. The current results agreed with the research of Ferreira et al. [49] and Tolu et al. [50] who reported that the small ruminants are more active in the morning and during the afternoon, whereas in the middle of the day they prefer to rest lying down. In the semi-arid area of Tanzania, Safari et al. [46] declared that goats extended the duration of their grazing day in the summer compared to the rainy season to meet their intake requirements.",
+      "passage_end": 25435,
+      "passage_start": 23202,
+      "publication_id": "chebli-2022-gps",
+      "publication_title": "Using GPS Collars and Sensors to Investigate the Grazing Behavior and Energy Balance of Goats Browsing in a Mediterranean Forest Rangeland",
+      "result_nature": "measured",
+      "retrieval_score": 113.3554,
+      "section": "4.2._grazing_activities",
+      "source_document": "papers/chebli_2022_gps_sensors.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8839820/",
+      "statement": "Similarly to the current results, goats spent 48% of their feeding duration on grazing (eating) during the green season in contrast to the summer (27%) and autumn (31%) seasons.",
+      "study_design": "observational_study"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:19f944e586b350093f49",
+      "matched_terms": [
+        "goats",
+        "diet",
+        "selection",
+        "browsing",
+        "plant",
+        "availability",
+        "species",
+        "type"
+      ],
+      "numerical_mentions": [],
+      "page": null,
+      "passage": "The relevance of browsing experience implies that goats with prior exposure to different plant species containing different quantities of macronutrients and secondary compounds can better balance their diet by knowing what type of plant to select. This implies that some resources with low availability are not consumed due to the animals\u2019 selection decision rather than the plant\u2019s availability or its chemical composition. Na\u00efve goats, on the contrary, may have more difficulties in harvesting plants that can result in an optimal balance between plant secondary metabolites and macronutrients.",
+      "passage_end": 37807,
+      "passage_start": 37211,
+      "publication_id": "ventura-2022-experience",
+      "publication_title": "Selection of Forage Resources by Juvenile Goats in a Cafeteria Trial: Effect of Browsing Experience, Nutrient and Secondary Compound Content",
+      "result_nature": "measured",
+      "retrieval_score": 112.0896,
+      "section": "5._conclusions",
+      "source_document": "papers/ventura_2022_browsing_experience.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9137546/",
+      "statement": "The relevance of browsing experience implies that goats with prior exposure to different plant species containing different quantities of macronutrients and secondary compounds can better balance their diet by knowing what type of plant to select.",
+      "study_design": "laboratory_experiment"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:a6a4d915dc412ad77beb",
+      "matched_terms": [
+        "goats",
+        "foraging",
+        "behaviour",
+        "forage",
+        "availability",
+        "species",
+        "leaf",
+        "broad-leaved",
+        "fine-leaved",
+        "woody"
+      ],
+      "numerical_mentions": [
+        "4",
+        "6"
+      ],
+      "page": null,
+      "passage": "Woody species play an important role as browse for goats in semi-arid and arid savanna ecosystems in southern Africa. Semi-arid and arid savanna ecosystems are characterized by distinct wet and dry seasons. The transition from wet to dry season or vice versa is associated with loss and production of new tree leaves, respectively [1]. Therefore, browse is readily available in wet (growth) season and becomes scarce during dry season as woody species shed their leaves [2,3]. Both broad- and fine-leaved woody species mostly sprout during wet season and shed leaves during dry season. However, broad-leaved woody species shed almost all their leaves during dry season [4], while fine-leaved species, especially acacias largely retain green foliage well into the dry season [3]. Goats as opportunistic feeders are expected to exploit the contrasting leaf phenology patterns of broad- and fine-leaved woody species. Mellado [5] reported goats as effectively exploiting forage resources in rangelands through their flexible, broad-scale and opportunistic behaviour. Thus, goats should select broad-leaved species more during wet season to exploit their higher foliar mass than fine-leaved species [4], and then switch to fine-leaved woody species that retain most of their leaves during dry season [6]. This prediction need to be tested because foraging habits of goats are highly variable particularly in response to ecological and seasonal variation in browse availability and quality [7,8].",
+      "passage_end": 3455,
+      "passage_start": 1964,
+      "publication_id": "nyamukanza-2020-leaf",
+      "publication_title": "Effect of leaf type on browse selection by free-ranging goats in a southern African savanna",
+      "result_nature": "measured",
+      "retrieval_score": 111.3706,
+      "section": "introduction",
+      "source_document": "papers/nyamukanza_2020_leaf_selection.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7657486/",
+      "statement": "Thus, goats should select broad-leaved species more during wet season to exploit their higher foliar mass than fine-leaved species [4], and then switch to fine-leaved woody species that retain most of their leaves during dry season [6].",
+      "study_design": "laboratory_experiment"
+    },
+    {
+      "doi": null,
+      "evidence_type": "laboratory_experiment",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:5b4d1c53a3470e5caef5",
+      "matched_terms": [
+        "goats",
+        "foraging",
+        "behavior",
+        "feeding",
+        "plant",
+        "height",
+        "forage",
+        "species"
+      ],
+      "numerical_mentions": [
+        "7"
+      ],
+      "page": null,
+      "passage": "Under natural conditions, goats show great adaptation and flexibility in their feeding behavior. For example, Shi et al. (6) showed that feeding duration in feral goats was influenced by both the time of year (with the lowest level in late summer) and the time of day (crepuscular, with an additional less obvious midday peak). Preference for certain plant species by feral goats was also different across seasons (7). Goats are classified as both browsers and grazers (8), and actively forage at different heights. Goats have also been observed feeding while perched in trees (9). This inclusion of the third dimension (height) when foraging has advantages, as it widens the foraging zone, and eating at eye-level may reduce parasite and predator risks (10, 11) by allowing goats to be more alert and to better monitor the environment. Sanon et al. (12) also reported that goats could browse up to a height of 2.1 m, more than twice the height of their bodies.",
+      "passage_end": 5299,
+      "passage_start": 4338,
+      "publication_id": "neave-2022-posture",
+      "publication_title": "Browse or browsing: Investigating goat preferences for feeding posture, feeding height and feed type",
+      "result_nature": "measured",
+      "retrieval_score": 108.1563,
+      "section": "introduction",
+      "source_document": "papers/neave_2022_posture_height.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9748559/",
+      "statement": "Preference for certain plant species by feral goats was also different across seasons (7).",
+      "study_design": "observational_study"
+    },
+    {
+      "doi": null,
+      "evidence_type": "review",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:f1c91cd5167cfeff47bb",
+      "matched_terms": [
+        "goats",
+        "foraging",
+        "behavior",
+        "feeding",
+        "diet",
+        "browsing",
+        "grazing",
+        "vegetation",
+        "plant",
+        "species"
+      ],
+      "numerical_mentions": [
+        "20",
+        "21"
+      ],
+      "page": null,
+      "passage": "Despite the general idea that tannins are only found in plant species from tropical or arid/semi-arid areas, they are also found in other regions. The Mediterranean vegetation is dominated by evergreen shrubs and sclerophyllous trees adapted to the distinctive climatic regime of summer drought and cool moist winters [18]. Most evergreen oak woodlands (known as montado in Portugal and dehesa in Spain), and shrublands (e.g Cystaceae, Ericaceae) are characterized by high levels of PSMs. Cattle, sheep, and goats are domestic ungulates of significant relevance to Mediterranean animal production, largely based on extensive systems with free-grazing animals using native vegetation. As they choose different plant species and plant parts, common grazing in the same pasture areas is possible, maximizing its use. Although cattle and sheep are seen as grazers, whereas goats behave as intermediate feeders [16], these classifications are not consensual and some authors consider that both sheep and goats should be considered intermediate feeders [19]. These variations in feeding behavior, even for the same species, is not surprising and could be accounted to the high level of genetic diversity among the different breeds of goats [20] and sheep [21] and the vast range of ecosystems they are bred. Whatever the classification, there is a general consensus in considering that goats eat proportionally more browsing material than sheep. Goats usually have the capacity of adapting their ingestive behavior to food items available, and select diet compounds in order to maintain the proportions between nutrients and PSMs relatively constant throughout the year [22]. Although goats prefer vegetable species that present high nutritive values, when available, they may perform well in environments that are inadequate to most ruminants [23]. Under natural conditions, goats are generally active, selective, walk long distances in search for feed and choose a diet based in foraging grass. However, under resource limiting conditions goats will become heavy browsers of trees and shrubs and less discriminating in their grazing habits, due to the reduced supply of available herbage. On the other hand, sheep are less selective and use pasture more effectively when quality plants are available, but in harsh environments their productivity decreases greatly [24]. On Mediterranean woodland and brushland, browse constitutes more than 40% of goats\u2019 diets [22,25], whereas for sheep the amount is considerable lower [25,26]. Goats that are allowed to graze freely in such environments will organize their feeding behavior to select dietary components in such a way that the available protein, neutral-detergent fiber (NDF) and condensed tannins in the total diet remains relatively constant throughout the year [22].",
+      "passage_end": 8795,
+      "passage_start": 5979,
+      "publication_id": "glendinning-2018-tannins",
+      "publication_title": "The Effect of Tannins on Mediterranean Ruminant Ingestive Behavior: The Role of the Oral Cavity",
+      "result_nature": "reported",
+      "retrieval_score": 103.7538,
+      "section": "2._food_selection_and_grazing_ecology",
+      "source_document": "papers/glendinning_2018_tannins.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6260606/",
+      "statement": "These variations in feeding behavior, even for the same species, is not surprising and could be accounted to the high level of genetic diversity among the different breeds of goats [20] and sheep [21] and the vast range of ecosystems they are bred.",
+      "study_design": "review"
+    },
+    {
+      "doi": null,
+      "evidence_type": "review",
+      "extraction_method": "extractive_scientific_evidence_v1",
+      "id": "generic-evidence:c2d5d75cd1aa4ab37b2e",
+      "matched_terms": [
+        "goat",
+        "goats",
+        "capra",
+        "hircus",
+        "behavior",
+        "diet",
+        "selection",
+        "browsing",
+        "vegetation",
+        "structure",
+        "species"
+      ],
+      "numerical_mentions": [],
+      "page": null,
+      "passage": "AbstractPublic interest is stimulating farming industries to improve animal welfare in production systems. Indoor housing of ruminants has received scrutiny because of perceived intensiveness and lack of naturalness. Animal welfare has traditionally focused on health benefits (e.g., bedding management and reducing disease) and reducing negative experiences (e.g., painful husbandry practices). Recent attention to animals having \u201ca life worth living\u201d extends expectations to provide increased care and opportunities for positive experiences and natural behaviors. Although not all natural behaviors necessarily contribute to improved welfare, we present evidence for why many are important, and for how they can be promoted in commercial systems. Worldwide, commercial dairy goats (Capra hircus) are frequently housed in large open barns with space to move and soft bedding for lying; however, this is not sufficient to promote the range of natural behaviors of goats, which in turn suggests that commercial housing could be improved. The basis for this thinking is from the range of behaviors expressed by the Capra genus. Collectively, these species have evolved cognitive and behavioral strategies to cope with harsh and changing environments, as well as variable and limited vegetation. The rocky and often steep terrain that goats inhabit allows for predator avoidance and access to shelter, so it is not surprising that domesticated goats also seek out elevation and hiding spaces; indeed, their hoof structure is designed for the movement and grip in such rugged environments. The browsing techniques and flexibility in diet selection of wild, feral and extensively managed goats, appears to be equally important to housed goats, highlighting the need for more complexity in how and what goats are fed. Goats naturally live in small, dynamic groups, governed by complex social structures in which horns play a strong role. Commercial housing systems should consider the benefits of more natural-sized social groups and revisit the rationale behind horn removal. We suggest that cognitive stimulation is a potential welfare improvement for goats in commercial settings. Goat cognitive abilities, which enabled success in complex and variable social and physical environments, are unchallenged in uniform environments, potentially leading to negative affective states. We make suggestions for housing improvements that could be readily adopted into current systems without compromising production efficiency.Keywords: behavior ecology, browsing, climbing, housing, welfare",
+      "passage_end": 2592,
+      "passage_start": 13,
+      "publication_id": "zobel-2019-natural",
+      "publication_title": "Understanding natural behavior to improve dairy goat management systems",
+      "result_nature": "reported",
+      "retrieval_score": 88.6206,
+      "section": "abstract",
+      "source_document": "papers/zobel_2019_natural_behavior.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7200440/",
+      "statement": "The browsing techniques and flexibility in diet selection of wild, feral and extensively managed goats, appears to be equally important to housed goats, highlighting the need for more complexity in how and what goats are fed.",
+      "study_design": "review"
+    }
+  ],
+  "findings": [
+    {
+      "evidence_ids": [
+        "generic-evidence:dec5bdaec0c668a85d84"
+      ],
+      "id": "generic-finding:1",
+      "qualification": "Extractive finding from a laboratory experiment; inspect the passage before treating it as a cross-study conclusion.",
+      "statement": "Diet selection was not necessarily correlated with the availability of each consumed plant species; it depended rather on the instantaneous foraging behavior of goats, which adapted their diet according to their energy intake requirements and plant species palatability.",
+      "status": "source_reported"
+    },
+    {
+      "evidence_ids": [
+        "generic-evidence:b011f4b7a7b26bfe8064"
+      ],
+      "id": "generic-finding:2",
+      "qualification": "Extractive finding from a observational study; inspect the passage before treating it as a cross-study conclusion.",
+      "statement": "Feeding behavior studies in the heterogeneous vegetation of the tropical deciduous forest have shown that goats can consume up to 51 plant species during the rainy season [8] and up to 33 species during the dry season [9].",
+      "status": "source_reported"
+    },
+    {
+      "evidence_ids": [
+        "generic-evidence:dab1d471af25b25e5730"
+      ],
+      "id": "generic-finding:3",
+      "qualification": "Extractive finding from a observational study; inspect the passage before treating it as a cross-study conclusion.",
+      "statement": "The switch from broad- to fine-leaved woody species between wet and dry season shows the plasticity of the foraging behaviour of goats in response to changes in foliage availability.",
+      "status": "source_reported"
+    },
+    {
+      "evidence_ids": [
+        "generic-evidence:750f6d58e93ff83fb2c7"
+      ],
+      "id": "generic-finding:4",
+      "qualification": "Extractive finding from a controlled experiment; inspect the passage before treating it as a cross-study conclusion.",
+      "statement": "During spring, goats spent most of their time on grazing (48%) in contrast to the summer and autumn (<31%; p < 0.001).",
+      "status": "source_reported"
+    },
+    {
+      "evidence_ids": [
+        "generic-evidence:de065a22f4677999cd6c"
+      ],
+      "id": "generic-finding:5",
+      "qualification": "Extractive finding from a controlled experiment; inspect the passage before treating it as a cross-study conclusion.",
+      "statement": "In contrast, grazing goats produced milk with higher fat concentration (+42.3%; p = 0.0238) and a more favorable FA profile, including increased unsaturated FAs such as oleic acid (C18:1 c9), \u03b1-linolenic acid (C18:3 n-3), and cis-9, trans-11 CLA (p = 0.0009).",
+      "status": "source_reported"
+    }
+  ],
+  "follow_up_questions": [
+    "Show only empirical evidence about goat and foraging behaviour.",
+    "Compare the study methods used to investigate goat and foraging behaviour.",
+    "What limitations and uncertainties are reported for goat and foraging behaviour?",
+    "Which conditions could explain differences in findings about goat and foraging behaviour?"
+  ],
+  "limitations": [
+    "Generic-mode findings are extractive and retrieval-ranked; they are not an LLM-generated literature synthesis or meta-analysis.",
+    "Absence from this local corpus is not evidence that a finding is absent from the wider literature."
+  ],
+  "mode": "generic_evidence",
+  "plan": {
+    "comparison_dimensions": [
+      "species",
+      "breed",
+      "habitat",
+      "season",
+      "sex",
+      "age",
+      "stocking density",
+      "observation method"
+    ],
+    "concepts": [
+      "goat",
+      "foraging behaviour",
+      "vegetation structure"
+    ],
+    "evidence_preferences": [],
+    "expanded_terms": [
+      "goat",
+      "goats",
+      "capra hircus",
+      "caprine",
+      "foraging behaviour",
+      "foraging behavior",
+      "feeding behaviour",
+      "feeding behavior",
+      "diet selection",
+      "browsing behaviour",
+      "browsing behavior",
+      "grazing behaviour",
+      "grazing behavior",
+      "browsing",
+      "grazing",
+      "vegetation structure",
+      "sward structure",
+      "plant structure",
+      "vegetation height",
+      "canopy structure",
+      "vegetation strata",
+      "forage availability",
+      "plant species",
+      "plant communities",
+      "leaf type",
+      "broad-leaved",
+      "fine-leaved",
+      "woody species"
+    ],
+    "intent": "relationship",
+    "profile_id": "ecology",
+    "question": "How does vegetation structure affect goat foraging behaviour?"
+  },
+  "question": "How does vegetation structure affect goat foraging behaviour?",
+  "session_id": "session:f73d8fd1a6bf39d1",
+  "summary_evidence_ids": [
+    "generic-evidence:dec5bdaec0c668a85d84",
+    "generic-evidence:b011f4b7a7b26bfe8064"
+  ]
+}

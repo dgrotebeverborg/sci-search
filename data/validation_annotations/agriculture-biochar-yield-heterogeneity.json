@@ -1,0 +1,44 @@
+{
+  "schema_version": "sci_search_researcher_annotation_v1",
+  "case_id": "agriculture-biochar-yield-heterogeneity",
+  "status": "pending",
+  "reviewer": null,
+  "notes": "",
+  "publication_labels": {
+    "doi:10.1088/1748-9326/8/4/044049": {
+      "label": "relevant",
+      "reason": "Global meta-regression analyzes heterogeneous crop-yield response.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1007/s42773-022-00138-1": {
+      "label": "relevant",
+      "reason": "Meta-analysis evaluates moderators.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1038/s41598-023-37820-8": {
+      "label": "relevant",
+      "reason": "Reports how biochar, soil, climate, and application alter response.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.7717/peerj.10967": {
+      "label": "background",
+      "reason": "Meta-analysis is narrowed to plastic-film mulch with biochar.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.3389/fpls.2026.1803269": {
+      "label": "irrelevant",
+      "reason": "Concerns seaweed-extract biostimulants rather than biochar.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    }
+  },
+  "evidence_labels": {},
+  "assertion_labels": {},
+  "conclusion_labels": {},
+  "created_at": "2026-08-20T08:10:38.763571+00:00",
+  "updated_at": "2026-08-20T08:10:38.763573+00:00"
+}

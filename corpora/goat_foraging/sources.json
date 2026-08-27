@@ -1,0 +1,16 @@
+{
+  "corpus_id": "goat_foraging_v1",
+  "scope": "Open-access full texts about goat foraging, feeding behaviour, vegetation and grazing conditions",
+  "sources": [
+    {"id":"chebli_2020_forest_foraging","filename":"chebli_2020_forest_foraging.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7070397/fullTextXML","format":"xml","sha256":null},
+    {"id":"neave_2022_posture_height","filename":"neave_2022_posture_height.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9748559/fullTextXML","format":"xml","sha256":null},
+    {"id":"nyamukanza_2020_leaf_selection","filename":"nyamukanza_2020_leaf_selection.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7657486/fullTextXML","format":"xml","sha256":null},
+    {"id":"chebli_2022_gps_sensors","filename":"chebli_2022_gps_sensors.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8839820/fullTextXML","format":"xml","sha256":null},
+    {"id":"zobel_2019_natural_behavior","filename":"zobel_2019_natural_behavior.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7200440/fullTextXML","format":"xml","sha256":null},
+    {"id":"glendinning_2018_tannins","filename":"glendinning_2018_tannins.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6260606/fullTextXML","format":"xml","sha256":null},
+    {"id":"ventura_2022_browsing_experience","filename":"ventura_2022_browsing_experience.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9137546/fullTextXML","format":"xml","sha256":null},
+    {"id":"provenza_2020_dietary_diversity","filename":"provenza_2020_dietary_diversity.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7179672/fullTextXML","format":"xml","sha256":null},
+    {"id":"goat_welfare_2026_review","filename":"goat_welfare_2026_review.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12985317/fullTextXML","format":"xml","sha256":null},
+    {"id":"grazing_housing_2026_trial","filename":"grazing_housing_2026_trial.xml","url":"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12914004/fullTextXML","format":"xml","sha256":null}
+  ]
+}

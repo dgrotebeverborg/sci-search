@@ -1,0 +1,87 @@
+{
+  "schema_version": "sci_search_researcher_benchmark_v1",
+  "name": "Sci-Search locked researcher-question benchmark",
+  "lock_version": 1,
+  "locked_at": "2026-08-19",
+  "purpose": "Evaluate the complete discovery-to-cited-review workflow without tuning the system to one scientific domain.",
+  "governance": {
+    "question_text_is_immutable_within_lock_version": true,
+    "implementation_must_not_contain_case_specific_answers": true,
+    "source_appraisal_status": "silver_pending_researcher_validation",
+    "promotion_rule": "A case becomes gold only after a researcher records relevant and irrelevant publications plus key supported conclusions."
+  },
+  "cases": [
+    {
+      "id": "energy-iron-air-rte-comparability", "tier": "core", "domain": "energy", "question": "What round-trip efficiencies have been reported for iron-air batteries, and are these values comparable?", "expected_intent": "comparison", "required_concepts": ["round-trip efficiency", "iron-air battery"], "answer_policy": "answer_if_multiple_contextual_results", "must_distinguish": ["measured versus modeled", "cell versus system scale", "operating conditions", "calculation boundary"]
+    },
+    {
+      "id": "energy-iron-air-lcos-assumptions", "tier": "core", "domain": "energy", "question": "Which technical assumptions most strongly influence projected LCOS for iron-air battery storage?", "expected_intent": "assumption", "required_concepts": ["iron-air battery", "cost"], "answer_policy": "answer_if_sensitivity_evidence", "must_distinguish": ["assumed versus measured input", "current versus future performance", "model boundary"]
+    },
+    {
+      "id": "energy-iron-air-degradation", "tier": "core", "domain": "energy", "question": "Which degradation mechanisms in rechargeable iron-air batteries are supported by experimental evidence?", "expected_intent": "limitation", "required_concepts": ["iron-air battery", "degradation"], "answer_policy": "answer_if_empirical_evidence", "must_distinguish": ["experiment versus review assertion", "mechanism versus observed capacity loss"]
+    },
+    {
+      "id": "climate-greenland-observed", "tier": "core", "domain": "climate", "question": "How has precipitation over the Greenland Ice Sheet changed since 2000?", "expected_intent": "temporal_trend", "required_concepts": ["precipitation", "greenland ice sheet"], "answer_policy": "answer_if_observed_time_series", "must_distinguish": ["observed versus projected", "whole ice sheet versus region", "rain versus snow"]
+    },
+    {
+      "id": "climate-greenland-projected", "tier": "core", "domain": "climate", "question": "How is precipitation over the Greenland Ice Sheet projected to change during the 21st century?", "expected_intent": "temporal_trend", "required_concepts": ["precipitation", "greenland ice sheet"], "answer_policy": "answer_if_projection_evidence", "must_distinguish": ["observed versus projected", "scenario", "whole ice sheet versus region", "rain versus snow"]
+    },
+    {
+      "id": "climate-enso-europe", "tier": "core", "domain": "climate", "question": "What influence does El Niño have on European winter temperature and precipitation?", "expected_intent": "relationship", "required_concepts": ["el niño", "european winter temperature", "precipitation"], "answer_policy": "answer_if_directly_scoped_evidence", "must_distinguish": ["association versus causation", "temperature versus precipitation", "European region", "season"]
+    },
+    {
+      "id": "climate-europe-wildfire-trend", "tier": "core", "domain": "climate", "question": "How have the frequency and burned area of wildfires in Europe changed since 2000?", "expected_intent": "temporal_trend", "required_concepts": ["frequency", "wildfires", "europe"], "answer_policy": "answer_if_both_outcomes_covered", "must_distinguish": ["fire frequency versus burned area", "Europe versus subregion", "dataset and observation period"]
+    },
+    {
+      "id": "ecology-goat-vegetation", "tier": "core", "domain": "ecology", "question": "How does vegetation availability influence the foraging behaviour of domestic goats?", "expected_intent": "relationship", "required_concepts": ["goat", "foraging behaviour", "vegetation availability"], "answer_policy": "answer_if_empirical_evidence", "must_distinguish": ["availability versus preference", "season", "habitat", "measurement method"]
+    },
+    {
+      "id": "ecology-goat-diet-methods", "tier": "core", "domain": "ecology", "question": "What methods are used to measure diet selection in free-ranging goats, and how do their limitations differ?", "expected_intent": "method", "required_concepts": ["goat", "foraging behaviour"], "answer_policy": "answer_if_methods_compared", "must_distinguish": ["method", "measurement target", "spatial and temporal resolution", "method limitation"]
+    },
+    {
+      "id": "agriculture-rotational-grazing-carbon", "tier": "core", "domain": "agriculture", "question": "How does rotational grazing affect soil organic carbon compared with continuous grazing?", "expected_intent": "comparison", "required_concepts": ["rotational grazing", "soil organic carbon", "continuous grazing"], "answer_policy": "answer_if_comparable_field_evidence", "must_distinguish": ["baseline", "soil depth", "study duration", "climate and soil type"]
+    },
+    {
+      "id": "ecology-diversity-productivity", "tier": "core", "domain": "ecology", "question": "Does greater plant species diversity consistently increase ecosystem productivity?", "expected_intent": "relationship", "required_concepts": ["plant species diversity", "ecosystem productivity"], "answer_policy": "qualified_answer", "must_distinguish": ["experimental versus observational", "ecosystem type", "diversity metric", "productivity metric"]
+    },
+    {
+      "id": "solar-tandem-comparison", "tier": "core", "domain": "materials_energy", "question": "How do perovskite–silicon tandem solar cells compare with single-junction silicon cells in efficiency and stability?", "expected_intent": "comparison", "required_concepts": ["perovskite silicon tandem solar cells", "single-junction silicon cells", "efficiency", "stability"], "answer_policy": "answer_if_both_outcomes_covered", "must_distinguish": ["certified versus reported efficiency", "device area", "accelerated versus field stability"]
+    },
+    {
+      "id": "battery-temperature-cycle-life", "tier": "core", "domain": "energy", "question": "How does operating temperature affect the cycle life of lithium-ion batteries?", "expected_intent": "relationship", "required_concepts": ["temperature", "cycle life", "lithium-ion batteries"], "answer_policy": "qualified_answer", "must_distinguish": ["chemistry", "temperature", "charge and discharge rate", "cycle-life definition"]
+    },
+    {
+      "id": "materials-silicon-anode-loss", "tier": "core", "domain": "materials", "question": "Which mechanisms cause capacity loss in silicon anodes during cycling?", "expected_intent": "limitation", "required_concepts": ["capacity loss", "silicon anodes", "cycling"], "answer_policy": "answer_if_mechanistically_supported", "must_distinguish": ["proposed versus experimentally observed mechanism", "electrode formulation", "cycling condition"]
+    },
+    {
+      "id": "health-pm-cognition", "tier": "core", "domain": "public_health", "question": "What evidence links long-term exposure to fine particulate matter with cognitive decline?", "expected_intent": "relationship", "required_concepts": ["long-term exposure", "fine particulate matter", "cognitive decline"], "answer_policy": "qualified_answer", "must_distinguish": ["association versus causation", "exposure measure", "outcome measure", "confounding"]
+    },
+    {
+      "id": "health-wearable-af", "tier": "core", "domain": "medicine", "question": "How accurately do wearable devices detect atrial fibrillation compared with clinical ECG measurements?", "expected_intent": "comparison", "required_concepts": ["wearable devices", "atrial fibrillation", "clinical ecg measurements"], "answer_policy": "answer_if_diagnostic_metrics", "must_distinguish": ["sensitivity versus specificity", "device type", "reference standard", "study population"]
+    },
+    {
+      "id": "energy-iron-air-cost-evidence-origin", "tier": "hard", "domain": "energy", "question": "Which published iron-air battery cost estimates rely on measured performance, and which rely primarily on assumed future performance?", "expected_intent": "method", "required_concepts": ["iron-air battery", "cost"], "answer_policy": "answer_if_assumption_provenance", "must_distinguish": ["measured versus assumed", "original source versus repeated citation", "current versus future"]
+    },
+    {
+      "id": "agriculture-biochar-yield-heterogeneity", "tier": "hard", "domain": "agriculture", "question": "Why do studies report different effects of biochar application on crop yield?", "expected_intent": "comparison", "required_concepts": ["biochar application", "crop yield"], "answer_policy": "qualified_explanation", "must_distinguish": ["effect heterogeneity versus contradiction", "crop", "soil", "biochar properties", "application rate"]
+    },
+    {
+      "id": "ecology-insect-decline-consistency", "tier": "hard", "domain": "ecology", "question": "Are reported declines in European insect abundance consistent across habitats and measurement methods?", "expected_intent": "comparison", "required_concepts": ["european insect abundance", "habitats"], "answer_policy": "qualified_answer", "must_distinguish": ["abundance versus biomass versus diversity", "habitat", "sampling method", "time span"]
+    },
+    {
+      "id": "environment-plastic-degradation", "tier": "hard", "domain": "environment", "question": "How do laboratory and field estimates of plastic degradation rates differ?", "expected_intent": "comparison", "required_concepts": ["plastic degradation rates"], "answer_policy": "qualified_answer", "must_distinguish": ["laboratory versus field", "polymer", "environmental conditions", "degradation definition"]
+    },
+    {
+      "id": "boundary-wild-goat-population", "tier": "boundary", "domain": "ecology", "question": "What is the exact global population of wild goats in 2025?", "expected_intent": "evidence_search", "required_concepts": ["goat", "population", "wild"], "answer_policy": "withhold_without_global_census", "must_distinguish": ["wild versus domestic", "estimate versus exact census", "species", "year"]
+    },
+    {
+      "id": "boundary-microplastic-autism", "tier": "boundary", "domain": "health", "question": "Does microplastic exposure cause autism?", "expected_intent": "relationship", "required_concepts": ["microplastic exposure", "autism"], "answer_policy": "reject_unsupported_causal_inference", "must_distinguish": ["causation versus association", "human versus animal evidence", "direct versus indirect outcome"]
+    },
+    {
+      "id": "boundary-universal-best-battery", "tier": "boundary", "domain": "energy", "question": "What is the best battery technology for every electricity grid?", "expected_intent": "comparison", "required_concepts": ["battery technology", "every electricity grid"], "answer_policy": "reject_universal_ranking", "must_distinguish": ["application", "duration", "grid requirements", "technology maturity"]
+    },
+    {
+      "id": "boundary-europe-precipitation", "tier": "boundary", "domain": "climate", "question": "Has European precipitation increased during the 21st century?", "expected_intent": "temporal_trend", "required_concepts": ["precipitation", "european"], "answer_policy": "withhold_single_continent_wide_direction_without_regional_coverage", "must_distinguish": ["region", "season", "precipitation metric", "observation period"]
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "schema_version": "sci_search_validation_benchmark_v1",
+  "name": "Sci-Search ten-question scientific validation benchmark",
+  "version": 1,
+  "created_at": "2026-08-20",
+  "validation_status": "silver_seed_pending_researcher_validation",
+  "purpose": "Measure the complete question-to-cited-review pipeline across domains and failure modes.",
+  "governance": {
+    "system_predictions_are_not_gold": true,
+    "silver_labels_require_researcher_confirmation": true,
+    "run_artifacts_are_immutable": true,
+    "promotion_rule": "A case is gold-eligible only after a researcher completes it and no hard release gate fails."
+  },
+  "thresholds": {
+    "relevant_paper_recall": 0.85,
+    "fulltext_screening_precision": 0.90,
+    "fulltext_screening_recall": 0.85,
+    "evidence_result_correctness": 0.90,
+    "numerical_value_correctness": 0.95,
+    "unit_correctness": 0.98,
+    "provenance_correctness": 1.0,
+    "context_association_correctness": 0.90,
+    "important_conclusion_coverage": 0.80,
+    "unsupported_answer_assertions": 0,
+    "hallucinated_values": 0,
+    "missing_important_conclusions": 0
+  },
+  "minimum_samples": {
+    "relevant_paper_recall": 3, "fulltext_screening_precision": 3, "fulltext_screening_recall": 3,
+    "evidence_result_correctness": 3, "numerical_value_correctness": 3, "unit_correctness": 3,
+    "provenance_correctness": 3, "context_association_correctness": 3,
+    "important_conclusion_coverage": 3, "unsupported_answer_assertions": 1,
+    "hallucinated_values": 1, "missing_important_conclusions": 1
+  },
+  "cases": [
+    {
+      "id": "energy-iron-air-rte-comparability", "domain": "energy", "baseline_run_id": "20260819T083214Z-aff68a95",
+      "question": "What round-trip efficiencies have been reported for iron-air batteries, and are these values comparable?",
+      "required_answer_components": ["reported efficiency values", "measured versus modeled", "cell versus system scale", "operating conditions", "calculation boundary", "comparability judgement"],
+      "silver_publications": [
+        {"doi": "10.1149/05045.0115ecst", "relevance": "direct", "reason": "Reports utilization-dependent round-trip efficiency for a solid-oxide iron-air cell."},
+        {"doi": "10.1039/d2ee01626e", "relevance": "direct", "reason": "Reports laboratory duration, operating conditions, and efficiency."},
+        {"doi": "10.1149/2.048310jes", "relevance": "direct", "reason": "Reports cyclic efficiency for a solid-oxide Fe-air redox battery."},
+        {"doi": "10.1002/advs.202203768", "relevance": "direct", "reason": "Reports efficiency with temperature, utilization, and C-rate context."},
+        {"doi": "10.1016/j.jpowsour.2016.01.090", "relevance": "contextual", "reason": "System-efficiency modeling must remain separate from measured cell values."},
+        {"doi": "10.1149/2.0451809jes", "relevance": "distractor", "reason": "All-iron redox-flow battery is a different technology and metric."}
+      ]
+    },
+    {
+      "id": "climate-greenland-observed", "domain": "climate", "baseline_run_id": "20260819T084215Z-5258d7a1",
+      "question": "How has precipitation over the Greenland Ice Sheet changed since 2000?",
+      "required_answer_components": ["observed period since 2000", "whole ice sheet versus region", "snowfall versus rainfall", "trend direction", "observations versus models"],
+      "silver_publications": [
+        {"doi": "10.5194/tc-13-2797-2019", "relevance": "direct", "reason": "Observed and modeled recent precipitation decrease in the western percolation zone."},
+        {"doi": "10.5194/tc-14-4379-2020", "relevance": "direct", "reason": "Satellite observations characterize present-day snowfall regimes."},
+        {"doi": "10.5194/tc-11-1015-2017", "relevance": "direct", "reason": "Reconstructs surface mass balance, including snowfall, through 2015."},
+        {"doi": "10.5194/tc-14-2253-2020", "relevance": "contextual", "reason": "Present-day observations and future simulations must be separated."},
+        {"doi": "10.5194/tc-2019-129", "relevance": "distractor", "reason": "Holocene precipitation does not answer change since 2000."}
+      ]
+    },
+    {
+      "id": "climate-europe-wildfire-trend", "domain": "climate", "baseline_run_id": "20260819T084929Z-2ee280a2",
+      "question": "How have the frequency and burned area of wildfires in Europe changed since 2000?",
+      "required_answer_components": ["fire frequency", "burned area", "European geographic coverage", "period since 2000", "dataset and method", "regional heterogeneity"],
+      "silver_publications": []
+    },
+    {
+      "id": "climate-enso-europe", "domain": "climate", "baseline_run_id": "20260819T084550Z-b7e33900",
+      "question": "What influence does El Niño have on European winter temperature and precipitation?",
+      "required_answer_components": ["European winter", "temperature effect", "precipitation effect", "regional heterogeneity", "association versus causation", "study method"],
+      "silver_publications": []
+    },
+    {
+      "id": "ecology-goat-vegetation", "domain": "ecology", "baseline_run_id": "20260819T085217Z-369b4bc7",
+      "question": "How does vegetation availability influence the foraging behaviour of domestic goats?",
+      "required_answer_components": ["availability versus preference", "season", "habitat", "foraging response", "measurement method"],
+      "silver_publications": [
+        {"doi": "10.3390/ruminants2010004", "relevance": "direct", "reason": "Studies forage availability, quality, and goat feeding behavior."},
+        {"doi": "10.3390/ani10020196", "relevance": "direct", "reason": "Links seasonal plant availability and intake behavior."},
+        {"doi": "10.1017/s1751731108003224", "relevance": "direct", "reason": "Compares grazing behavior under changing pasture availability."},
+        {"doi": "10.1186/s40462-025-00557-2", "relevance": "direct", "reason": "Relates vegetation dynamics to seasonal goat foraging transitions."},
+        {"doi": "10.1371/journal.pone.0206310", "relevance": "distractor", "reason": "Snow-leopard diet selection is not domestic-goat foraging."}
+      ]
+    },
+    {
+      "id": "health-wearable-af", "domain": "medicine", "baseline_run_id": "20260819T103941Z-b2d22cf4",
+      "question": "How accurately do wearable devices detect atrial fibrillation compared with clinical ECG measurements?",
+      "required_answer_components": ["sensitivity", "specificity", "device type", "clinical ECG reference standard", "study population", "confidence intervals or sample size"],
+      "silver_publications": [
+        {"doi": "10.1016/j.jacep.2022.09.011", "relevance": "direct", "reason": "Clinical validation of consumer wearables against reference rhythm assessment."},
+        {"doi": "10.2196/65139", "relevance": "direct", "reason": "Comparative validation study for AF detection."},
+        {"doi": "10.3390/diagnostics15243162", "relevance": "direct", "reason": "Systematic review of diagnostic accuracy."},
+        {"doi": "10.1159/000550005", "relevance": "distractor", "reason": "Cost-effectiveness does not provide the requested diagnostic comparison."}
+      ]
+    },
+    {
+      "id": "agriculture-biochar-yield-heterogeneity", "domain": "agriculture", "baseline_run_id": "20260819T105205Z-2beca808",
+      "question": "Why do studies report different effects of biochar application on crop yield?",
+      "required_answer_components": ["soil properties", "crop", "biochar feedstock and production", "application rate and method", "climate", "duration", "heterogeneity rather than contradiction"],
+      "silver_publications": [
+        {"doi": "10.1088/1748-9326/8/4/044049", "relevance": "direct", "reason": "Global meta-regression analyzes heterogeneous crop-yield response."},
+        {"doi": "10.1007/s42773-022-00138-1", "relevance": "direct", "reason": "Meta-analysis evaluates moderators."},
+        {"doi": "10.1038/s41598-023-37820-8", "relevance": "direct", "reason": "Reports how biochar, soil, climate, and application alter response."},
+        {"doi": "10.7717/peerj.10967", "relevance": "contextual", "reason": "Meta-analysis is narrowed to plastic-film mulch with biochar."},
+        {"doi": "10.3389/fpls.2026.1803269", "relevance": "distractor", "reason": "Concerns seaweed-extract biostimulants rather than biochar."}
+      ]
+    },
+    {
+      "id": "energy-iron-air-lcos-assumptions", "domain": "energy", "baseline_run_id": "20260819T083700Z-7763d370",
+      "question": "Which technical assumptions most strongly influence projected LCOS for iron-air battery storage?",
+      "required_answer_components": ["LCOS result", "sensitivity or influence", "assumed versus measured input", "current versus future performance", "model boundary", "uncertainty"],
+      "silver_publications": []
+    },
+    {
+      "id": "energy-iron-air-degradation", "domain": "energy", "baseline_run_id": "20260819T083856Z-a52aee6a",
+      "question": "Which degradation mechanisms in rechargeable iron-air batteries are supported by experimental evidence?",
+      "required_answer_components": ["named degradation mechanism", "experimental observation", "battery configuration", "operating conditions", "mechanism versus capacity loss", "independent replication"],
+      "silver_publications": []
+    },
+    {
+      "id": "boundary-wild-goat-population", "domain": "boundary", "baseline_run_id": "20260819T091726Z-370bb427",
+      "question": "What is the exact global population of wild goats in 2025?",
+      "required_answer_components": ["withhold exact global answer", "wild versus domestic", "species scope", "estimate versus census", "2025 coverage"],
+      "silver_publications": []
+    }
+  ]
+}

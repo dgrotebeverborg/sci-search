@@ -1,0 +1,38 @@
+{
+  "schema_version": "sci_search_researcher_annotation_v1",
+  "case_id": "health-wearable-af",
+  "status": "pending",
+  "reviewer": null,
+  "notes": "",
+  "publication_labels": {
+    "doi:10.1016/j.jacep.2022.09.011": {
+      "label": "relevant",
+      "reason": "Clinical validation of consumer wearables against reference rhythm assessment.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.2196/65139": {
+      "label": "relevant",
+      "reason": "Comparative validation study for AF detection.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.3390/diagnostics15243162": {
+      "label": "relevant",
+      "reason": "Systematic review of diagnostic accuracy.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1159/000550005": {
+      "label": "irrelevant",
+      "reason": "Cost-effectiveness does not provide the requested diagnostic comparison.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    }
+  },
+  "evidence_labels": {},
+  "assertion_labels": {},
+  "conclusion_labels": {},
+  "created_at": "2026-08-20T08:10:38.763513+00:00",
+  "updated_at": "2026-08-20T08:10:38.763515+00:00"
+}

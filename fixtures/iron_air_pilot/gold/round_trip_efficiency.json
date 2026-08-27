@@ -1,0 +1,45 @@
+{
+  "annotation_status": "synthetic_gold",
+  "results": [
+    {
+      "publication_id": "synthetic-exp-a",
+      "metric": "round_trip_efficiency",
+      "value": "62",
+      "unit": "%",
+      "page": 3,
+      "section": "results",
+      "passage_contains": "measured round-trip efficiency was 62 %",
+      "conditions": {
+        "temperature": "25 degC",
+        "current_density": "20 mA/cm^2",
+        "storage_duration": "10 h"
+      }
+    },
+    {
+      "publication_id": "synthetic-exp-b",
+      "metric": "round_trip_efficiency",
+      "value": "64.00",
+      "unit": "%",
+      "page": 5,
+      "section": "results",
+      "passage_contains": "measured RTE was 0.64 fraction",
+      "conditions": {
+        "temperature": "25 degC",
+        "current_density": "20 mA/cm^2",
+        "storage_duration": "10 h"
+      }
+    },
+    {
+      "publication_id": "synthetic-model-c",
+      "metric": "round_trip_efficiency",
+      "value": "70",
+      "unit": "%",
+      "page": 8,
+      "section": "model_assumptions",
+      "passage_contains": "assumed round-trip efficiency of 70 percent",
+      "conditions": {
+        "storage_duration": "100 h"
+      }
+    }
+  ]
+}

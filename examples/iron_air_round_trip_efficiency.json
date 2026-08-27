@@ -1,0 +1,724 @@
+{
+  "answer_summary": "Sci-Search analyzed 10 full texts and found 4 reviewed contextual round-trip-efficiency results spanning 40% to 82.9%. The measured laboratory results span 61.9% to 82.9%. The corpus also contains assumed rather than measured performance (40%, 40\u201345%). There are 0 comparable result pairs and 6 pairs with materially different evidence context. The available evidence therefore does not justify treating every reported value as one universal technology performance figure.",
+  "comparisons": [
+    {
+      "differences": [
+        {
+          "field": "evidence_type",
+          "left": "system_model",
+          "reason": "context values differ",
+          "right": "manufacturer_claim"
+        },
+        {
+          "field": "configuration",
+          "left": "stand-alone iron-air grid storage resource",
+          "reason": "context values differ",
+          "right": "modular iron-air grid storage system"
+        },
+        {
+          "field": "system_scale",
+          "left": "25 MW modeled resource",
+          "reason": "context values differ",
+          "right": "approximately 100 MW utility installation"
+        },
+        {
+          "field": "calculation_boundary",
+          "left": "system round-trip efficiency assumption",
+          "reason": "context values differ",
+          "right": "system AC-to-AC including power conversion and auxiliary loads"
+        }
+      ],
+      "left_result_id": "result:50338817ca4ec6599966",
+      "missing_context": [
+        "current_density",
+        "temperature"
+      ],
+      "right_result_id": "result:a94b5441f275aba2eef7",
+      "status": "different_context"
+    },
+    {
+      "differences": [
+        {
+          "field": "technology",
+          "left": "aqueous iron-air multi-day storage",
+          "reason": "context values differ",
+          "right": "solid oxide iron-air battery"
+        },
+        {
+          "field": "evidence_type",
+          "left": "system_model",
+          "reason": "context values differ",
+          "right": "laboratory_experiment"
+        },
+        {
+          "field": "result_nature",
+          "left": "assumed",
+          "reason": "context values differ",
+          "right": "measured"
+        },
+        {
+          "field": "configuration",
+          "left": "stand-alone iron-air grid storage resource",
+          "reason": "context values differ",
+          "right": "reversible solid oxide cell with separate iron-based energy storage unit"
+        },
+        {
+          "field": "system_scale",
+          "left": "25 MW modeled resource",
+          "reason": "context values differ",
+          "right": "laboratory cell"
+        },
+        {
+          "field": "calculation_boundary",
+          "left": "system round-trip efficiency assumption",
+          "reason": "context values differ",
+          "right": "cell DC energy discharge divided by charge"
+        }
+      ],
+      "left_result_id": "result:50338817ca4ec6599966",
+      "missing_context": [
+        "current_density",
+        "temperature"
+      ],
+      "right_result_id": "result:5bdb4a5ed6f14ccf11bc",
+      "status": "different_context"
+    },
+    {
+      "differences": [
+        {
+          "field": "technology",
+          "left": "aqueous iron-air multi-day storage",
+          "reason": "context values differ",
+          "right": "solid oxide iron-air battery"
+        },
+        {
+          "field": "evidence_type",
+          "left": "system_model",
+          "reason": "context values differ",
+          "right": "laboratory_experiment"
+        },
+        {
+          "field": "result_nature",
+          "left": "assumed",
+          "reason": "context values differ",
+          "right": "measured"
+        },
+        {
+          "field": "configuration",
+          "left": "stand-alone iron-air grid storage resource",
+          "reason": "context values differ",
+          "right": "reversible solid oxide cell with separate iron-based energy storage unit"
+        },
+        {
+          "field": "system_scale",
+          "left": "25 MW modeled resource",
+          "reason": "context values differ",
+          "right": "laboratory cell"
+        },
+        {
+          "field": "calculation_boundary",
+          "left": "system round-trip efficiency assumption",
+          "reason": "context values differ",
+          "right": "cell DC energy discharge divided by charge"
+        }
+      ],
+      "left_result_id": "result:50338817ca4ec6599966",
+      "missing_context": [
+        "current_density",
+        "temperature"
+      ],
+      "right_result_id": "result:6c079a9fa0750bfd97ed",
+      "status": "different_context"
+    },
+    {
+      "differences": [
+        {
+          "field": "technology",
+          "left": "aqueous iron-air multi-day storage",
+          "reason": "context values differ",
+          "right": "solid oxide iron-air battery"
+        },
+        {
+          "field": "evidence_type",
+          "left": "manufacturer_claim",
+          "reason": "context values differ",
+          "right": "laboratory_experiment"
+        },
+        {
+          "field": "result_nature",
+          "left": "assumed",
+          "reason": "context values differ",
+          "right": "measured"
+        },
+        {
+          "field": "configuration",
+          "left": "modular iron-air grid storage system",
+          "reason": "context values differ",
+          "right": "reversible solid oxide cell with separate iron-based energy storage unit"
+        },
+        {
+          "field": "system_scale",
+          "left": "approximately 100 MW utility installation",
+          "reason": "context values differ",
+          "right": "laboratory cell"
+        },
+        {
+          "field": "calculation_boundary",
+          "left": "system AC-to-AC including power conversion and auxiliary loads",
+          "reason": "context values differ",
+          "right": "cell DC energy discharge divided by charge"
+        }
+      ],
+      "left_result_id": "result:a94b5441f275aba2eef7",
+      "missing_context": [
+        "current_density",
+        "temperature"
+      ],
+      "right_result_id": "result:5bdb4a5ed6f14ccf11bc",
+      "status": "different_context"
+    },
+    {
+      "differences": [
+        {
+          "field": "technology",
+          "left": "aqueous iron-air multi-day storage",
+          "reason": "context values differ",
+          "right": "solid oxide iron-air battery"
+        },
+        {
+          "field": "evidence_type",
+          "left": "manufacturer_claim",
+          "reason": "context values differ",
+          "right": "laboratory_experiment"
+        },
+        {
+          "field": "result_nature",
+          "left": "assumed",
+          "reason": "context values differ",
+          "right": "measured"
+        },
+        {
+          "field": "configuration",
+          "left": "modular iron-air grid storage system",
+          "reason": "context values differ",
+          "right": "reversible solid oxide cell with separate iron-based energy storage unit"
+        },
+        {
+          "field": "system_scale",
+          "left": "approximately 100 MW utility installation",
+          "reason": "context values differ",
+          "right": "laboratory cell"
+        },
+        {
+          "field": "calculation_boundary",
+          "left": "system AC-to-AC including power conversion and auxiliary loads",
+          "reason": "context values differ",
+          "right": "cell DC energy discharge divided by charge"
+        }
+      ],
+      "left_result_id": "result:a94b5441f275aba2eef7",
+      "missing_context": [
+        "current_density",
+        "temperature"
+      ],
+      "right_result_id": "result:6c079a9fa0750bfd97ed",
+      "status": "different_context"
+    },
+    {
+      "differences": [
+        {
+          "field": "temperature",
+          "left": "500 degC",
+          "reason": "context values differ",
+          "right": "550 degC"
+        }
+      ],
+      "left_result_id": "result:5bdb4a5ed6f14ccf11bc",
+      "missing_context": [],
+      "right_result_id": "result:6c079a9fa0750bfd97ed",
+      "status": "different_context"
+    }
+  ],
+  "coverage": {
+    "full_texts_analyzed": 10,
+    "full_texts_available": 10,
+    "publications_discovered": 10,
+    "results_found": 4,
+    "synthetic_documents": 0
+  },
+  "evidence": [
+    {
+      "doi": null,
+      "extraction_method": "manual_context_review 0.1.0",
+      "id": "evidence:50338817ca4ec6599966",
+      "page": 4,
+      "passage": "Round-trip efficiency % 85% 70% 40%",
+      "publication_id": "cra-2023-system-model",
+      "publication_title": "Capturing sub-hourly value for fast-response resources",
+      "result_id": "result:50338817ca4ec6599966",
+      "section": "introduction",
+      "source_document": "papers/cra_2023_storage_assumptions.pdf",
+      "source_url": "https://www.crai.com/insights-events/publications/capturing-sub-hourly-value-for-fast-response-resources/"
+    },
+    {
+      "doi": null,
+      "extraction_method": "manual_context_review 0.1.0",
+      "id": "evidence:a94b5441f275aba2eef7",
+      "page": 31,
+      "passage": "Discharge duration at full rated capacity 100 hours\nAll-in installed capital cost ($/kWh)* $15 - $20\nFixed O&M ($/kW-year, Yr 1 dollars) $15 - $20\nRound trip efficiency** 40 - 45%\nCharge efficiency 69% - 73%\nDischarge efficiency 58% - 62%\nAnnual discharge throughput limit 1,500-2,000 equivalent hours at full power\nEnclosure lifetime 15 - 20 yrs\nPower Degradation 0%/yr\nEnergy Capacity Degradation 2%/yr\nEnergy Efficiency Degradation 0.5%/yr",
+      "publication_id": "form-2024-pnw",
+      "publication_title": "Navigating the Pacific Northwest's Energy Challenges with a New Generation of Multi-Day Energy Storage Technologies",
+      "result_id": "result:a94b5441f275aba2eef7",
+      "section": "results",
+      "source_document": "papers/form_2024_pnw_whitepaper.pdf",
+      "source_url": "https://formenergy.com/technology/multi-day-storage/"
+    },
+    {
+      "doi": "10.1002/advs.202203768",
+      "extraction_method": "manual_context_review 0.1.0",
+      "id": "evidence:5bdb4a5ed6f14ccf11bc",
+      "page": null,
+      "passage": "To further demonstrate the battery performance at lower temperature, the same battery with the best Fe/BZC4YYb/Ir ESU material was further tested under the condition of 500 \u00b0C, U Fe = 50% and 0.2 C. Figure 4a shows the voltage profiles versus cycle time. The battery can cycle for additional 500 h without significant degradation. The corresponding DSED and RTE shown in Figure 4b are DSED = 520 Wh kg\u20131 and RTE = 61.9%, respectively. The lower operating temperature clearly benefits the overall long\u2010term cycle stability, but the efficiency of battery is negatively affected, which is understandable because the electrochemical performance of RSOC and redox kinetics are lower at 500 \u00b0C than 550 \u00b0C; Figure S8, Supporting Information provides the RSOC performance at 500 \u00b0C. Compared to previous reports (Figure 4c), this new ESU material shows the best durability and efficiency in the intermediate temperature range.[ 10 , 11 , 12 , 13 , 17 , 23 , 24 , 25 ]",
+      "publication_id": "tang-2022-proton-ir",
+      "publication_title": "Proton-Mediated and Ir-Catalyzed Iron/Iron-Oxide Redox Kinetics for Enhanced Rechargeability and Durability of Solid Oxide Iron-Air Battery",
+      "result_id": "result:5bdb4a5ed6f14ccf11bc",
+      "section": "long\u2010term_performance_evaluation",
+      "source_document": "papers/tang_2022_proton_ir.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9596828/"
+    },
+    {
+      "doi": "10.1002/advs.202203768",
+      "extraction_method": "manual_context_review 0.1.0",
+      "id": "evidence:6c079a9fa0750bfd97ed",
+      "page": null,
+      "passage": "Under the condition of 550 \u00b0C, U Fe = 50% and 0.2 C with 2.5 h cycle duration; Figure 3a shows the voltage profiles versus cycle time of the battery loaded with baseline, Fe/BZC4YYb and Fe/BZC4YYb/Ir ESU materials. It is evident that Fe/BZC4YYb/Ir exhibits the best stability, over 250 h (or 50 cycles) without significant degradation. The corresponding DSED and RTE shown in Figure 3b are DSED = 601.9 Wh kg\u20131 and RTE = 82.9%, respectively. In contrast, RTE of the battery with the baseline ESU faded rapidly to 75% only after 15 cycles, while the battery with Fe/BZC4YYb ESU shows RTE \u2248 80% after 30 cycles. This comparison provides additional evidence that both BZC4YYb and Ir contribute to the cycle stability at high U Fe.",
+      "publication_id": "tang-2022-proton-ir",
+      "publication_title": "Proton-Mediated and Ir-Catalyzed Iron/Iron-Oxide Redox Kinetics for Enhanced Rechargeability and Durability of Solid Oxide Iron-Air Battery",
+      "result_id": "result:6c079a9fa0750bfd97ed",
+      "section": "long\u2010term_performance_evaluation",
+      "source_document": "papers/tang_2022_proton_ir.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9596828/"
+    }
+  ],
+  "findings": [
+    {
+      "evidence_ids": [
+        "evidence:50338817ca4ec6599966",
+        "evidence:a94b5441f275aba2eef7",
+        "evidence:5bdb4a5ed6f14ccf11bc",
+        "evidence:6c079a9fa0750bfd97ed"
+      ],
+      "id": "finding:context-differences",
+      "qualification": "Differing dimensions: calculation_boundary, configuration, evidence_type, result_nature, system_scale, technology, temperature.",
+      "statement": "Some reported values are not directly comparable because their scientific contexts differ.",
+      "status": "context_dependent"
+    }
+  ],
+  "follow_up_questions": [
+    {
+      "action": "filter_measured",
+      "id": "measured-evidence",
+      "label": "Show only measured laboratory evidence and its operating conditions."
+    },
+    {
+      "action": "show_comparison",
+      "id": "model-comparison",
+      "label": "Why is the modeled system value not comparable with the cell measurements?"
+    },
+    {
+      "action": "show_assumptions",
+      "id": "assumption-passages",
+      "label": "Which source passages describe the efficiency assumptions?"
+    },
+    {
+      "action": "show_missing_context",
+      "id": "missing-context",
+      "label": "Which missing conditions prevent stronger comparison?"
+    },
+    {
+      "action": "new_question",
+      "id": "lcos-impact",
+      "label": "How could round-trip-efficiency assumptions affect a future LCOS analysis?"
+    }
+  ],
+  "interpreted_metric": "round_trip_efficiency",
+  "limitations": [
+    "Some comparisons lack required context: current_density, temperature."
+  ],
+  "publications": [
+    {
+      "access_status": "public_full_text",
+      "access_url": null,
+      "authors": [],
+      "document_type": "energy-system modeling report",
+      "doi": null,
+      "fixture_status": null,
+      "id": "cra-2023-system-model",
+      "license": null,
+      "source_document": "papers/cra_2023_storage_assumptions.pdf",
+      "source_url": "https://www.crai.com/insights-events/publications/capturing-sub-hourly-value-for-fast-response-resources/",
+      "title": "Capturing sub-hourly value for fast-response resources",
+      "year": 2023
+    },
+    {
+      "access_status": "open_access",
+      "access_url": null,
+      "authors": [],
+      "document_type": "review article",
+      "doi": null,
+      "fixture_status": null,
+      "id": "duffner-2022-high-energy-review",
+      "license": null,
+      "source_document": "papers/high_energy_batteries_2022_review.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8986960/",
+      "title": "High-Energy Batteries: Beyond Lithium-Ion and Their Long Road to Commercialisation",
+      "year": 2022
+    },
+    {
+      "access_status": "public_full_text",
+      "access_url": "https://formenergy.com/wp-content/uploads/2024/06/Form-Energy-Navigating-the-Pacific-Northwest-Energy-Challenges-06.26.2024-1.pdf",
+      "authors": [
+        "Form Energy"
+      ],
+      "document_type": "manufacturer whitepaper",
+      "doi": null,
+      "fixture_status": null,
+      "id": "form-2024-pnw",
+      "license": null,
+      "source_document": "papers/form_2024_pnw_whitepaper.pdf",
+      "source_url": "https://formenergy.com/technology/multi-day-storage/",
+      "title": "Navigating the Pacific Northwest's Energy Challenges with a New Generation of Multi-Day Energy Storage Technologies",
+      "year": 2024
+    },
+    {
+      "access_status": "open_access",
+      "access_url": null,
+      "authors": [],
+      "document_type": "review article",
+      "doi": "10.1595/205651318X696729",
+      "fixture_status": null,
+      "id": "hardwick-2018-review",
+      "license": "CC BY-NC-ND",
+      "source_document": "papers/hardwick_2018_review.pdf",
+      "source_url": null,
+      "title": "Rechargeable multi-valent metal-air batteries",
+      "year": 2018
+    },
+    {
+      "access_status": "institutional_repository",
+      "access_url": null,
+      "authors": [],
+      "document_type": "doctoral thesis",
+      "doi": null,
+      "fixture_status": null,
+      "id": "mckerracher-2021-thesis",
+      "license": null,
+      "source_document": "papers/mckerracher_2021_thesis.pdf",
+      "source_url": null,
+      "title": "Design, Construction and Characterisation of an Iron Air Battery for Automotive Propulsion",
+      "year": 2021
+    },
+    {
+      "access_status": "public_full_text",
+      "access_url": null,
+      "authors": [],
+      "document_type": "policy report",
+      "doi": null,
+      "fixture_status": null,
+      "id": "mit-2024-beyond-lithium",
+      "license": null,
+      "source_document": "papers/mit_2024_beyond_lithium.pdf",
+      "source_url": null,
+      "title": "Beyond Lithium: Accelerating Non-Lithium Long Duration Energy Storage in the United States",
+      "year": 2024
+    },
+    {
+      "access_status": "public_full_text",
+      "access_url": null,
+      "authors": [],
+      "document_type": "technical presentation",
+      "doi": null,
+      "fixture_status": null,
+      "id": "sandia-2025-iron-air",
+      "license": null,
+      "source_document": "papers/sandia_2025_iron_air_cost.pdf",
+      "source_url": null,
+      "title": "Zinc and Zinc/Iron Air Battery Technologies",
+      "year": 2025
+    },
+    {
+      "access_status": "open_access",
+      "access_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9596828/fullTextXML",
+      "authors": [
+        "Qiming Tang",
+        "Yongliang Zhang",
+        "Kevin Huang"
+      ],
+      "document_type": "research article",
+      "doi": "10.1002/advs.202203768",
+      "fixture_status": null,
+      "id": "tang-2022-proton-ir",
+      "license": "CC BY",
+      "source_document": "papers/tang_2022_proton_ir.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9596828/",
+      "title": "Proton-Mediated and Ir-Catalyzed Iron/Iron-Oxide Redox Kinetics for Enhanced Rechargeability and Durability of Solid Oxide Iron-Air Battery",
+      "year": 2022
+    },
+    {
+      "access_status": "institutional_repository",
+      "access_url": null,
+      "authors": [],
+      "document_type": "research article",
+      "doi": "10.1016/j.electacta.2023.142964",
+      "fixture_status": null,
+      "id": "weinrich-2023-deactivation",
+      "license": null,
+      "source_document": "papers/weinrich_2023_deactivation.pdf",
+      "source_url": null,
+      "title": "Investigation of the properties influencing the deactivation of iron electrodes in iron-air batteries",
+      "year": 2023
+    },
+    {
+      "access_status": "open_access",
+      "access_url": null,
+      "authors": [],
+      "document_type": "perspective review",
+      "doi": "10.1002/cssc.202402412",
+      "fixture_status": null,
+      "id": "zhao-2025-perspective",
+      "license": null,
+      "source_document": "papers/chem_sus_chem_2025_perspective.xml",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12094147/",
+      "title": "Will Iron Forge the Future of Metal-Air Batteries in Grid Scale Energy Storage?",
+      "year": 2025
+    }
+  ],
+  "question": "What round-trip efficiencies are reported for iron-air batteries, and are they comparable?",
+  "results": [
+    {
+      "confidence": 1.0,
+      "context": {
+        "assumptions": [
+          "operational input to the ASOP system model",
+          "25 MW stand-alone iron-air resource",
+          "500 cycles per year"
+        ],
+        "calculation_boundary": "system round-trip efficiency assumption",
+        "chemistry": "aqueous iron-air (technology implementation not specified)",
+        "conditions": [
+          {
+            "name": "storage_duration",
+            "qualifier": null,
+            "unit": "h",
+            "value": "72"
+          }
+        ],
+        "configuration": "stand-alone iron-air grid storage resource",
+        "evidence_type": "system_model",
+        "result_nature": "assumed",
+        "system_scale": "25 MW modeled resource",
+        "technology": "aqueous iron-air multi-day storage"
+      },
+      "id": "result:50338817ca4ec6599966",
+      "metric": "round_trip_efficiency",
+      "provenance": {
+        "extraction_method": {
+          "model": null,
+          "name": "manual_context_review",
+          "provider": null,
+          "schema_version": "scientific_evidence_v1",
+          "version": "0.1.0"
+        },
+        "page": 4,
+        "passage": "Round-trip efficiency % 85% 70% 40%",
+        "passage_end": 10196,
+        "passage_start": 10161,
+        "publication_id": "cra-2023-system-model",
+        "section": "introduction",
+        "source_document": "papers/cra_2023_storage_assumptions.pdf"
+      },
+      "quantity": {
+        "lower_bound": null,
+        "original_text": "Stand-alone iron-air round-trip efficiency: 40%",
+        "uncertainty": null,
+        "unit": "%",
+        "upper_bound": null,
+        "value": "40"
+      }
+    },
+    {
+      "confidence": 1.0,
+      "context": {
+        "assumptions": [
+          "performance specification for approximately 2030 gigawatt-scale manufacturing",
+          "full charge and full discharge at rated power"
+        ],
+        "calculation_boundary": "system AC-to-AC including power conversion and auxiliary loads",
+        "chemistry": "reversible rusting of iron in an aqueous iron-air cell",
+        "conditions": [
+          {
+            "name": "storage_duration",
+            "qualifier": null,
+            "unit": "h",
+            "value": "100"
+          }
+        ],
+        "configuration": "modular iron-air grid storage system",
+        "evidence_type": "manufacturer_claim",
+        "result_nature": "assumed",
+        "system_scale": "approximately 100 MW utility installation",
+        "technology": "aqueous iron-air multi-day storage"
+      },
+      "id": "result:a94b5441f275aba2eef7",
+      "metric": "round_trip_efficiency",
+      "provenance": {
+        "extraction_method": {
+          "model": null,
+          "name": "manual_context_review",
+          "provider": null,
+          "schema_version": "scientific_evidence_v1",
+          "version": "0.1.0"
+        },
+        "page": 31,
+        "passage": "Discharge duration at full rated capacity 100 hours\nAll-in installed capital cost ($/kWh)* $15 - $20\nFixed O&M ($/kW-year, Yr 1 dollars) $15 - $20\nRound trip efficiency** 40 - 45%\nCharge efficiency 69% - 73%\nDischarge efficiency 58% - 62%\nAnnual discharge throughput limit 1,500-2,000 equivalent hours at full power\nEnclosure lifetime 15 - 20 yrs\nPower Degradation 0%/yr\nEnergy Capacity Degradation 2%/yr\nEnergy Efficiency Degradation 0.5%/yr",
+        "passage_end": 75018,
+        "passage_start": 74576,
+        "publication_id": "form-2024-pnw",
+        "section": "results",
+        "source_document": "papers/form_2024_pnw_whitepaper.pdf"
+      },
+      "quantity": {
+        "lower_bound": "40",
+        "original_text": "Round trip efficiency 40\u201345%",
+        "uncertainty": null,
+        "unit": "%",
+        "upper_bound": "45",
+        "value": "42.5"
+      }
+    },
+    {
+      "confidence": 1.0,
+      "context": {
+        "assumptions": [
+          "50% iron utilization",
+          "0.2 C rate"
+        ],
+        "calculation_boundary": "cell DC energy discharge divided by charge",
+        "chemistry": "oxide-ion cell with Fe/FeOx, BZC4YYb proton conductor and Ir catalyst",
+        "conditions": [
+          {
+            "name": "temperature",
+            "qualifier": null,
+            "unit": "degC",
+            "value": "500"
+          },
+          {
+            "name": "current_density",
+            "qualifier": null,
+            "unit": "mA/cm^2",
+            "value": "10"
+          },
+          {
+            "name": "storage_duration",
+            "qualifier": null,
+            "unit": "h",
+            "value": "2.5"
+          }
+        ],
+        "configuration": "reversible solid oxide cell with separate iron-based energy storage unit",
+        "evidence_type": "laboratory_experiment",
+        "result_nature": "measured",
+        "system_scale": "laboratory cell",
+        "technology": "solid oxide iron-air battery"
+      },
+      "id": "result:5bdb4a5ed6f14ccf11bc",
+      "metric": "round_trip_efficiency",
+      "provenance": {
+        "extraction_method": {
+          "model": null,
+          "name": "manual_context_review",
+          "provider": null,
+          "schema_version": "scientific_evidence_v1",
+          "version": "0.1.0"
+        },
+        "page": null,
+        "passage": "To further demonstrate the battery performance at lower temperature, the same battery with the best Fe/BZC4YYb/Ir ESU material was further tested under the condition of 500 \u00b0C, U Fe = 50% and 0.2 C. Figure 4a shows the voltage profiles versus cycle time. The battery can cycle for additional 500 h without significant degradation. The corresponding DSED and RTE shown in Figure 4b are DSED = 520 Wh kg\u20131 and RTE = 61.9%, respectively. The lower operating temperature clearly benefits the overall long\u2010term cycle stability, but the efficiency of battery is negatively affected, which is understandable because the electrochemical performance of RSOC and redox kinetics are lower at 500 \u00b0C than 550 \u00b0C; Figure S8, Supporting Information provides the RSOC performance at 500 \u00b0C. Compared to previous reports (Figure 4c), this new ESU material shows the best durability and efficiency in the intermediate temperature range.[ 10 , 11 , 12 , 13 , 17 , 23 , 24 , 25 ]",
+        "passage_end": 13780,
+        "passage_start": 12820,
+        "publication_id": "tang-2022-proton-ir",
+        "section": "long\u2010term_performance_evaluation",
+        "source_document": "papers/tang_2022_proton_ir.xml"
+      },
+      "quantity": {
+        "lower_bound": null,
+        "original_text": "RTE = 61.9%",
+        "uncertainty": null,
+        "unit": "%",
+        "upper_bound": null,
+        "value": "61.9"
+      }
+    },
+    {
+      "confidence": 1.0,
+      "context": {
+        "assumptions": [
+          "50% iron utilization",
+          "0.2 C rate"
+        ],
+        "calculation_boundary": "cell DC energy discharge divided by charge",
+        "chemistry": "oxide-ion cell with Fe/FeOx, BZC4YYb proton conductor and Ir catalyst",
+        "conditions": [
+          {
+            "name": "temperature",
+            "qualifier": null,
+            "unit": "degC",
+            "value": "550"
+          },
+          {
+            "name": "current_density",
+            "qualifier": null,
+            "unit": "mA/cm^2",
+            "value": "10"
+          },
+          {
+            "name": "storage_duration",
+            "qualifier": null,
+            "unit": "h",
+            "value": "2.5"
+          }
+        ],
+        "configuration": "reversible solid oxide cell with separate iron-based energy storage unit",
+        "evidence_type": "laboratory_experiment",
+        "result_nature": "measured",
+        "system_scale": "laboratory cell",
+        "technology": "solid oxide iron-air battery"
+      },
+      "id": "result:6c079a9fa0750bfd97ed",
+      "metric": "round_trip_efficiency",
+      "provenance": {
+        "extraction_method": {
+          "model": null,
+          "name": "manual_context_review",
+          "provider": null,
+          "schema_version": "scientific_evidence_v1",
+          "version": "0.1.0"
+        },
+        "page": null,
+        "passage": "Under the condition of 550 \u00b0C, U Fe = 50% and 0.2 C with 2.5 h cycle duration; Figure 3a shows the voltage profiles versus cycle time of the battery loaded with baseline, Fe/BZC4YYb and Fe/BZC4YYb/Ir ESU materials. It is evident that Fe/BZC4YYb/Ir exhibits the best stability, over 250 h (or 50 cycles) without significant degradation. The corresponding DSED and RTE shown in Figure 3b are DSED = 601.9 Wh kg\u20131 and RTE = 82.9%, respectively. In contrast, RTE of the battery with the baseline ESU faded rapidly to 75% only after 15 cycles, while the battery with Fe/BZC4YYb ESU shows RTE \u2248 80% after 30 cycles. This comparison provides additional evidence that both BZC4YYb and Ir contribute to the cycle stability at high U Fe.",
+        "passage_end": 12818,
+        "passage_start": 12091,
+        "publication_id": "tang-2022-proton-ir",
+        "section": "long\u2010term_performance_evaluation",
+        "source_document": "papers/tang_2022_proton_ir.xml"
+      },
+      "quantity": {
+        "lower_bound": null,
+        "original_text": "RTE = 82.9%",
+        "uncertainty": null,
+        "unit": "%",
+        "upper_bound": null,
+        "value": "82.9"
+      }
+    }
+  ]
+}

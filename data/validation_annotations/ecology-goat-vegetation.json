@@ -1,0 +1,44 @@
+{
+  "schema_version": "sci_search_researcher_annotation_v1",
+  "case_id": "ecology-goat-vegetation",
+  "status": "pending",
+  "reviewer": null,
+  "notes": "",
+  "publication_labels": {
+    "doi:10.3390/ruminants2010004": {
+      "label": "relevant",
+      "reason": "Studies forage availability, quality, and goat feeding behavior.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.3390/ani10020196": {
+      "label": "relevant",
+      "reason": "Links seasonal plant availability and intake behavior.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1017/s1751731108003224": {
+      "label": "relevant",
+      "reason": "Compares grazing behavior under changing pasture availability.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1186/s40462-025-00557-2": {
+      "label": "relevant",
+      "reason": "Relates vegetation dynamics to seasonal goat foraging transitions.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.1371/journal.pone.0206310": {
+      "label": "irrelevant",
+      "reason": "Snow-leopard diet selection is not domestic-goat foraging.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    }
+  },
+  "evidence_labels": {},
+  "assertion_labels": {},
+  "conclusion_labels": {},
+  "created_at": "2026-08-20T08:10:38.763446+00:00",
+  "updated_at": "2026-08-20T08:10:38.763448+00:00"
+}

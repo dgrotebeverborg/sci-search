@@ -1,0 +1,26 @@
+{
+  "name": "Sci-Search counterfactual and paraphrase reliability checks",
+  "cases": [
+    {"id":"negative-magnesium-rte","kind":"negative_control","corpus":"../corpora/iron_air_real","question":"What round-trip efficiency is reported for magnesium-sulfur batteries?"},
+    {"id":"negative-sodium-degradation","kind":"negative_control","corpus":"../corpora/iron_air_real","question":"What degradation mechanisms limit sodium-sulfur battery cycle life?"},
+    {"id":"negative-alpaca-foraging","kind":"negative_control","corpus":"../corpora/goat_foraging","question":"How does vegetation structure affect alpaca foraging behaviour?"},
+    {"id":"negative-goat-lunar","kind":"negative_control","corpus":"../corpora/goat_foraging","question":"How do lunar minerals affect goat foraging behaviour?"},
+    {"id":"negative-goat-antarctic","kind":"negative_control","corpus":"../corpora/goat_foraging","question":"How does Antarctic sea ice affect goat foraging behaviour?"},
+    {"id":"negative-wheat-salinity","kind":"negative_control","corpus":"../data/research_runs/20260817T140403Z-ee19e4dc/corpus","question":"How does salinity affect wheat germination?"},
+    {"id":"negative-maize-nanoparticles","kind":"negative_control","corpus":"../data/research_runs/20260817T140403Z-ee19e4dc/corpus","question":"Do silver nanoparticles improve maize seedlings under sodium chloride stress?"},
+    {"id":"negative-antarctic-wildfire","kind":"negative_control","corpus":"../data/research_runs/20260818T082727Z-16009289/corpus","question":"Did wildfire extent increase in Antarctica during the 21st century?"},
+    {"id":"negative-martian-wildfire","kind":"negative_control","corpus":"../data/research_runs/20260818T082727Z-16009289/corpus","question":"Do atmospheric patterns cause wildfires on Mars?"},
+    {"id":"negative-pharma-rebound","kind":"negative_control","corpus":"../data/research_runs/20260817T164145Z-e95d6555/corpus","question":"What is the direct rebound effect in pharmaceutical drug use?"},
+    {"id":"negative-psi-yeast-precognition","kind":"negative_control","corpus":"../data/research_runs/20260817T170209Z-c95be60f/corpus","question":"Does precognitive psi cause prion propagation in yeast?"},
+    {"id":"negative-el-nino-mars","kind":"negative_control","corpus":"../data/research_runs/20260818T125111Z-e8f44395/corpus","question":"How does El Niño affect weather on Mars?"},
+
+    {"id":"alias-iron-fe-air","kind":"paraphrase_invariance","corpus":"../corpora/iron_air_real","question_a":"What round-trip efficiencies are reported for iron-air batteries?","question_b":"What RTE values are reported for Fe-air cells?","minimum_publication_jaccard":0.5},
+    {"id":"alias-goat-foraging-feeding","kind":"paraphrase_invariance","corpus":"../corpora/goat_foraging","question_a":"How does vegetation structure affect goat foraging behaviour?","question_b":"How does vegetation structure influence the feeding behavior of goats?","minimum_publication_jaccard":0.6},
+    {"id":"alias-goat-browse-diet","kind":"paraphrase_invariance","corpus":"../corpora/goat_foraging","question_a":"What do goats browse during the dry season?","question_b":"Which forage do goats select in the dry season?","minimum_publication_jaccard":0.5},
+    {"id":"alias-europe-wildfire","kind":"paraphrase_invariance","corpus":"../data/research_runs/20260818T082727Z-16009289/corpus","question_a":"What are European wildfire trends?","question_b":"How have wildfire patterns changed in Europe?","minimum_publication_jaccard":0.5,"require_same_intent":false},
+    {"id":"alias-el-nino-enso","kind":"paraphrase_invariance","corpus":"../data/research_runs/20260818T125111Z-e8f44395/corpus","question_a":"How does El Niño affect weather patterns in Europe?","question_b":"What is the influence of ENSO on European weather patterns?","minimum_publication_jaccard":0.7},
+    {"id":"alias-tomato-nacl","kind":"paraphrase_invariance","corpus":"../data/research_runs/20260817T140403Z-ee19e4dc/corpus","question_a":"How does salinity affect tomato seed germination?","question_b":"How does sodium chloride influence germination of tomato seeds?","minimum_publication_jaccard":0.5},
+    {"id":"alias-rebound-modelled","kind":"paraphrase_invariance","corpus":"../data/research_runs/20260817T164145Z-e95d6555/corpus","question_a":"Which rebound estimates are modeled?","question_b":"Which estimates of the rebound effect are modelled?","minimum_publication_jaccard":0.7},
+    {"id":"alias-sheep-sward","kind":"paraphrase_invariance","corpus":"../data/research_runs/20260817T193332Z-fcc66003/corpus","question_a":"How does sward height affect sheep grazing behaviour?","question_b":"How does vegetation height influence the grazing behavior of sheep?","minimum_publication_jaccard":0.5}
+  ]
+}

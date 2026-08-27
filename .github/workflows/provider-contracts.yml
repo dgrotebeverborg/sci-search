@@ -1,0 +1,43 @@
+name: Provider contracts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-contracts
+  cancel-in-progress: false
+
+jobs:
+  bounded-provider-check:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: provider-contracts
+    timeout-minutes: 15
+    env:
+      OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      MISTRAL_MODEL: mistral-small-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+          enable-cache: true
+      - run: uv sync --frozen --python 3.11
+      - name: Run bounded discovery and analysis contract
+        run: >-
+          uv run sci-search --corpus corpora/iron_air_real research-online
+          --question "What round-trip efficiencies are reported for iron-air batteries?"
+          --per-query 2 --max-full-texts 1 --max-acquisition-attempts 3
+          --output provider-contract-result.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitized-provider-contract-diagnostics
+          path: provider-contract-result.json
+          retention-days: 14

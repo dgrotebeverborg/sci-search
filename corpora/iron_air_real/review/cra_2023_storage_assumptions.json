@@ -1,0 +1,18 @@
+{
+  "review_status": "manually verified against Table 2 and its accompanying model-assumption text",
+  "results": [
+    {
+      "value": 40,
+      "original_text": "Stand-alone iron-air round-trip efficiency: 40%",
+      "anchor": "Round-trip efficiency % 85% 70% 40%",
+      "conditions": [
+        {"name": "storage_duration", "value": 72, "unit": "hours"}
+      ],
+      "assumptions": [
+        "operational input to the ASOP system model",
+        "25 MW stand-alone iron-air resource",
+        "500 cycles per year"
+      ]
+    }
+  ]
+}

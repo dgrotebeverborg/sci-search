@@ -1,0 +1,86 @@
+{
+  "schema_version": "sci_search_silver_reference_set_v1",
+  "name": "Five-question cross-domain researcher reference set",
+  "version": 1,
+  "created_at": "2026-08-19",
+  "validation_status": "silver_source_checked_pending_domain_researcher_validation",
+  "governance": {
+    "claim": "The listed direct references are known relevant publications, not an exhaustive bibliography.",
+    "promotion_to_gold": "A domain researcher must validate inclusion, exclusion, key passages, and answer components.",
+    "negative_control_use": "Distractors are intentionally plausible metadata matches that must not support the answer."
+  },
+  "cases": [
+    {
+      "id": "energy-iron-air-rte-comparability",
+      "question": "What round-trip efficiencies have been reported for iron-air batteries, and are these values comparable?",
+      "baseline_run_id": "20260819T083214Z-aff68a95",
+      "required_answer_components": ["reported efficiency values", "measured versus modeled", "cell versus system scale", "operating conditions", "calculation boundary", "comparability judgement"],
+      "publications": [
+        {"doi": "10.1149/05045.0115ecst", "relevance": "direct", "reason": "Reports utilization-dependent round-trip efficiency for a solid-oxide iron-air cell."},
+        {"doi": "10.1039/d2ee01626e", "relevance": "direct", "reason": "Reports laboratory solid-oxide iron-air duration, operating conditions, and round-trip efficiency."},
+        {"doi": "10.1149/2.048310jes", "relevance": "direct", "reason": "Reports cyclic round-trip efficiency for a solid-oxide Fe-air redox battery."},
+        {"doi": "10.1002/advs.202203768", "relevance": "direct", "reason": "Reports efficiency with temperature, iron utilization, and C-rate context."},
+        {"doi": "10.1016/j.jpowsour.2016.01.090", "relevance": "contextual", "reason": "System-efficiency modeling is useful but must not be merged with measured cell values."},
+        {"doi": "10.1149/2.0451809jes", "relevance": "distractor", "reason": "All-iron redox-flow battery coulombic efficiency is a different technology and metric."},
+        {"doi": "10.1149/1945-7111/ab84f8", "relevance": "distractor", "reason": "Iron-sulfate/anthraquinone flow battery is not an iron-air battery."}
+      ]
+    },
+    {
+      "id": "climate-greenland-observed",
+      "question": "How has precipitation over the Greenland Ice Sheet changed since 2000?",
+      "baseline_run_id": "20260819T084215Z-5258d7a1",
+      "required_answer_components": ["observed period since 2000", "whole ice sheet versus region", "snowfall versus rainfall", "trend direction", "observations versus models"],
+      "publications": [
+        {"doi": "10.5194/tc-13-2797-2019", "equivalent_dois": ["10.5194/tc-2019-103"], "relevance": "direct", "reason": "Observed and modeled recent precipitation decrease in the western percolation zone; the discussion-paper and final DOI identify versions of the same work."},
+        {"doi": "10.5194/tc-14-4379-2020", "relevance": "direct", "reason": "Satellite observations characterize present-day snowfall regimes over the ice sheet."},
+        {"doi": "10.5194/tc-11-1015-2017", "relevance": "direct", "reason": "Reconstructs Greenland surface mass balance, including snowfall, through 2015."},
+        {"doi": "10.5194/tc-14-2253-2020", "relevance": "contextual", "reason": "Contains present-day observations and future simulations that must be separated."},
+        {"doi": "10.5194/tc-2019-129", "relevance": "distractor", "reason": "Holocene precipitation does not answer change since 2000."},
+        {"doi": "10.1126/sciadv.adm7694", "relevance": "distractor", "reason": "East Asian monsoon precipitation is geographically out of scope."}
+      ]
+    },
+    {
+      "id": "ecology-goat-vegetation",
+      "question": "How does vegetation availability influence the foraging behaviour of domestic goats?",
+      "baseline_run_id": "20260819T085217Z-369b4bc7",
+      "required_answer_components": ["availability versus preference", "season", "habitat", "foraging response", "measurement method"],
+      "publications": [
+        {"doi": "10.3390/ruminants2010004", "relevance": "direct", "reason": "Directly studies forage availability, quality, and goat feeding behavior."},
+        {"doi": "10.3390/ani10020196", "relevance": "direct", "reason": "Links seasonal plant availability and intake behavior in browsing goats."},
+        {"doi": "10.1017/s1751731108003224", "relevance": "direct", "reason": "Compares grazing behavior under changing pasture availability."},
+        {"doi": "10.1186/s40462-025-00557-2", "relevance": "direct", "reason": "Relates vegetation dynamics and NDVI to seasonal goat foraging transitions."},
+        {"doi": "10.1371/journal.pone.0206310", "relevance": "distractor", "reason": "Snow-leopard diet selection is not domestic-goat foraging behavior."},
+        {"doi": "10.5253/078.099.0103", "relevance": "distractor", "reason": "Little-owl foraging is a lexical near-neighbor with the wrong study object."}
+      ]
+    },
+    {
+      "id": "agriculture-biochar-yield-heterogeneity",
+      "question": "Why do studies report different effects of biochar application on crop yield?",
+      "baseline_run_id": "20260819T091155Z-3ad3e100",
+      "required_answer_components": ["soil properties", "crop", "biochar feedstock and production", "application rate and method", "climate", "duration", "heterogeneity rather than contradiction"],
+      "publications": [
+        {"doi": "10.1088/1748-9326/8/4/044049", "relevance": "direct", "reason": "Global meta-regression explicitly analyzes heterogeneous crop-yield response."},
+        {"doi": "10.1007/s42773-022-00138-1", "relevance": "direct", "reason": "Meta-analysis evaluates moderators of soil and crop-productivity responses."},
+        {"doi": "10.1038/s41598-023-37820-8", "relevance": "direct", "reason": "Reports how biochar type, amount, fertilizer, soil, climate, and repeated application alter yield response."},
+        {"doi": "10.1007/s42773-022-00180-z", "relevance": "direct", "reason": "Directly compares application method and amount."},
+        {"doi": "10.7717/peerj.10967", "relevance": "contextual", "reason": "Meta-analysis is narrowed to plastic-film mulch with biochar."},
+        {"doi": "10.3389/fpls.2026.1803269", "relevance": "distractor", "reason": "Meta-analysis concerns seaweed-extract biostimulants rather than biochar."}
+      ]
+    },
+    {
+      "id": "health-wearable-af",
+      "question": "How accurately do wearable devices detect atrial fibrillation compared with clinical ECG measurements?",
+      "baseline_run_id": "20260819T090754Z-b14f41f9",
+      "required_answer_components": ["sensitivity", "specificity", "device type", "clinical ECG reference standard", "study population", "confidence intervals or sample size"],
+      "publications": [
+        {"doi": "10.1016/j.jacep.2022.09.011", "relevance": "direct", "reason": "Clinical validation of consumer wearables against reference rhythm assessment."},
+        {"doi": "10.2196/65139", "relevance": "direct", "reason": "Comparative validation study of consumer wearables for AF detection."},
+        {"doi": "10.3390/diagnostics15243162", "relevance": "direct", "reason": "Systematic review focused on diagnostic accuracy of wearable ECG devices."},
+        {"doi": "10.2196/82475", "relevance": "direct", "reason": "Prospective diagnostic-accuracy study of wearable ECG interpretation."},
+        {"doi": "10.3389/fphys.2026.1694995", "relevance": "contextual", "reason": "PPG-to-ECG proof of concept is not by itself a clinical device comparison."},
+        {"doi": "10.1159/000550005", "relevance": "distractor", "reason": "Cost-effectiveness monitoring strategy does not provide the requested diagnostic comparison."},
+        {"doi": "10.1038/s41746-026-02344-8", "relevance": "distractor", "reason": "Association of ECG-derived age with AF is not AF diagnostic accuracy."}
+      ]
+    }
+  ]
+}

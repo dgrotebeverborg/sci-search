@@ -1,0 +1,89 @@
+[project]
+name = "sci-search"
+version = "0.1.0"
+description = "Provenance-aware scientific evidence search"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Sci-Search contributors" }]
+requires-python = ">=3.11"
+dependencies = ["pypdf>=6.0,<7"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+[project.urls]
+Repository = "https://example.invalid/sci-search"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "pip-audit>=2.7,<3",
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=6,<7",
+  "pyright>=1.1.400,<2",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+sci-search = "sci_search.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sci_search*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers"
+
+[tool.coverage.run]
+branch = true
+source = ["sci_search"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+  "benchmarks",
+  "build",
+  "corpora",
+  "data",
+  "dist",
+  "docs",
+  "examples",
+  "fixtures",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+include = ["sci_search"]
+reportArgumentType = "warning"
+reportAttributeAccessIssue = "warning"
+reportCallIssue = "warning"
+reportGeneralTypeIssues = "warning"
+reportMissingImports = "warning"
+reportOperatorIssue = "warning"
+reportOptionalIterable = "warning"
+reportOptionalMemberAccess = "warning"
+reportOptionalOperand = "warning"
+reportOptionalSubscript = "warning"

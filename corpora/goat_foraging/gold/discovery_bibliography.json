@@ -1,0 +1,15 @@
+{
+  "question": "What influences goat foraging behaviour and diet selection?",
+  "scope_note": "Researcher-curated open-access pilot bibliography covering field observations, controlled preference studies, sensors, browsing experience, tannins, and dietary diversity. This is a pipeline benchmark, not a systematic-review bibliography.",
+  "minimum_discovery_recall": 0.75,
+  "expected_dois": [
+    "10.3390/ani10020196",
+    "10.3389/fvets.2022.1032631",
+    "10.1371/journal.pone.0242231",
+    "10.3390/s22030781",
+    "10.1093/tas/txy145",
+    "10.3390/molecules16042766",
+    "10.3390/ani12101317",
+    "10.3389/fvets.2020.00191"
+  ]
+}

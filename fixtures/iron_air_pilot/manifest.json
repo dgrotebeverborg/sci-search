@@ -1,0 +1,49 @@
+{
+  "corpus_name": "iron-air contextual-result smoke corpus",
+  "fixture_notice": "All documents are synthetic and exist only to validate extraction, provenance, normalization, and comparison behavior.",
+  "documents": [
+    {
+      "id": "synthetic-exp-a",
+      "title": "Synthetic alkaline iron-air cell study A",
+      "path": "papers/synthetic_exp_a.txt",
+      "year": 2024,
+      "fixture_status": "synthetic",
+      "evidence_type": "laboratory_experiment",
+      "result_nature": "measured",
+      "technology": "rechargeable iron-air battery",
+      "configuration": "alkaline aqueous button cell",
+      "system_scale": "laboratory cell",
+      "calculation_boundary": "cell DC-to-DC"
+    },
+    {
+      "id": "synthetic-exp-b",
+      "title": "Synthetic alkaline iron-air cell replication",
+      "path": "papers/synthetic_exp_b.txt",
+      "year": 2025,
+      "fixture_status": "synthetic",
+      "evidence_type": "laboratory_experiment",
+      "result_nature": "measured",
+      "technology": "rechargeable iron-air battery",
+      "configuration": "alkaline aqueous button cell",
+      "system_scale": "laboratory cell",
+      "calculation_boundary": "cell DC-to-DC"
+    },
+    {
+      "id": "synthetic-model-c",
+      "title": "Synthetic grid-scale iron-air system model",
+      "path": "papers/synthetic_model_c.txt",
+      "year": 2025,
+      "fixture_status": "synthetic",
+      "evidence_type": "techno_economic_model",
+      "result_nature": "assumed",
+      "technology": "rechargeable iron-air battery",
+      "configuration": "modular grid storage plant",
+      "system_scale": "100 MW / 10 GWh modeled plant",
+      "calculation_boundary": "system AC-to-AC",
+      "assumptions": [
+        "constant round-trip efficiency over project life",
+        "one hundred hour rated discharge duration"
+      ]
+    }
+  ]
+}

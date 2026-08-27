@@ -1,0 +1,31 @@
+{
+  "review_status": "manually verified against the open-access full text",
+  "results": [
+    {
+      "value": 82.9,
+      "original_text": "RTE = 82.9%",
+      "anchor": "The corresponding DSED and RTE shown in Figure 3b are DSED = 601.9 Wh kg–1 and RTE = 82.9%",
+      "conditions": [
+        {"name": "temperature", "value": 550, "unit": "°C"},
+        {"name": "current_density", "value": 10, "unit": "mA cm–2"},
+        {"name": "storage_duration", "value": 2.5, "unit": "h"}
+      ],
+      "assumptions": ["50% iron utilization", "0.2 C rate"]
+    },
+    {
+      "value": 61.9,
+      "original_text": "RTE = 61.9%",
+      "anchor": "The corresponding DSED and RTE shown in Figure 4b are DSED = 520 Wh kg–1 and RTE = 61.9%",
+      "conditions": [
+        {"name": "temperature", "value": 500, "unit": "°C"},
+        {"name": "current_density", "value": 10, "unit": "mA cm–2"},
+        {"name": "storage_duration", "value": 2.5, "unit": "h"}
+      ],
+      "assumptions": [
+        "50% iron utilization",
+        "0.2 C rate",
+        "The Figure 4b results text reports 61.9%; the abstract and conclusion report 61.8%, consistent with a rounding or transcription difference."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+[PAGE 1]
+## Abstract
+This synthetic techno-economic scenario is not a real publication or commercial performance claim.
+
+[PAGE 8]
+## Model assumptions
+The 100 MW / 10 GWh grid-storage model assumed round-trip efficiency of 70 percent for a 100 h discharge duration; this AC-to-AC value was not measured and was held constant over the project life.
+
+[PAGE 9]
+## Sensitivity analysis
+The synthetic LCOS calculation is sensitive to efficiency, lifetime, charging price, and capital cost.

@@ -1,0 +1,44 @@
+{
+  "schema_version": "sci_search_researcher_annotation_v1",
+  "case_id": "climate-greenland-observed",
+  "status": "pending",
+  "reviewer": null,
+  "notes": "",
+  "publication_labels": {
+    "doi:10.5194/tc-13-2797-2019": {
+      "label": "relevant",
+      "reason": "Observed and modeled recent precipitation decrease in the western percolation zone.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.5194/tc-14-4379-2020": {
+      "label": "relevant",
+      "reason": "Satellite observations characterize present-day snowfall regimes.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.5194/tc-11-1015-2017": {
+      "label": "relevant",
+      "reason": "Reconstructs surface mass balance, including snowfall, through 2015.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.5194/tc-14-2253-2020": {
+      "label": "background",
+      "reason": "Present-day observations and future simulations must be separated.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    },
+    "doi:10.5194/tc-2019-129": {
+      "label": "irrelevant",
+      "reason": "Holocene precipitation does not answer change since 2000.",
+      "review_state": "silver_seed_pending_confirmation",
+      "source": "source-checked silver reference set"
+    }
+  },
+  "evidence_labels": {},
+  "assertion_labels": {},
+  "conclusion_labels": {},
+  "created_at": "2026-08-20T08:10:38.763255+00:00",
+  "updated_at": "2026-08-20T08:10:38.763258+00:00"
+}

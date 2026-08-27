@@ -1,0 +1,11 @@
+[PAGE 1]
+## Abstract
+This synthetic document tests contextual scientific extraction and is not a real publication.
+
+[PAGE 3]
+## Results
+At 25 °C and a current density of 20 mA/cm^2, the alkaline aqueous button cell's measured round-trip efficiency was 62 % over a 10 h charge-discharge protocol.
+
+[PAGE 4]
+## Limitations
+The result describes one laboratory configuration and must not be interpreted as system-level AC efficiency.

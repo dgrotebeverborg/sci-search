@@ -1,0 +1,105 @@
+{
+  "corpus_id": "iron_air_real_v1",
+  "scope": "Open-access full texts relevant to iron-air batteries and round-trip efficiency",
+  "sources": [
+    {
+      "id": "inui_2016_system_model",
+      "filename": "inui_2016_system_model.pdf",
+      "url": "https://repository.kulib.kyoto-u.ac.jp/dspace/bitstream/2433/218984/1/j.jpowsour.2016.01.090.pdf",
+      "sha256": null
+    },
+    {
+      "id": "inui_2015_heat_mass_model",
+      "filename": "inui_2015_heat_mass_model.pdf",
+      "url": "https://repository.kulib.kyoto-u.ac.jp/dspace/bitstream/2433/218983/1/j.jpowsour.2015.03.149.pdf",
+      "sha256": null
+    },
+    {
+      "id": "tang_2022_ten_hour_demo",
+      "filename": "tang_2022_ten_hour_demo.pdf",
+      "url": "https://pubs.rsc.org/it-it/content/getauthorversionpdf/D2EE01626E",
+      "sha256": null
+    },
+    {
+      "id": "tang_2022_proton_ir",
+      "filename": "tang_2022_proton_ir.xml",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9596828/fullTextXML",
+      "format": "xml",
+      "sha256": null
+    },
+    {
+      "id": "zhao_2013_dissertation",
+      "filename": "zhao_2013_dissertation.pdf",
+      "url": "https://scholarcommons.sc.edu/cgi/viewcontent.cgi?article=3454&context=etd",
+      "sha256": null
+    },
+    {
+      "id": "yasmeen_2016_thesis",
+      "filename": "yasmeen_2016_thesis.pdf",
+      "url": "https://scholarcommons.sc.edu/cgi/viewcontent.cgi?article=4622&context=etd",
+      "sha256": null
+    },
+    {
+      "id": "morey_2024_dissertation",
+      "filename": "morey_2024_dissertation.pdf",
+      "url": "https://scholarcommons.sc.edu/cgi/viewcontent.cgi?article=8590&context=etd",
+      "sha256": null
+    },
+    {
+      "id": "hardwick_2018_review",
+      "filename": "hardwick_2018_review.pdf",
+      "url": "https://eprints.soton.ac.uk/420530/1/s2.pdf",
+      "sha256": null
+    },
+    {
+      "id": "weinrich_2023_deactivation",
+      "filename": "weinrich_2023_deactivation.pdf",
+      "url": "https://eprints.soton.ac.uk/481402/2/1_s2.0_S0013468623011398_main.pdf",
+      "sha256": null
+    },
+    {
+      "id": "mcKerracher_2021_thesis",
+      "filename": "mckerracher_2021_thesis.pdf",
+      "url": "https://eprints.soton.ac.uk/456131/1/Final_thesis.pdf",
+      "sha256": null
+    },
+    {
+      "id": "chem_sus_chem_2025_perspective",
+      "filename": "chem_sus_chem_2025_perspective.xml",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12094147/fullTextXML",
+      "format": "xml",
+      "sha256": null
+    },
+    {
+      "id": "high_energy_batteries_2022_review",
+      "filename": "high_energy_batteries_2022_review.xml",
+      "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8986960/fullTextXML",
+      "format": "xml",
+      "sha256": null
+    },
+    {
+      "id": "form_2024_pnw_whitepaper",
+      "filename": "form_2024_pnw_whitepaper.pdf",
+      "url": "https://formenergy.com/wp-content/uploads/2024/06/Form-Energy-Navigating-the-Pacific-Northwest-Energy-Challenges-06.26.2024-1.pdf",
+      "sha256": null
+    },
+    {
+      "id": "sandia_2025_iron_air_cost",
+      "filename": "sandia_2025_iron_air_cost.pdf",
+      "url": "https://www.osti.gov/servlets/purl/2997348",
+      "sha256": null
+    },
+    {
+      "id": "mit_2024_beyond_lithium",
+      "filename": "mit_2024_beyond_lithium.pdf",
+      "url": "https://bpb-us-e1.wpmucdn.com/sites.mit.edu/dist/f/1861/files/2024/01/beyond_lithium_Final.pdf",
+      "sha256": null
+    },
+    {
+      "id": "cra_2023_storage_assumptions",
+      "filename": "cra_2023_storage_assumptions.pdf",
+      "url": "https://media.crai.com/wp-content/uploads/2023/11/13114007/Energy-Insights-Capturing-sub-hourly-value-for-fast-response-resources-Nov-2023.pdf",
+      "sha256": null
+    }
+  ]
+}

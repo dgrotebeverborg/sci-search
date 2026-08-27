@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+          enable-cache: true
+      - run: uv sync --frozen --extra dev --python 3.11
+      - name: Reject committed secrets
+        run: uv run python scripts/check_no_secrets.py
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pyright
+
+  tests:
+    needs: quality
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+          enable-cache: true
+      - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - run: uv run python -m pytest -q --junitxml=test-results-${{ matrix.python }}.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python }}
+          path: test-results-${{ matrix.python }}.xml
+
+  coverage-package-security:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.17"
+          enable-cache: true
+      - run: uv sync --frozen --extra dev --python 3.11
+      - run: uv run python -m pytest --cov=sci_search --cov-report=term-missing --cov-report=xml -q
+      - run: uv run python -m build
+      - name: Install and smoke-test wheel
+        run: |
+          uv venv /tmp/sci-search-wheel --python 3.11
+          uv pip install --python /tmp/sci-search-wheel/bin/python dist/sci_search-*.whl
+          /tmp/sci-search-wheel/bin/sci-search --help
+      - name: Audit locked third-party dependencies
+        run: |
+          uv export --frozen --all-extras --no-emit-project --quiet --output-file /tmp/sci-search-audit.txt
+          uv run pip-audit --strict --requirement /tmp/sci-search-audit.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-and-distributions
+          path: |
+            coverage.xml
+            dist/

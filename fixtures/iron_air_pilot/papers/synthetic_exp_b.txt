@@ -1,0 +1,11 @@
+[PAGE 1]
+## Abstract
+This independent synthetic replication exists only as an inspectable software fixture.
+
+[PAGE 5]
+## Results
+For the same alkaline aqueous button-cell configuration at 25 °C and 20 mA cm−2, measured RTE was 0.64 fraction during the 10 hour protocol.
+
+[PAGE 6]
+## Discussion
+The small difference from the other synthetic experiment is suitable for testing a comparable pair, not for drawing a scientific conclusion.
