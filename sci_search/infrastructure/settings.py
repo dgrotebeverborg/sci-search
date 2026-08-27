@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 _INSECURE = frozenset(
     {
@@ -107,7 +107,7 @@ class ProductionSettings:
                 if item.strip()
             ),
             database_url=_secret("SCI_SEARCH_DATABASE_URL"),
-            redis_url=_secret("SCI_SEARCH_REDIS_URL"),
+            redis_url=_redis_url(),
             s3_endpoint=os.environ.get("SCI_SEARCH_S3_ENDPOINT", ""),
             s3_bucket=os.environ.get("SCI_SEARCH_S3_BUCKET", ""),
             s3_access_key=_secret("SCI_SEARCH_S3_ACCESS_KEY"),
@@ -135,6 +135,20 @@ def _secret(name: str) -> str:
     if "\x00" in value:
         raise ValueError(f"{name}_FILE contains invalid data")
     return value
+
+
+def _redis_url() -> str:
+    if os.environ.get("SCI_SEARCH_REDIS_URL") is not None or os.environ.get(
+        "SCI_SEARCH_REDIS_URL_FILE"
+    ) is not None:
+        return _secret("SCI_SEARCH_REDIS_URL")
+    password = _secret("SCI_SEARCH_REDIS_PASSWORD")
+    host = os.environ.get("SCI_SEARCH_REDIS_HOST", "").strip()
+    port = os.environ.get("SCI_SEARCH_REDIS_PORT", "6379").strip()
+    database = os.environ.get("SCI_SEARCH_REDIS_DATABASE", "0").strip()
+    if not host or not port.isdigit() or not database.isdigit():
+        raise ValueError("Redis password mode requires a host and numeric port/database")
+    return f"redis://:{quote(password, safe='')}@{host}:{port}/{database}"
 
 
 def _boolean(name: str) -> bool:

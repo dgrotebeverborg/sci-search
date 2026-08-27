@@ -9,7 +9,7 @@ case "${1:-web}" in
     ;;
   worker)
     shift
-    exec python -m sci_search.worker "$@"
+    exec dramatiq sci_search.worker_runtime --processes 1 --threads 2 "$@"
     ;;
   migrate)
     shift

@@ -7,12 +7,16 @@ services:
     environment:
       SCI_SEARCH_ENVIRONMENT: test
   postgres:
+    volumes: !reset []
     tmpfs:
       - /var/lib/postgresql/data
   redis:
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${SCI_SEARCH_REDIS_PASSWORD}"]
+    command:
+      - exec redis-server --save "" --appendonly no --requirepass "$$(cat /run/secrets/redis_password)"
+    volumes: !reset []
     tmpfs:
       - /data
   minio:
+    volumes: !reset []
     tmpfs:
       - /data

@@ -22,7 +22,8 @@ RUN groupadd --gid 10001 sci-search \
     && mkdir -p /tmp/sci-search \
     && chown 10001:10001 /tmp/sci-search
 COPY --from=builder /wheels /wheels
-RUN /opt/sci-search/bin/pip install --no-cache-dir /wheels/sci_search-*.whl \
+RUN /opt/sci-search/bin/pip install --no-cache-dir --no-index --find-links=/wheels \
+        /wheels/sci_search-*.whl \
     && rm -rf /wheels
 COPY --chmod=0555 docker/entrypoint.sh /usr/local/bin/sci-search-entrypoint
 COPY --chmod=0555 scripts /app/scripts

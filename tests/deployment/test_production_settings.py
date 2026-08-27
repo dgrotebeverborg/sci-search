@@ -92,6 +92,21 @@ def test_secret_files_are_loaded_without_placing_secret_values_in_environment(
     assert all(name not in __import__("os").environ for name in secrets)
 
 
+def test_redis_url_can_be_derived_from_a_password_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_valid_environment(monkeypatch)
+    monkeypatch.delenv("SCI_SEARCH_REDIS_URL")
+    password_file = tmp_path / "redis_password"
+    password_file.write_text("redis password with spaces", encoding="utf-8")
+    monkeypatch.setenv("SCI_SEARCH_REDIS_PASSWORD_FILE", str(password_file))
+    monkeypatch.setenv("SCI_SEARCH_REDIS_HOST", "cache.internal")
+
+    settings = ProductionSettings.from_environment()
+
+    assert settings.redis_url == "redis://:redis%20password%20with%20spaces@cache.internal:6379/0"
+
+
 def _set_valid_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SCI_SEARCH_ENVIRONMENT", "production")
     monkeypatch.setenv("SCI_SEARCH_PUBLIC_BASE_URL", "https://search.uu.nl")
@@ -124,6 +139,11 @@ def test_production_bootstrap_uses_validated_settings(
     assert app.state.api_settings.session_secret == "x" * 64
     assert app.state.api_settings.development_auth_enabled is False
     assert app.state.production_settings.s3_bucket == "sci-search"
+    assert type(app.state.api_services.sessions).__name__ == "DatabaseSessionService"
+    assert type(app.state.api_services.projects).__name__ == "DatabaseProjectService"
+    assert type(app.state.api_services.research).__name__ == "DatabaseResearchApiService"
+    route_paths = set(app.openapi()["paths"])
+    assert {"/auth/oidc/start", "/auth/callback"} <= route_paths
 
 
 def test_production_bootstrap_rejects_insecure_configuration(

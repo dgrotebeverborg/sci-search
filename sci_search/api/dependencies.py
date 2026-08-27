@@ -5,20 +5,65 @@ from __future__ import annotations
 import hashlib
 import hmac
 from dataclasses import dataclass
+from typing import Protocol
 
 from fastapi import HTTPException, Request, status
 
-from sci_search.application.projects import ProjectService
+from sci_search.application.projects import Membership, Project, ProjectRole, Workspace
 from sci_search.application.research_api import ResearchApiService
-from sci_search.application.sessions import InvalidSession, SessionService
+from sci_search.application.sessions import InvalidSession, IssuedSession, Session
+
+
+class SessionServiceContract(Protocol):
+    def create(self, user_id: str) -> IssuedSession: ...
+
+    def authenticate(self, token: str) -> Session: ...
+
+    def revoke(self, token: str) -> None: ...
+
+
+class ProjectServiceContract(Protocol):
+    def list_for_user(self, user_id: str) -> list[Project]: ...
+
+    def list_workspaces_for_user(self, user_id: str) -> list[Workspace]: ...
+
+    def get(self, user_id: str, project_id: str) -> Project: ...
+
+    def role_for_user(self, user_id: str, project_id: str) -> ProjectRole: ...
+
+    def create(self, user_id: str, workspace_id: str, name: str, is_private: bool) -> Project: ...
+
+    def rename(self, user_id: str, project_id: str, name: str) -> Project: ...
+
+    def delete(self, user_id: str, project_id: str) -> None: ...
+
+    def list_members(self, user_id: str, project_id: str) -> list[Membership]: ...
+
+    def add_member(
+        self,
+        actor_user_id: str,
+        project_id: str,
+        subject_user_id: str,
+        role: ProjectRole,
+    ) -> Membership: ...
+
+    def change_member_role(
+        self,
+        actor_user_id: str,
+        project_id: str,
+        subject_user_id: str,
+        role: ProjectRole,
+    ) -> Membership: ...
+
+    def remove_member(self, actor_user_id: str, project_id: str, subject_user_id: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
 class ApiServices:
     """Explicit services available to thin API routes."""
 
-    sessions: SessionService
-    projects: ProjectService | None = None
+    sessions: SessionServiceContract
+    projects: ProjectServiceContract | None = None
     research: ResearchApiService | None = None
 
 

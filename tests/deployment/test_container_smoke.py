@@ -26,12 +26,11 @@ def test_production_compose_only_publishes_caddy_ports() -> None:
             "SCI_SEARCH_OIDC_CLIENT_ID": "test-client",
             "SCI_SEARCH_OIDC_CALLBACK_URL": "https://search.example.test/auth/callback",
             "SCI_SEARCH_HOSTNAME": "search.example.test",
-            "SCI_SEARCH_REDIS_PASSWORD": "test-only-password",
         },
     )
     services = json.loads(rendered.stdout)["services"]
     assert services["caddy"]["ports"]
-    for name in ("web", "worker", "postgres", "redis", "minio"):
+    for name in ("web", "worker", "postgres", "redis", "minio", "minio-init"):
         assert not services[name].get("ports"), name
 
 
@@ -79,3 +78,4 @@ def test_dockerfile_pins_base_digest_and_declares_non_root_runtime() -> None:
     assert "python:3.11-slim@sha256:" in dockerfile
     assert "USER 10001:10001" in dockerfile
     assert "COPY --from=builder" in dockerfile
+    assert "--no-index --find-links=/wheels" in dockerfile

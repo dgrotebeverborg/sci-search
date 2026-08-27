@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Annotated, Literal
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import APIRouter, Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -169,10 +172,24 @@ def create_app(
     settings: ApiSettings,
     services: ApiServices,
     operational_checks: OperationalChecks | None = None,
+    authentication_router: APIRouter | None = None,
+    shutdown: Callable[[], None] | None = None,
 ) -> FastAPI:
     """Build the web process around explicit configuration and services."""
 
-    app = FastAPI(title="Sci-Search API", version="1.0.0", docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        if shutdown is not None:
+            shutdown()
+
+    app = FastAPI(
+        title="Sci-Search API",
+        version="1.0.0",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
     app.state.api_settings = settings
     app.state.api_services = services
     metrics = Metrics()
@@ -185,6 +202,15 @@ def create_app(
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(RequestMetricsMiddleware, metrics=metrics)
+    if authentication_router is not None:
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=settings.session_secret,
+            session_cookie="sci_search_oidc_state",
+            max_age=600,
+            same_site="lax",
+            https_only=settings.environment == "production",
+        )
     app.add_middleware(RequestBodyLimitMiddleware, maximum_bytes=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
@@ -202,6 +228,8 @@ def create_app(
     app.include_router(reviews_router)
     app.include_router(exports_router)
     app.include_router(audit_router)
+    if authentication_router is not None:
+        app.include_router(authentication_router)
     app.include_router(
         create_operations_router(
             operational_checks
