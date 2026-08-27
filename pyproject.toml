@@ -50,6 +50,7 @@ include = ["sci_search*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-config --strict-markers"
+markers = ["security: mandatory tenant-isolation and authentication security tests"]
 
 [tool.coverage.run]
 branch = true

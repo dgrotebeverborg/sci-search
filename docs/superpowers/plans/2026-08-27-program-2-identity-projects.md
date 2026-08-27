@@ -94,10 +94,10 @@
 - Consumes: every protected application use case added from Program 2 onward.
 - Produces: a reusable parametrized isolation suite extended by later programs.
 
-- [ ] Define two users, two private projects, one shared workspace, and all four roles using literal fixtures.
-- [ ] Parametrize current operations and prove each unauthorized subject receives `ResourceNotFound` while authorized roles receive the expected grant.
-- [ ] Add this test module to the mandatory CI security marker.
-- [ ] Run the full suite and commit with `git commit -m "test: enforce project isolation matrix"`.
+- [x] Define two users, two private projects, one shared workspace, and all four roles using literal fixtures.
+- [x] Parametrize current operations and prove each unauthorized subject receives `ResourceNotFound` while authorized roles receive the expected grant.
+- [x] Add this test module to the mandatory CI security marker.
+- [x] Run the full suite and commit with `git commit -m "test: enforce project isolation matrix"`.
 
 ### Task 6: Program 2 verification
 

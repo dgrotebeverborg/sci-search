@@ -38,6 +38,8 @@ jobs:
           version: "0.8.17"
           enable-cache: true
       - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - name: Mandatory security isolation suite
+        run: uv run python -m pytest -q -m security
       - run: uv run python -m pytest -q --junitxml=test-results-${{ matrix.python }}.xml
       - if: always()
         uses: actions/upload-artifact@v4
