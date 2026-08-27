@@ -60,10 +60,10 @@
 **Interfaces:**
 - Produces: `BlobStore.put(stream, maximum_bytes) -> BlobRef`, `open(key)`, `stat(key)`, `delete(key)` and `BlobRef(sha256, size, content_type, key)`.
 
-- [ ] Write failing tests proving identical bytes deduplicate, oversized streams abort without a visible partial blob, mismatched expected hashes fail, and keys contain no filename or project identifier.
-- [ ] Implement streaming hashing, bounded temporary writes, atomic rename, and digest-derived opaque keys in `FilesystemBlobStore`.
-- [ ] Test concurrent identical puts and verify one final object with the same `BlobRef`.
-- [ ] Run the focused suite and commit.
+- [x] Write failing tests proving identical bytes deduplicate, oversized streams abort without a visible partial blob, mismatched expected hashes fail, and keys contain no filename or project identifier.
+- [x] Implement streaming hashing, bounded temporary writes, atomic rename, and digest-derived opaque keys in `FilesystemBlobStore`.
+- [x] Test concurrent identical puts and verify one final object with the same `BlobRef`.
+- [x] Run the focused suite and commit.
 
 ### Task 4: S3/MinIO blob implementation
 
