@@ -13,7 +13,7 @@ from sci_search.infrastructure.database import Database
 from sci_search.infrastructure.jobs import SqlJobRepository
 from sci_search.infrastructure.queue import RedisJobQueue
 from sci_search.infrastructure.tables import AuditEventRow, JobCheckpointRow, JobRow
-from sci_search.worker import StageWork, TransientStageError, Worker
+from sci_search.worker import StageInvocation, StageWork, TransientStageError, Worker
 from tests.integration.test_migrations import DATABASE_URL, _configuration
 from tests.integration.test_research_storage import _project
 
@@ -63,7 +63,7 @@ def test_duplicate_delivery_executes_stage_side_effect_once(database: Database) 
     queue = RecordingQueue()
     side_effects: list[str] = []
 
-    def planning(_input: dict[str, object]) -> StageWork:
+    def planning(_invocation: StageInvocation) -> StageWork:
         side_effects.append("planned")
         return StageWork(
             output={"plan": ["query"]},
@@ -92,7 +92,7 @@ def test_redelivery_after_checkpoint_before_ack_advances_without_repeating_stage
     side_effects: list[str] = []
     crashed = False
 
-    def planning(_input: dict[str, object]) -> StageWork:
+    def planning(_invocation: StageInvocation) -> StageWork:
         side_effects.append("planned")
         return StageWork({}, "discovery", "question-v1", "planning-v1")
 
@@ -130,7 +130,7 @@ def test_permanent_failure_dead_letters_once(database: Database) -> None:
     job_id = _job(database)
     queue = RecordingQueue()
 
-    def invalid(_input: dict[str, object]) -> StageWork:
+    def invalid(_invocation: StageInvocation) -> StageWork:
         raise ValueError("invalid scientific input")
 
     worker = Worker(database, queue, {"planning": invalid}, worker_id="worker-a", clock=lambda: NOW)
@@ -149,7 +149,7 @@ def test_transient_failures_retry_only_to_the_configured_bound(database: Databas
     queue = RecordingQueue()
     attempts = 0
 
-    def unavailable(_input: dict[str, object]) -> StageWork:
+    def unavailable(_invocation: StageInvocation) -> StageWork:
         nonlocal attempts
         attempts += 1
         raise TransientStageError("provider temporarily unavailable")

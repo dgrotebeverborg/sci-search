@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as OrmSession
 
 from sci_search.application.authorization import ResourceNotFound
 from sci_search.application.jobs import Job, JobStatus, transition
+from sci_search.application.quotas import JobQuotaLimits, QuotaExceeded
 from sci_search.infrastructure.tables import (
     AuditEventRow,
     JobCheckpointRow,
@@ -62,6 +63,7 @@ class SqlJobRepository:
         first_stage: str,
         input_payload: dict[str, Any],
         created_at: datetime,
+        quota_limits: JobQuotaLimits | None = None,
     ) -> Job:
         project_uuid = _uuid(project_id)
         user_uuid = _uuid(created_by_user_id)
@@ -72,6 +74,17 @@ class SqlJobRepository:
             raise ResourceNotFound
         if not idempotency_key.strip() or not first_stage.strip():
             raise ValueError("idempotency key and first stage are required")
+        if quota_limits is not None:
+            self._quota_lock()
+            existing = self._session.scalar(
+                select(JobRow).where(
+                    JobRow.project_id == project_uuid,
+                    JobRow.idempotency_key == idempotency_key,
+                )
+            )
+            if existing is not None:
+                return _job(existing)
+            self._require_queue_capacity(project_uuid, user_uuid, quota_limits)
         job_id = uuid4()
         created_id = self._session.scalar(
             insert(JobRow)
@@ -134,11 +147,18 @@ class SqlJobRepository:
         worker_id: str,
         *,
         now: datetime,
-        lease_for: timedelta,
+        lease_for: timedelta = timedelta(minutes=5),
+        quota_limits: JobQuotaLimits | None = None,
     ) -> Job:
         if lease_for <= timedelta(0):
             raise ValueError("lease duration must be positive")
         job_uuid = _uuid(job_id)
+        if quota_limits is not None:
+            self._quota_lock()
+            candidate = self._session.get(JobRow, job_uuid)
+            if candidate is None:
+                raise ResourceNotFound
+            self._require_active_capacity(candidate, quota_limits)
         row = self._session.scalar(
             update(JobRow)
             .where(
@@ -277,26 +297,77 @@ class SqlJobRepository:
         return _job(row)
 
     def request_cancel(self, project_id: str, job_id: str, *, now: datetime) -> Job:
+        existing = self._session.scalar(
+            select(JobRow).where(JobRow.id == _uuid(job_id), JobRow.project_id == _uuid(project_id))
+        )
+        if existing is None:
+            raise ResourceNotFound
+        if existing.status == JobStatus.CANCELLED.value:
+            return _job(existing)
+        if existing.status == JobStatus.CANCEL_REQUESTED.value:
+            return _job(existing)
+        if existing.status not in {JobStatus.QUEUED.value, JobStatus.RUNNING.value}:
+            raise LeaseRejected
+        target = (
+            JobStatus.CANCELLED
+            if existing.status == JobStatus.QUEUED.value
+            else JobStatus.CANCEL_REQUESTED
+        )
         row = self._session.scalar(
             update(JobRow)
             .where(
                 JobRow.id == _uuid(job_id),
                 JobRow.project_id == _uuid(project_id),
-                JobRow.status.in_([JobStatus.QUEUED.value, JobStatus.RUNNING.value]),
+                JobRow.status == existing.status,
             )
             .values(
-                status=JobStatus.CANCEL_REQUESTED.value,
+                status=target.value,
+                lease_owner=None if target is JobStatus.CANCELLED else existing.lease_owner,
+                lease_expires_at=(
+                    None if target is JobStatus.CANCELLED else existing.lease_expires_at
+                ),
                 updated_at=now,
                 version=JobRow.version + 1,
             )
             .returning(JobRow)
         )
         if row is None:
-            existing = self.get(project_id, job_id)
-            if existing.status is JobStatus.CANCEL_REQUESTED:
-                return existing
             raise LeaseRejected
-        self._audit(row, action="job.cancel_requested", occurred_at=now)
+        self._audit(
+            row,
+            action=("job.cancelled" if target is JobStatus.CANCELLED else "job.cancel_requested"),
+            occurred_at=now,
+        )
+        return _job(row)
+
+    def cancellation_requested(self, job_id: str) -> bool:
+        status = self._session.scalar(select(JobRow.status).where(JobRow.id == _uuid(job_id)))
+        if status is None:
+            raise ResourceNotFound
+        return status in {JobStatus.CANCEL_REQUESTED.value, JobStatus.CANCELLED.value}
+
+    def acknowledge_cancel(self, job_id: str, worker_id: str, *, now: datetime) -> Job:
+        job_uuid = _uuid(job_id)
+        row = self._session.scalar(
+            update(JobRow)
+            .where(
+                JobRow.id == job_uuid,
+                JobRow.status == JobStatus.CANCEL_REQUESTED.value,
+                JobRow.lease_owner == worker_id,
+            )
+            .values(
+                status=JobStatus.CANCELLED.value,
+                lease_owner=None,
+                lease_expires_at=None,
+                updated_at=now,
+                version=JobRow.version + 1,
+            )
+            .returning(JobRow)
+        )
+        if row is None:
+            raise LeaseRejected
+        self._finish_attempt(job_uuid, worker_id, now=now, outcome="cancelled")
+        self._audit(row, action="job.cancelled", occurred_at=now)
         return _job(row)
 
     def retry_failed(self, job_id: str, *, now: datetime) -> Job:
@@ -400,3 +471,88 @@ class SqlJobRepository:
                 payload=payload or {},
             )
         )
+
+    def _quota_lock(self) -> None:
+        # One transaction-wide lock keeps count-and-reserve decisions atomic.
+        self._session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"), {"key": 7_321_044_029_001}
+        )
+
+    def _require_queue_capacity(
+        self, project_id: UUID, user_id: UUID, limits: JobQuotaLimits
+    ) -> None:
+        project = self._session.get(ProjectRow, project_id)
+        if project is None:
+            raise ResourceNotFound
+        checks = (
+            (
+                "global_queued",
+                self._count_jobs(JobStatus.QUEUED),
+                limits.global_queued,
+            ),
+            (
+                "workspace_queued",
+                self._count_jobs(JobStatus.QUEUED, workspace_id=project.workspace_id),
+                limits.workspace_queued,
+            ),
+            (
+                "user_queued",
+                self._count_jobs(JobStatus.QUEUED, user_id=user_id),
+                limits.user_queued,
+            ),
+        )
+        for scope, count, maximum in checks:
+            if count >= maximum:
+                raise QuotaExceeded(scope)
+
+    def _require_active_capacity(self, candidate: JobRow, limits: JobQuotaLimits) -> None:
+        project = self._session.get(ProjectRow, candidate.project_id)
+        if project is None:
+            raise ResourceNotFound
+        checks = (
+            (
+                "global_active",
+                self._count_jobs(JobStatus.RUNNING, excluding_job=candidate.id),
+                limits.global_active,
+            ),
+            (
+                "workspace_active",
+                self._count_jobs(
+                    JobStatus.RUNNING,
+                    workspace_id=project.workspace_id,
+                    excluding_job=candidate.id,
+                ),
+                limits.workspace_active,
+            ),
+            (
+                "user_active",
+                self._count_jobs(
+                    JobStatus.RUNNING,
+                    user_id=candidate.created_by_user_id,
+                    excluding_job=candidate.id,
+                ),
+                limits.user_active,
+            ),
+        )
+        for scope, count, maximum in checks:
+            if count >= maximum:
+                raise QuotaExceeded(scope)
+
+    def _count_jobs(
+        self,
+        status: JobStatus,
+        *,
+        workspace_id: UUID | None = None,
+        user_id: UUID | None = None,
+        excluding_job: UUID | None = None,
+    ) -> int:
+        statement = select(func.count()).select_from(JobRow).where(JobRow.status == status.value)
+        if workspace_id is not None:
+            statement = statement.join(ProjectRow, ProjectRow.id == JobRow.project_id).where(
+                ProjectRow.workspace_id == workspace_id
+            )
+        if user_id is not None:
+            statement = statement.where(JobRow.created_by_user_id == user_id)
+        if excluding_job is not None:
+            statement = statement.where(JobRow.id != excluding_job)
+        return int(self._session.scalar(statement) or 0)

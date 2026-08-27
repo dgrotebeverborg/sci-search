@@ -11,6 +11,7 @@ from dramatiq import Actor, actor
 from dramatiq.broker import Broker
 
 from sci_search.application.jobs import JobStatus
+from sci_search.application.quotas import JobQuotaLimits, QuotaExceeded
 from sci_search.infrastructure.database import Database
 from sci_search.infrastructure.jobs import LeaseRejected, SqlJobRepository
 from sci_search.infrastructure.queue import JobQueue
@@ -24,8 +25,27 @@ class StageWork:
     implementation_version: str
 
 
+class CancellationRequested(RuntimeError):
+    pass
+
+
+class CancellationToken:
+    def __init__(self, requested: Callable[[], bool]) -> None:
+        self._requested = requested
+
+    def raise_if_requested(self) -> None:
+        if self._requested():
+            raise CancellationRequested("job cancellation requested")
+
+
+@dataclass(frozen=True, slots=True)
+class StageInvocation:
+    input_payload: dict[str, Any]
+    cancellation: CancellationToken
+
+
 class StageExecutor(Protocol):
-    def __call__(self, input_payload: dict[str, Any]) -> StageWork: ...
+    def __call__(self, invocation: StageInvocation) -> StageWork: ...
 
 
 class TransientStageError(RuntimeError):
@@ -43,6 +63,7 @@ class Worker:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         lease_for: timedelta = timedelta(minutes=5),
         max_attempts: int = 3,
+        quota_limits: JobQuotaLimits | None = None,
         after_checkpoint: Callable[[], None] | None = None,
     ) -> None:
         self._database = database
@@ -52,6 +73,7 @@ class Worker:
         self._clock = clock
         self._lease_for = lease_for
         self._max_attempts = max_attempts
+        self._quota_limits = quota_limits or JobQuotaLimits()
         self._after_checkpoint = after_checkpoint or (lambda: None)
 
     def execute(self, job_id: str, stage_name: str) -> str:
@@ -59,6 +81,8 @@ class Worker:
             current = SqlJobRepository(session).get_for_worker(job_id)
         if current.status in {JobStatus.COMPLETED, JobStatus.CANCELLED}:
             return "terminal"
+        if current.status is JobStatus.CANCEL_REQUESTED:
+            return "cancellation_pending"
         if current.status is JobStatus.FAILED:
             return "dead_lettered"
         if current.current_stage != stage_name:
@@ -69,16 +93,32 @@ class Worker:
         try:
             with self._database.transaction() as session:
                 claimed = SqlJobRepository(session).claim(
-                    job_id, self._worker_id, now=now, lease_for=self._lease_for
+                    job_id,
+                    self._worker_id,
+                    now=now,
+                    lease_for=self._lease_for,
+                    quota_limits=self._quota_limits,
                 )
+        except QuotaExceeded:
+            self._queue.enqueue(job_id, stage_name)
+            return "capacity_wait"
         except LeaseRejected:
             return "busy"
 
         executor = self._stages.get(stage_name)
         if executor is None:
             return self._fail(job_id, ValueError("unknown stage"), transient=False)
+        cancellation = CancellationToken(lambda: self._cancellation_requested(job_id))
         try:
-            work = executor(claimed.input_payload)
+            cancellation.raise_if_requested()
+            work = executor(StageInvocation(claimed.input_payload, cancellation))
+            cancellation.raise_if_requested()
+        except CancellationRequested:
+            with self._database.transaction() as session:
+                SqlJobRepository(session).acknowledge_cancel(
+                    job_id, self._worker_id, now=self._clock()
+                )
+            return "cancelled"
         except TransientStageError as error:
             return self._fail(job_id, error, transient=True)
         except Exception as error:
@@ -118,6 +158,10 @@ class Worker:
             self._queue.enqueue(job_id, failed.current_stage)
             return "retry_scheduled"
         return "dead_lettered"
+
+    def _cancellation_requested(self, job_id: str) -> bool:
+        with self._database.transaction() as session:
+            return SqlJobRepository(session).cancellation_requested(job_id)
 
 
 def register_worker_actor(

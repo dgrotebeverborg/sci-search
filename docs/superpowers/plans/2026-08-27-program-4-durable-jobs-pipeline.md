@@ -84,11 +84,11 @@
 **Interfaces:**
 - Produces global, workspace, and per-user active/queued limits plus cooperative cancellation.
 
-- [ ] Write failing tests for global saturation, per-user saturation, fair release after completion, and cancellation between acquisition iterations.
-- [ ] Implement transactional quota reservations linked to job lifecycle.
-- [ ] Add cancellation checks at every stage and inside bounded acquisition/gap-search loops.
-- [ ] Verify cancelled jobs retain completed checkpoints and cannot publish later-stage artifacts.
-- [ ] Run tests and commit.
+- [x] Write failing tests for global saturation, per-user saturation, fair release after completion, and cancellation between acquisition iterations.
+- [x] Implement transactional quota reservations linked to job lifecycle.
+- [x] Add cancellation checks at every stage and inside bounded acquisition/gap-search loops.
+- [x] Verify cancelled jobs retain completed checkpoints and cannot publish later-stage artifacts.
+- [x] Run tests and commit.
 
 ### Task 5: Restart and parity acceptance
 
