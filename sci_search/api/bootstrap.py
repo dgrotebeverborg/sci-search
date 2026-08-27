@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from sci_search.api.app import ApiSettings, create_app
 from sci_search.api.dependencies import ApiServices
+from sci_search.api.routes.operations import production_operational_checks
 from sci_search.application.projects import (
     InMemoryProjectAuditRepository,
     InMemoryProjectRepository,
@@ -24,6 +25,7 @@ from sci_search.application.projects import (
 )
 from sci_search.application.research_api import InMemoryResearchApiService
 from sci_search.application.sessions import InMemorySessionRepository, SessionService
+from sci_search.infrastructure.observability import configure_json_logging
 from sci_search.infrastructure.settings import ProductionSettings
 
 _DEVELOPMENT_USER = "development-researcher"
@@ -121,6 +123,7 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
     app = create_app(
         settings,
         ApiServices(sessions=sessions, projects=project_service, research=research_service),
+        production_operational_checks(production_settings) if production_settings else None,
     )
     if production_settings is not None:
         app.state.production_settings = production_settings
@@ -128,4 +131,6 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
 
 
 def run_api_server(app: FastAPI, host: str, port: int) -> None:
+    if app.state.api_settings.environment == "production":
+        configure_json_logging()
     uvicorn.run(app, host=host, port=port, access_log=False)

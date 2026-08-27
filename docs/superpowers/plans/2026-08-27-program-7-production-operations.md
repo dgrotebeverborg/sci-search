@@ -58,10 +58,10 @@
 **Interfaces:**
 - Produces correlation context, JSON logs, `/health/live`, `/health/ready`, and bounded Prometheus metrics.
 
-- [ ] Write failing tests proving correlation IDs propagate and sensitive keys/document text are redacted.
-- [ ] Implement liveness without dependencies and readiness with bounded PostgreSQL, Redis, and S3 checks.
-- [ ] Add metrics for request latency, denials, queue age/depth, leases, stages, providers, storage, evidence, withholding, and model rejection.
-- [ ] Assert metric labels use bounded enums/route templates, not questions, document names, IDs, or error strings; commit.
+- [x] Write failing tests proving correlation IDs propagate and sensitive keys/document text are redacted.
+- [x] Implement liveness without dependencies and readiness with bounded PostgreSQL, Redis, and S3 checks.
+- [x] Add metrics for request latency, denials, queue age/depth, leases, stages, providers, storage, evidence, withholding, and model rejection.
+- [x] Assert metric labels use bounded enums/route templates, not questions, document names, IDs, or error strings; commit.
 
 ### Task 4: Backup and verified restore
 

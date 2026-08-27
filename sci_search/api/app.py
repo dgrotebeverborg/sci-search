@@ -33,6 +33,7 @@ from sci_search.api.frontend import router as frontend_router
 from sci_search.api.routes.audit import router as audit_router
 from sci_search.api.routes.documents import router as documents_router
 from sci_search.api.routes.exports import router as exports_router
+from sci_search.api.routes.operations import OperationalChecks, create_operations_router
 from sci_search.api.routes.projects import router as projects_router
 from sci_search.api.routes.reviews import router as reviews_router
 from sci_search.api.routes.runs import router as runs_router
@@ -43,6 +44,11 @@ from sci_search.application.research_api import (
     InvalidDocument,
     InvalidRiskOfBiasReference,
     ResourceVersionConflict,
+)
+from sci_search.infrastructure.observability import (
+    CorrelationIdMiddleware,
+    Metrics,
+    RequestMetricsMiddleware,
 )
 
 Environment = Literal["development", "test", "production"]
@@ -159,18 +165,26 @@ class _RequestBodyTooLarge(Exception):
     pass
 
 
-def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
+def create_app(
+    settings: ApiSettings,
+    services: ApiServices,
+    operational_checks: OperationalChecks | None = None,
+) -> FastAPI:
     """Build the web process around explicit configuration and services."""
 
     app = FastAPI(title="Sci-Search API", version="1.0.0", docs_url=None, redoc_url=None)
     app.state.api_settings = settings
     app.state.api_services = services
+    metrics = Metrics()
+    app.state.metrics = metrics
     app.add_exception_handler(ResourceNotFound, resource_not_found_handler)
     app.add_exception_handler(ResourceVersionConflict, version_conflict_handler)
     app.add_exception_handler(InvalidDocument, invalid_document_handler)
     app.add_exception_handler(InvalidRiskOfBiasReference, invalid_risk_of_bias_handler)
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CorrelationIdMiddleware)
+    app.add_middleware(RequestMetricsMiddleware, metrics=metrics)
     app.add_middleware(RequestBodyLimitMiddleware, maximum_bytes=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
@@ -188,6 +202,17 @@ def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
     app.include_router(reviews_router)
     app.include_router(exports_router)
     app.include_router(audit_router)
+    app.include_router(
+        create_operations_router(
+            operational_checks
+            or OperationalChecks(
+                database=lambda: True,
+                redis=lambda: True,
+                object_store=lambda: True,
+            ),
+            metrics,
+        )
+    )
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     def health() -> HealthResponse:
