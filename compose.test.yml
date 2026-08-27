@@ -1,0 +1,18 @@
+services:
+  caddy:
+    ports:
+      - "127.0.0.1:58080:80"
+      - "127.0.0.1:58443:443"
+  web:
+    environment:
+      SCI_SEARCH_ENVIRONMENT: test
+  postgres:
+    tmpfs:
+      - /var/lib/postgresql/data
+  redis:
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${SCI_SEARCH_REDIS_PASSWORD}"]
+    tmpfs:
+      - /data
+  minio:
+    tmpfs:
+      - /data

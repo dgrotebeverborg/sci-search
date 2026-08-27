@@ -29,10 +29,10 @@
 **Interfaces:**
 - Produces `web`, `worker`, `migrate`, and administrative commands from one image.
 
-- [ ] Write a failing container smoke test that builds the image, runs as a non-root UID, imports the package, and exposes no source `.env.local` or data directory.
-- [ ] Implement a multi-stage build with pinned base digest, wheel installation, read-only application files, non-root runtime, and writable explicit temp directory.
-- [ ] Define private service networks, health checks, named volumes, resource limits, and development/test/production profiles.
-- [ ] Verify only Caddy publishes ports in production; commit.
+- [x] Write a failing container smoke test that builds the image, runs as a non-root UID, imports the package, and exposes no source `.env.local` or data directory.
+- [x] Implement a multi-stage build with pinned base digest, wheel installation, read-only application files, non-root runtime, and writable explicit temp directory.
+- [x] Define private service networks, health checks, named volumes, resource limits, and development/test/production overrides.
+- [x] Verify only Caddy publishes ports in production; commit.
 
 ### Task 2: TLS proxy and secure production configuration
 
