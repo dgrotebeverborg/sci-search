@@ -67,3 +67,30 @@ def test_application_database_startup_does_not_mutate_schema(empty_database: str
 
     assert inspect(database.engine).get_table_names() == []
     database.dispose()
+
+
+def test_program_2_schema_upgrades_to_research_storage_head(empty_database: str) -> None:
+    configuration = _configuration(empty_database)
+    command.upgrade(configuration, "0001_identity_projects")
+    engine = create_engine(empty_database)
+    before = set(inspect(engine).get_table_names())
+    assert "projects" in before
+    assert "documents" not in before
+
+    command.upgrade(configuration, "head")
+    after = set(inspect(engine).get_table_names())
+    assert {"documents", "evidence_records", "legacy_imports"} <= after
+    engine.dispose()
+
+
+def test_head_can_roll_back_to_previous_program_3_schema(empty_database: str) -> None:
+    configuration = _configuration(empty_database)
+    command.upgrade(configuration, "head")
+    command.downgrade(configuration, "0002_research_storage")
+
+    engine = create_engine(empty_database)
+    tables = set(inspect(engine).get_table_names())
+    assert {"projects", "documents", "evidence_records"} <= tables
+    assert "legacy_imports" not in tables
+    engine.dispose()
+    command.upgrade(configuration, "head")

@@ -112,7 +112,7 @@
 
 ### Task 7: Program 3 verification
 
-- [ ] Upgrade an empty database and a Program 2 schema to Alembic head.
-- [ ] Run PostgreSQL, filesystem blob, MinIO, isolation, and legacy-import tests.
-- [ ] Run the complete unit suite, Ruff, Pyright, package build, and dependency audit.
-- [ ] Document database rollback and verify the previous application image can read the supported rollback schema.
+- [x] Upgrade an empty database and a Program 2 schema to Alembic head.
+- [x] Run PostgreSQL, filesystem blob, MinIO, isolation, and legacy-import tests.
+- [x] Run the complete unit suite, Ruff, Pyright, package build, and dependency audit.
+- [x] Document database rollback and verify the previous application image can read the supported rollback schema.
