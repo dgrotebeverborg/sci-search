@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
@@ -19,10 +20,21 @@ from sci_search.api.dependencies import (
     require_csrf,
     require_principal,
 )
-from sci_search.api.errors import resource_not_found_handler
+from sci_search.api.errors import (
+    invalid_document_handler,
+    request_validation_handler,
+    resource_not_found_handler,
+    version_conflict_handler,
+)
+from sci_search.api.routes.audit import router as audit_router
+from sci_search.api.routes.documents import router as documents_router
+from sci_search.api.routes.exports import router as exports_router
 from sci_search.api.routes.projects import router as projects_router
+from sci_search.api.routes.reviews import router as reviews_router
+from sci_search.api.routes.runs import router as runs_router
 from sci_search.api.schemas import HealthResponse, SessionResponse
 from sci_search.application.authorization import ResourceNotFound
+from sci_search.application.research_api import InvalidDocument, ResourceVersionConflict
 
 Environment = Literal["development", "test", "production"]
 _DEFAULT_SECRETS = frozenset({"change-me", "secret", "development-secret", "sci-search"})
@@ -144,6 +156,9 @@ def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
     app.state.api_settings = settings
     app.state.api_services = services
     app.add_exception_handler(ResourceNotFound, resource_not_found_handler)
+    app.add_exception_handler(ResourceVersionConflict, version_conflict_handler)
+    app.add_exception_handler(InvalidDocument, invalid_document_handler)
+    app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware, maximum_bytes=settings.max_request_body_bytes)
     app.add_middleware(
@@ -154,6 +169,11 @@ def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
         allow_headers=["Accept", "Content-Type", settings.csrf_header_name],
     )
     app.include_router(projects_router)
+    app.include_router(runs_router)
+    app.include_router(documents_router)
+    app.include_router(reviews_router)
+    app.include_router(exports_router)
+    app.include_router(audit_router)
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     def health() -> HealthResponse:

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Request, status
 
 from sci_search.application.projects import ProjectService
+from sci_search.application.research_api import ResearchApiService
 from sci_search.application.sessions import InvalidSession, SessionService
 
 
@@ -18,6 +19,14 @@ class ApiServices:
 
     sessions: SessionService
     projects: ProjectService | None = None
+    research: ResearchApiService | None = None
+
+
+def research_service(request: Request) -> ResearchApiService:
+    service: ResearchApiService | None = request.app.state.api_services.research
+    if service is None:
+        raise RuntimeError("research service is not configured")
+    return service
 
 
 @dataclass(frozen=True, slots=True)

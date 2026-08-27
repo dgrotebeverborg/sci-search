@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -70,3 +71,82 @@ class MembershipResponse(ApiSchema):
 
 class MembershipListResponse(ApiSchema):
     items: list[MembershipResponse]
+
+
+class RunCreate(ApiSchema):
+    question: str = Field(min_length=3, max_length=5000)
+    review_depth: Literal["focused", "deep"] = "focused"
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class RunResponse(ApiSchema):
+    id: str
+    project_id: str
+    question: str
+    review_depth: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    version: int
+
+
+class DocumentUpload(ApiSchema):
+    run_id: str = Field(min_length=1, max_length=100)
+    candidate_id: str = Field(min_length=1, max_length=200)
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=40_000_000)
+    authorization_confirmed: bool
+
+
+class DocumentResponse(ApiSchema):
+    id: str
+    filename: str
+    content_type: str
+    created_at: datetime
+
+
+class EvidenceResponse(ApiSchema):
+    id: str
+    statement: str
+    source_passage: str
+    section: str | None
+    page: int | None
+    version: int
+    created_at: datetime
+    review_decision: str | None
+    review_note: str | None
+
+
+class EvidenceListResponse(ApiSchema):
+    items: list[EvidenceResponse]
+    total: int
+    offset: int
+    limit: int
+
+
+class EvidenceReview(ApiSchema):
+    decision: Literal["accepted", "rejected", "needs_revision"]
+    note: str | None = Field(default=None, max_length=10_000)
+    expected_version: int = Field(ge=1)
+
+
+class ValidationResponse(ApiSchema):
+    id: str
+    check_name: str
+    status: str
+    created_at: datetime
+
+
+class ValidationListResponse(ApiSchema):
+    items: list[ValidationResponse]
+
+
+class AuditResponse(ApiSchema):
+    id: str
+    action: str
+    entity_type: str
+    occurred_at: datetime
+
+
+class AuditListResponse(ApiSchema):
+    items: list[AuditResponse]
