@@ -5,20 +5,21 @@ import pytest
 
 from sci_search.application.blobs import BlobHashMismatch, BlobTooLarge
 from sci_search.infrastructure.filesystem_blobs import FilesystemBlobStore
+from tests.blob_contract import assert_round_trip_and_deduplication
 
 
 def test_identical_bytes_deduplicate_and_round_trip(tmp_path) -> None:
     store = FilesystemBlobStore(tmp_path / "blobs")
 
-    first = store.put(BytesIO(b"scientific paper"), maximum_bytes=1024)
-    second = store.put(BytesIO(b"scientific paper"), maximum_bytes=1024)
+    assert_round_trip_and_deduplication(store)
+    first = store.put(
+        BytesIO(b"scientific paper"),
+        maximum_bytes=1024,
+        content_type="application/pdf",
+    )
 
-    assert first == second
     assert first.size == len(b"scientific paper")
     assert first.key == f"objects/{first.sha256[:2]}/{first.sha256[2:4]}/{first.sha256}"
-    assert store.stat(first.key) == first
-    with store.open(first.key) as stream:
-        assert stream.read() == b"scientific paper"
     assert len(list((tmp_path / "blobs" / "objects").rglob(first.sha256))) == 1
 
 

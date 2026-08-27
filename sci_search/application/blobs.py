@@ -22,6 +22,10 @@ class BlobNotFound(BlobError):
     pass
 
 
+class BlobTransientError(BlobError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class BlobRef:
     sha256: str

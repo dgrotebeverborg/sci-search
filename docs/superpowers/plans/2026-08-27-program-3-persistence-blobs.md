@@ -74,10 +74,10 @@
 **Interfaces:**
 - Implements `BlobStore` using a private bucket and server-side multipart operations where appropriate.
 
-- [ ] Reuse the behavioral blob contract suite against MinIO and verify RED before `S3BlobStore` exists.
-- [ ] Implement bounded streaming upload, metadata verification, private object ACL assumptions, retry classification, and idempotent digest keys.
-- [ ] Assert object URLs are never returned from domain/application APIs and pre-signed URLs are not used in version 1.
-- [ ] Run filesystem and MinIO contract suites and commit.
+- [x] Reuse the behavioral blob contract suite against MinIO and verify RED before `S3BlobStore` exists.
+- [x] Implement bounded streaming upload, metadata verification, private object ACL assumptions, retry classification, and idempotent digest keys.
+- [x] Assert object URLs are never returned from domain/application APIs and pre-signed URLs are not used in version 1.
+- [x] Run filesystem and MinIO contract suites and commit.
 
 ### Task 5: Publication grants and evidence persistence
 
