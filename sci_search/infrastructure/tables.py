@@ -402,7 +402,11 @@ class LegacyImportRow(Base):
     source_root: Mapped[str] = mapped_column(String(2000), nullable=False)
     manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     counts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="completed")
+    checkpoint_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class JobRow(Base):

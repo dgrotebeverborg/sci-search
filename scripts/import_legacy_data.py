@@ -27,6 +27,8 @@ def main() -> int:
     parser.add_argument("--project-id", required=True)
     parser.add_argument("--actor-user-id", required=True)
     parser.add_argument("--blob-root", type=Path, required=True)
+    parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument("--maximum-batches", type=int)
     parser.add_argument("--apply", action="store_true")
     arguments = parser.parse_args()
     if not arguments.database_url:
@@ -40,6 +42,8 @@ def main() -> int:
             LegacyImportTarget(database, arguments.project_id, arguments.actor_user_id),
             FilesystemBlobStore(arguments.blob_root),
             apply=arguments.apply,
+            batch_size=arguments.batch_size,
+            maximum_batches=arguments.maximum_batches,
         )
     finally:
         database.dispose()

@@ -45,11 +45,11 @@
 **Interfaces:**
 - Produces resumable import batches and parity report for publications, runs, documents, evidence, reviews, artifacts, and hashes.
 
-- [ ] Write a failing interrupted-import test that stops after a fixed batch and resumes without duplicates.
-- [ ] Implement import ledger checkpoints and explicit conflict policies that preserve source variants rather than silently merging disagreement.
-- [ ] Compare counts, stable identifiers, evidence passages/offsets, review histories, and blob hashes.
-- [ ] Fail parity on unexplained loss; permit only documented transformations with per-record mappings.
-- [ ] Run system import against a protected copy of the current data tree and commit code plus sanitized summary, not source publications.
+- [x] Write a failing interrupted-import test that stops after a fixed batch and resumes without duplicates.
+- [x] Implement import ledger checkpoints and explicit conflict policies that preserve source variants rather than silently merging disagreement.
+- [x] Compare counts, stable identifiers, evidence passages/offsets, review histories, and blob hashes.
+- [x] Fail parity on unexplained loss; permit only documented transformations with per-record mappings.
+- [x] Run system import against a protected copy of the current data tree and commit code plus sanitized summary, not source publications.
 
 ### Task 3: Reference-counted garbage collection
 

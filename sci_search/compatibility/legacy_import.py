@@ -101,6 +101,8 @@ class ImportResult:
     evidence_added: int
     blobs_added: int
     already_imported: bool = False
+    completed: bool = True
+    next_phase: str | None = None
 
 
 def inventory_legacy(root: Path, *, maximum_records: int = 100_000) -> dict[str, Any]:
@@ -253,8 +255,30 @@ def apply_import(
     blob_store: BlobStore,
     *,
     apply: bool = False,
+    batch_size: int = 100,
+    maximum_batches: int | None = None,
 ) -> ImportResult:
-    """Copy a validated manifest; dry-run unless ``apply=True`` is explicit."""
+    """Copy a validated manifest in resumable, committed batches."""
+    from sci_search.compatibility.legacy_migration import apply_resumable_import
+
+    return apply_resumable_import(
+        manifest,
+        target,
+        blob_store,
+        apply=apply,
+        batch_size=batch_size,
+        maximum_batches=maximum_batches,
+    )
+
+
+def _apply_import_atomic(
+    manifest: ImportManifest,
+    target: LegacyImportTarget,
+    blob_store: BlobStore,
+    *,
+    apply: bool = False,
+) -> ImportResult:
+    """Former single-transaction importer retained for migration compatibility tests."""
     if not apply:
         return ImportResult(True, manifest.source_fingerprint, 0, 0, 0, 0)
 
@@ -384,6 +408,13 @@ def apply_import(
             len(manifest.evidence),
             blobs_added,
         )
+
+
+def compare_parity(manifest: ImportManifest, target: LegacyImportTarget) -> dict[str, Any]:
+    """Compare an imported target with its exact source manifest."""
+    from sci_search.compatibility.legacy_migration import compare_import_parity
+
+    return compare_import_parity(manifest, target)
 
 
 def _scan_publications(
