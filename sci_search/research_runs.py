@@ -527,7 +527,7 @@ class ResearchRunManager:
             if isinstance(item, dict) and str(item.get("id")) in answer_ids
         ]
         payload["ai_analysis"] = gate_model_analysis(
-            self._analyze(question, answer_evidence),
+            self._analyze(question, answer_evidence, adequacy),
             adequacy,
         )
         payload["question"] = question
@@ -724,7 +724,11 @@ class ResearchRunManager:
             self.memory.apply_lifecycle(payload)
         payload["synthesis"] = build_structured_synthesis(payload)
         payload["ai_analysis"] = gate_model_analysis(
-            self._analyze(str(state["question"]), payload.get("evidence", [])),
+            self._analyze(
+                str(state["question"]),
+                payload.get("evidence", []),
+                payload.get("answer_adequacy", {}),
+            ),
             payload.get("answer_adequacy", {}),
         )
         payload["corpus_id"] = f"research:{run_id}"
@@ -1294,7 +1298,11 @@ class ResearchRunManager:
             self.memory.apply_lifecycle(payload)
         payload["synthesis"] = build_structured_synthesis(payload)
         payload["ai_analysis"] = gate_model_analysis(
-            self._analyze(question, payload.get("evidence", [])),
+            self._analyze(
+                question,
+                payload.get("evidence", []),
+                payload.get("answer_adequacy", {}),
+            ),
             payload.get("answer_adequacy", {}),
         )
         payload["pipeline_diagnostics"] = _build_pipeline_diagnostics(
@@ -1379,7 +1387,12 @@ class ResearchRunManager:
             finished_at=_now(),
         )
 
-    def _analyze(self, question: str, evidence: list[dict[str, Any]]) -> dict[str, Any]:
+    def _analyze(
+        self,
+        question: str,
+        evidence: list[dict[str, Any]],
+        adequacy: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         model = (
             self.analyzer.model
             if self.analyzer is not None
@@ -1405,7 +1418,7 @@ class ResearchRunManager:
             cached = self.memory.cached_analysis(fingerprint)
             if cached is not None:
                 return cached
-        result = analyze_if_configured(question, evidence, self.analyzer)
+        result = analyze_if_configured(question, evidence, self.analyzer, adequacy)
         if self.memory is not None:
             self.memory.cache_analysis(fingerprint, result)
         return result

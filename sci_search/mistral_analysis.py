@@ -13,6 +13,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from sci_search.research.model_evidence import EvidencePacket, select_model_evidence
+
 JsonCompletion = Callable[[dict[str, Any], dict[str, str]], dict[str, Any]]
 
 
@@ -163,8 +165,16 @@ class MistralAnalyzer:
         self.model = model or os.environ.get("MISTRAL_MODEL") or "mistral-small-latest"
         self.complete_json = complete_json or self._complete_json
 
-    def analyze(self, question: str, evidence: list[dict[str, Any]]) -> dict[str, Any]:
-        selected = [_evidence_input(item) for item in evidence[:12] if isinstance(item, dict)]
+    def analyze(
+        self, question: str, evidence: list[dict[str, Any]] | EvidencePacket
+    ) -> dict[str, Any]:
+        packet = (
+            evidence
+            if isinstance(evidence, EvidencePacket)
+            else select_model_evidence(evidence, {"can_answer_overall_question": True})
+        )
+        source_records = list(packet.selected_records)
+        selected = [_evidence_input(item) for item in source_records if isinstance(item, dict)]
         if not selected:
             return unavailable_analysis("no evidence passages were available for model analysis")
         body = {
@@ -195,7 +205,7 @@ class MistralAnalyzer:
         )
         raw = _response_content(response)
         parsed = json.loads(raw)
-        validated = validate_analysis(parsed, evidence)
+        validated = validate_analysis(parsed, source_records)
         _validate_answer_responsiveness(question, validated)
         usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
         rejected_count = len(validated.get("rejected_records") or [])
@@ -244,30 +254,30 @@ class MistralAnalyzer:
 
 
 def analyze_if_configured(
-    question: str, evidence: list[dict[str, Any]], analyzer: MistralAnalyzer | None = None
+    question: str,
+    evidence: list[dict[str, Any]],
+    analyzer: MistralAnalyzer | None = None,
+    adequacy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected = analyzer
     if selected is None:
         key = os.environ.get("MISTRAL_API_KEY", "").strip()
         if not key:
-            return unavailable_analysis(
-                "MISTRAL_API_KEY is not configured; deterministic extractive analysis was used"
-            )
+            from sci_search.application.analysis import fallback_analysis
+
+            packet = select_model_evidence(evidence, adequacy or {})
+            return fallback_analysis(
+                packet,
+                "MISTRAL_API_KEY is not configured; deterministic extractive analysis was used",
+                provider=None,
+                model=None,
+            ).as_dict()
         selected = MistralAnalyzer(key)
-    try:
-        return selected.analyze(question, evidence)
-    except (
-        HTTPError,
-        URLError,
-        TimeoutError,
-        OSError,
-        ValueError,
-        KeyError,
-        json.JSONDecodeError,
-    ) as exc:
-        return unavailable_analysis(
-            f"validated model analysis failed: {type(exc).__name__}: {str(exc)[:300]}"
-        )
+    from sci_search.application.analysis import MistralAnalysisProvider, analyze_evidence
+
+    return analyze_evidence(
+        question, evidence, adequacy or {}, MistralAnalysisProvider(selected)
+    )
 
 
 def validate_analysis(payload: Any, evidence: list[dict[str, Any]]) -> dict[str, Any]:

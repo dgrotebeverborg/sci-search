@@ -44,11 +44,11 @@
 **Interfaces:**
 - Produces `AnalysisProvider.analyze(question, EvidencePacket) -> AnalysisResult`; `MistralAnalysisProvider` implements it.
 
-- [ ] Write failing contract tests for success, provider error, malformed structure, invalid quote, unknown evidence, and empty grounded result.
-- [ ] Extract shared orchestration and preserve current Mistral JSON schema validation.
-- [ ] Record provider, exact model, packet policy, prompt contract, schema, validator, usage, rejected records, and fallback reason.
-- [ ] Update callers to pass `EvidencePacket`; remove the fixed `evidence[:12]` slice only after parity tests pass.
-- [ ] Run all Mistral, study-matrix, coverage, and memory-cache tests; commit.
+- [x] Write failing contract tests for success, provider error, malformed structure, invalid quote, unknown evidence, and empty grounded result.
+- [x] Extract shared orchestration and preserve current Mistral JSON schema validation.
+- [x] Record provider, exact model, packet policy, prompt contract, schema, validator, usage, rejected records, and fallback reason.
+- [x] Update callers to use the selected `EvidencePacket`; remove the fixed `evidence[:12]` slice only after parity tests pass.
+- [x] Run all Mistral, study-matrix, coverage, and memory-cache tests; commit.
 
 ### Task 3: Risk-of-bias review records
 

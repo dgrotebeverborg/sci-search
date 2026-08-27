@@ -73,7 +73,11 @@ class ResearchService:
             payload = generic.to_dict()
             payload["synthesis"] = build_structured_synthesis(payload)
             payload["ai_analysis"] = gate_model_analysis(
-                analyze_if_configured(question, payload.get("evidence", [])),
+                analyze_if_configured(
+                    question,
+                    payload.get("evidence", []),
+                    adequacy=payload.get("answer_adequacy", {}),
+                ),
                 payload.get("answer_adequacy", {}),
             )
             payload["question"] = question
