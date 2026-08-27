@@ -104,11 +104,11 @@
 **Interfaces:**
 - Produces: `scan_legacy(root) -> ImportManifest` and `apply_import(manifest, target, blob_store) -> ImportResult`.
 
-- [ ] Copy a minimal legacy SQLite/run fixture into a temporary directory and write expected publication, run, evidence, and hash counts by hand.
-- [ ] Verify RED before importer implementation.
-- [ ] Implement path containment, schema validation, source fingerprinting, dry-run default, explicit apply flag, and import ledger.
-- [ ] Run the same import twice and assert the second adds zero rows/blobs and reports identical source fingerprints.
-- [ ] Verify source files are byte-identical before and after import; run full suite and commit.
+- [x] Copy a minimal legacy SQLite/run fixture into a temporary directory and write expected publication, run, evidence, and hash counts by hand.
+- [x] Verify RED before importer implementation.
+- [x] Implement path containment, schema validation, source fingerprinting, dry-run default, explicit apply flag, and import ledger.
+- [x] Run the same import twice and assert the second adds zero rows/blobs and reports identical source fingerprints.
+- [x] Verify source files are byte-identical before and after import; run full suite and commit.
 
 ### Task 7: Program 3 verification
 

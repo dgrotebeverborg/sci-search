@@ -422,6 +422,7 @@ class SqlResearchRepository:
         canonical_publication_key: str,
         title: str,
         blob: BlobRef,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         project_uuid = _uuid(project_id)
         if self._session.get(ProjectRow, project_uuid) is None:
@@ -455,7 +456,7 @@ class SqlResearchRepository:
                 id=uuid4(),
                 canonical_key=canonical_publication_key,
                 title=title,
-                metadata_json={},
+                metadata_json=metadata or {},
             )
             self._session.add(publication)
             self._session.flush([publication])
@@ -537,6 +538,7 @@ class SqlResearchRepository:
         question: str,
         configuration: dict[str, Any],
         created_at: datetime,
+        status: str = "created",
     ) -> str:
         project_uuid = _uuid(project_id)
         user_uuid = _uuid(created_by_user_id)
@@ -553,7 +555,7 @@ class SqlResearchRepository:
             created_by_user_id=user_uuid,
             question=question,
             configuration_json=configuration,
-            status="created",
+            status=status,
             created_at=created_at,
             updated_at=created_at,
             version=1,

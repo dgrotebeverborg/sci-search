@@ -344,3 +344,18 @@ class ArtifactRow(Base):
     generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LegacyImportRow(Base):
+    __tablename__ = "legacy_imports"
+    __table_args__ = (UniqueConstraint("project_id", "source_fingerprint"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_root: Mapped[str] = mapped_column(String(2000), nullable=False)
+    manifest_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    counts_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
