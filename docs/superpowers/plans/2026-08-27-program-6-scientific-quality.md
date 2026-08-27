@@ -76,11 +76,11 @@
 **Interfaces:**
 - Produces explicit labels for must-retrieve/exclude publications, key conclusions, counterevidence, distinctions, and answerability, with reviewer provenance.
 
-- [ ] Write failing tests that prevent silver output or system-generated conclusions from being promoted without a named researcher review revision.
-- [ ] Add schema validation and blinded independent reviewer capture.
-- [ ] Report discovery recall, screening precision, grounding, unsupported assertions, conclusion coverage, context preservation, and disagreement separately.
-- [ ] Keep zero unsupported assertions and complete provenance as independent hard gates.
-- [ ] Run locked legacy and new benchmark suites; commit.
+- [x] Write failing tests that prevent silver output or system-generated conclusions from being promoted without a named researcher review revision.
+- [x] Add schema validation and blinded independent reviewer capture.
+- [x] Report discovery recall, screening precision, grounding, unsupported assertions, conclusion coverage, context preservation, and disagreement separately.
+- [x] Keep zero unsupported assertions and complete provenance as independent hard gates.
+- [x] Run locked legacy and new benchmark suites; commit.
 
 ### Task 5: Scheduled provider and scientific regression protocol
 
