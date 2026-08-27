@@ -111,3 +111,7 @@ def test_dockerfile_pins_base_digest_and_declares_non_root_runtime() -> None:
     assert "USER 10001:10001" in dockerfile
     assert "COPY --from=builder" in dockerfile
     assert "--no-index --find-links=/wheels" in dockerfile
+    assert "apt-get upgrade --yes" in dockerfile
+    assert "setuptools==84.0.0 wheel==0.46.3" in dockerfile
+    assert "/opt/sci-search/bin/pip uninstall --yes setuptools wheel" in dockerfile
+    assert "/usr/local/bin/python -m pip uninstall --yes setuptools wheel" in dockerfile

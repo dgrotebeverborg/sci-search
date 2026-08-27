@@ -81,9 +81,7 @@ def main() -> int:
 
         base_url = os.environ.get("SCI_SEARCH_SMOKE_BASE_URL", "http://127.0.0.1:8000")
         with ThreadPoolExecutor(max_workers=SESSION_COUNT) as executor:
-            responses = list(
-                executor.map(lambda item: _get_session(base_url, item[1]), issued)
-            )
+            responses = list(executor.map(lambda item: _get_session(base_url, item[1]), issued))
         if any(status != 200 for status, _user_id in responses):
             raise RuntimeError("a concurrent session request failed")
         expected_users = sorted(user_id for user_id, _token in issued)

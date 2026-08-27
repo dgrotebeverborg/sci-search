@@ -138,9 +138,10 @@ def _secret(name: str) -> str:
 
 
 def _redis_url() -> str:
-    if os.environ.get("SCI_SEARCH_REDIS_URL") is not None or os.environ.get(
-        "SCI_SEARCH_REDIS_URL_FILE"
-    ) is not None:
+    if (
+        os.environ.get("SCI_SEARCH_REDIS_URL") is not None
+        or os.environ.get("SCI_SEARCH_REDIS_URL_FILE") is not None
+    ):
         return _secret("SCI_SEARCH_REDIS_URL")
     password = _secret("SCI_SEARCH_REDIS_PASSWORD")
     host = os.environ.get("SCI_SEARCH_REDIS_HOST", "").strip()

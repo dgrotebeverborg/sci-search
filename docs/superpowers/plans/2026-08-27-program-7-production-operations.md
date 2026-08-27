@@ -96,9 +96,9 @@
 
 ### Task 6: Program 7 verification
 
-- [ ] Build and scan the container image.
-- [ ] Start the production-like stack and verify only HTTPS is externally reachable.
-- [ ] Run two-user load smoke with ten simultaneous sessions and bounded jobs.
-- [ ] Terminate web and worker containers independently and verify recovery behavior.
-- [ ] Complete encrypted backup and isolated restore verification.
-- [ ] Run all engineering, migration, security, browser, and scientific gates.
+- [x] Build and scan the container image.
+- [x] Start the production-like stack and verify only HTTPS is externally reachable.
+- [x] Run two-user load smoke with ten simultaneous sessions and bounded jobs.
+- [x] Terminate web and worker containers independently and verify recovery behavior.
+- [x] Complete encrypted backup and isolated restore verification.
+- [x] Run all engineering, migration, security, browser, and scientific gates.
