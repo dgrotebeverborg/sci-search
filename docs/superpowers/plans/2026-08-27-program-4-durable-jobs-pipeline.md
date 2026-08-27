@@ -99,10 +99,10 @@
 **Interfaces:**
 - Proves operational durability and scientific compatibility.
 
-- [ ] Start a controlled multi-stage run, terminate the worker process during acquisition, and restart it.
-- [ ] Assert the run completes, each published stage has one successful checkpoint, and document/evidence hashes are unique.
-- [ ] Compare a representative legacy synchronous run with a durable staged run for question, evidence IDs, passages, adequacy, citations, and review content.
-- [ ] Run the complete suite and commit.
+- [x] Start a controlled multi-stage run, terminate the worker process during acquisition, and restart it.
+- [x] Assert the run completes, each published stage has one successful checkpoint, and document/evidence hashes are unique.
+- [x] Compare a representative legacy synchronous run with a durable staged run for question, evidence IDs, passages, adequacy, citations, and review content.
+- [x] Run the complete suite and commit.
 
 ### Task 6: Program 4 verification
 

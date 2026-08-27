@@ -23,6 +23,7 @@ class StageWork:
     next_stage: str
     input_fingerprint: str
     implementation_version: str
+    complete: bool = False
 
 
 class CancellationRequested(RuntimeError):
@@ -134,9 +135,12 @@ class Worker:
                 output=work.output,
                 next_stage=work.next_stage,
                 now=self._clock(),
+                complete=work.complete,
             )
         # This hook models a process dying after commit and before queue acknowledgement.
         self._after_checkpoint()
+        if work.complete:
+            return "completed"
         self._queue.enqueue(job_id, work.next_stage)
         return "checkpointed"
 

@@ -233,6 +233,7 @@ class SqlJobRepository:
         output: dict[str, Any],
         next_stage: str,
         now: datetime,
+        complete: bool = False,
     ) -> Job:
         job_uuid = _uuid(job_id)
         row = self._session.scalar(
@@ -242,7 +243,8 @@ class SqlJobRepository:
                 JobRow.current_stage == stage_name,
             )
             .values(
-                current_stage=next_stage,
+                status=(JobStatus.COMPLETED.value if complete else JobStatus.RUNNING.value),
+                current_stage=(stage_name if complete else next_stage),
                 lease_owner=None,
                 lease_expires_at=None,
                 updated_at=now,
@@ -273,8 +275,11 @@ class SqlJobRepository:
                 "next_stage": next_stage,
                 "input_fingerprint": input_fingerprint,
                 "implementation_version": implementation_version,
+                "complete": complete,
             },
         )
+        if complete:
+            self._audit(row, action="job.completed", occurred_at=now)
         return _job(row)
 
     def fail(
