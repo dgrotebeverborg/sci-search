@@ -15,6 +15,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TMPDIR=/tmp/sci-search
 RUN groupadd --gid 10001 sci-search \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent sci-search \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends age postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
     && python -m venv /opt/sci-search \
     && mkdir -p /tmp/sci-search \
     && chown 10001:10001 /tmp/sci-search
@@ -22,6 +25,7 @@ COPY --from=builder /wheels /wheels
 RUN /opt/sci-search/bin/pip install --no-cache-dir /wheels/sci_search-*.whl \
     && rm -rf /wheels
 COPY --chmod=0555 docker/entrypoint.sh /usr/local/bin/sci-search-entrypoint
+COPY --chmod=0555 scripts /app/scripts
 WORKDIR /app
 USER 10001:10001
 ENTRYPOINT ["/usr/local/bin/sci-search-entrypoint"]

@@ -15,6 +15,18 @@ case "${1:-web}" in
     shift
     exec alembic -c /app/alembic.ini upgrade head "$@"
     ;;
+  backup)
+    shift
+    exec python -m scripts.backup "$@"
+    ;;
+  restore)
+    shift
+    exec python -m scripts.restore "$@"
+    ;;
+  verify-restore)
+    shift
+    exec python -m scripts.verify_restore "$@"
+    ;;
   *)
     exec "$@"
     ;;

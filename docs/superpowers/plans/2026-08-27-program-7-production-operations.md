@@ -73,11 +73,11 @@
 **Interfaces:**
 - Produces encrypted/versioned PostgreSQL and object-store backup manifests and isolated restore verification.
 
-- [ ] Seed a temporary stack with two projects sharing one blob and write expected row counts, grants, object hashes, and audit-chain endpoints.
-- [ ] Verify backup/restore system test fails before scripts exist.
-- [ ] Implement subprocess argument lists without shells, explicit destinations, checksums, schema/version manifest, encryption hook, and atomic completion marker.
-- [ ] Restore into new database/bucket names and compare counts, authorization grants, hashes, and representative reports.
-- [ ] Document schedule, retention, encryption-key custody, monitoring, and quarterly restore drill; commit.
+- [x] Seed a temporary stack with two projects sharing one blob and write expected row counts, grants, object hashes, and audit-chain endpoints.
+- [x] Verify backup/restore system test fails before scripts exist.
+- [x] Implement subprocess argument lists without shells, explicit destinations, checksums, schema/version manifest, encryption hook, and atomic completion marker.
+- [x] Restore into new database/bucket names and compare counts, authorization grants, hashes, and representative reports.
+- [x] Document schedule, retention, encryption-key custody, monitoring, and quarterly restore drill; commit.
 
 ### Task 5: Deployment, drain, migration, rollback, and incident runbooks
 
