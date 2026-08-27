@@ -41,6 +41,8 @@ from sci_search.infrastructure.tables import (
     PublicationRow,
     ResearchRunRow,
     ReviewRevisionRow,
+    RiskOfBiasRecordRow,
+    RiskOfBiasRevisionRow,
     RunDocumentRow,
     SessionRow,
     UserRow,
@@ -788,6 +790,190 @@ class SqlResearchRepository:
             )
         )
         return accepted
+
+    def add_risk_of_bias(
+        self,
+        project_id: str,
+        *,
+        study_id: str,
+        reviewer_user_id: str,
+        tool: str,
+        domain: str,
+        judgment: str,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+        reviewed_at: datetime,
+    ) -> str:
+        self._validate_risk_of_bias_inputs(
+            project_id,
+            study_id=study_id,
+            judgment=judgment,
+            rationale=rationale,
+            source_evidence_ids=source_evidence_ids,
+        )
+        record = RiskOfBiasRecordRow(
+            id=uuid4(),
+            project_id=_uuid(project_id),
+            study_id=_uuid(study_id),
+            tool=tool,
+            domain=domain,
+            current_revision=1,
+        )
+        revision = RiskOfBiasRevisionRow(
+            id=uuid4(),
+            risk_of_bias_id=record.id,
+            revision=1,
+            judgment=judgment,
+            rationale=rationale,
+            source_evidence_ids=list(source_evidence_ids),
+            reviewer_user_id=_uuid(reviewer_user_id),
+            created_at=reviewed_at,
+            previous_revision_id=None,
+        )
+        self._session.add_all((record, revision))
+        self._session.flush((record, revision))
+        self._risk_of_bias_audit(
+            project_id,
+            reviewer_user_id,
+            record.id,
+            "risk_of_bias.created",
+            judgment,
+            reviewed_at,
+        )
+        return str(record.id)
+
+    def try_revise_risk_of_bias(
+        self,
+        project_id: str,
+        record_id: str,
+        *,
+        reviewer_user_id: str,
+        expected_revision: int,
+        judgment: str,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+        reviewed_at: datetime,
+    ) -> bool:
+        record_uuid = _uuid(record_id)
+        record = self._session.scalar(
+            select(RiskOfBiasRecordRow).where(
+                RiskOfBiasRecordRow.id == record_uuid,
+                RiskOfBiasRecordRow.project_id == _uuid(project_id),
+            )
+        )
+        if record is None:
+            raise ResourceNotFound
+        self._validate_risk_of_bias_inputs(
+            project_id,
+            study_id=str(record.study_id),
+            judgment=judgment,
+            rationale=rationale,
+            source_evidence_ids=source_evidence_ids,
+        )
+        predecessor = self._session.scalar(
+            select(RiskOfBiasRevisionRow.id).where(
+                RiskOfBiasRevisionRow.risk_of_bias_id == record_uuid,
+                RiskOfBiasRevisionRow.revision == expected_revision,
+            )
+        )
+        result = self._session.execute(
+            update(RiskOfBiasRecordRow)
+            .where(
+                RiskOfBiasRecordRow.id == record_uuid,
+                RiskOfBiasRecordRow.project_id == _uuid(project_id),
+                RiskOfBiasRecordRow.current_revision == expected_revision,
+            )
+            .values(current_revision=expected_revision + 1)
+        )
+        accepted = result.rowcount == 1  # type: ignore[attr-defined]
+        if accepted:
+            if predecessor is None:
+                raise RuntimeError("risk-of-bias revision lineage is missing")
+            revision = RiskOfBiasRevisionRow(
+                id=uuid4(),
+                risk_of_bias_id=record_uuid,
+                revision=expected_revision + 1,
+                judgment=judgment,
+                rationale=rationale,
+                source_evidence_ids=list(source_evidence_ids),
+                reviewer_user_id=_uuid(reviewer_user_id),
+                created_at=reviewed_at,
+                previous_revision_id=predecessor,
+            )
+            self._session.add(revision)
+            self._session.flush([revision])
+        self._risk_of_bias_audit(
+            project_id,
+            reviewer_user_id,
+            record_uuid,
+            "risk_of_bias.revised" if accepted else "risk_of_bias.revision_conflict",
+            judgment,
+            reviewed_at,
+        )
+        return accepted
+
+    def _validate_risk_of_bias_inputs(
+        self,
+        project_id: str,
+        *,
+        study_id: str,
+        judgment: str,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+    ) -> None:
+        if judgment not in {"unknown", "low", "some_concerns", "high"}:
+            raise ValueError("invalid risk-of-bias judgment")
+        if judgment != "unknown" and (not (rationale or "").strip() or not source_evidence_ids):
+            raise ValueError("grounded rationale is required for a non-unknown judgment")
+        accessible_study = self._session.scalar(
+            select(PublicationDocumentRow.publication_id)
+            .join(
+                ProjectDocumentGrantRow,
+                ProjectDocumentGrantRow.document_id == PublicationDocumentRow.document_id,
+            )
+            .where(
+                PublicationDocumentRow.publication_id == _uuid(study_id),
+                ProjectDocumentGrantRow.project_id == _uuid(project_id),
+                ProjectDocumentGrantRow.revoked_at.is_(None),
+            )
+            .limit(1)
+        )
+        if accessible_study is None:
+            raise ResourceNotFound
+        if source_evidence_ids:
+            source_uuids = {_uuid(item) for item in source_evidence_ids}
+            found = set(
+                self._session.scalars(
+                    select(EvidenceRow.id).where(
+                        EvidenceRow.project_id == _uuid(project_id),
+                        EvidenceRow.id.in_(source_uuids),
+                    )
+                ).all()
+            )
+            if found != source_uuids:
+                raise ResourceNotFound
+
+    def _risk_of_bias_audit(
+        self,
+        project_id: str,
+        reviewer_user_id: str,
+        record_id: UUID,
+        action: str,
+        judgment: str,
+        reviewed_at: datetime,
+    ) -> None:
+        self._session.add(
+            AuditEventRow(
+                id=uuid4(),
+                occurred_at=reviewed_at,
+                actor_user_id=_uuid(reviewer_user_id),
+                project_id=_uuid(project_id),
+                action=action,
+                entity_type="risk_of_bias",
+                entity_id=str(record_id),
+                payload={"attempted_judgment": judgment},
+            )
+        )
 
     def _require_run(self, project_id: str, run_id: str) -> UUID:
         run_uuid = _uuid(run_id)

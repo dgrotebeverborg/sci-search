@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -326,6 +327,49 @@ class ReviewRevisionRow(Base):
     decision: Mapped[str] = mapped_column(String(50), nullable=False)
     note: Mapped[str | None] = mapped_column(String(10000))
     reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RiskOfBiasRecordRow(Base):
+    __tablename__ = "risk_of_bias_records"
+    __table_args__ = (UniqueConstraint("project_id", "study_id", "tool", "domain"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    study_id: Mapped[UUID] = mapped_column(
+        ForeignKey("publications.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tool: Mapped[str] = mapped_column(String(200), nullable=False)
+    domain: Mapped[str] = mapped_column(String(200), nullable=False)
+    current_revision: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class RiskOfBiasRevisionRow(Base):
+    __tablename__ = "risk_of_bias_revisions"
+    __table_args__ = (
+        UniqueConstraint("risk_of_bias_id", "revision"),
+        CheckConstraint(
+            "judgment IN ('unknown', 'low', 'some_concerns', 'high')",
+            name="valid_judgment",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    risk_of_bias_id: Mapped[UUID] = mapped_column(
+        ForeignKey("risk_of_bias_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    judgment: Mapped[str] = mapped_column(String(32), nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text())
+    source_evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reviewer_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    previous_revision_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("risk_of_bias_revisions.id", ondelete="RESTRICT")
+    )
 
 
 class ArtifactRow(Base):

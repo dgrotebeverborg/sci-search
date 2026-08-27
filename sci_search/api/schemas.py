@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from sci_search.application.projects import ProjectRole
+from sci_search.domain.risk_of_bias import RiskJudgment
 
 
 class ApiSchema(BaseModel):
@@ -150,6 +151,38 @@ class ValidationResponse(ApiSchema):
 
 class ValidationListResponse(ApiSchema):
     items: list[ValidationResponse]
+
+
+class RiskOfBiasCreate(ApiSchema):
+    study_id: str = Field(min_length=1, max_length=200)
+    tool: str = Field(min_length=1, max_length=200)
+    domain: str = Field(min_length=1, max_length=200)
+    judgment: RiskJudgment
+    rationale: str | None = Field(default=None, max_length=10_000)
+    source_evidence_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+class RiskOfBiasRevision(RiskOfBiasCreate):
+    expected_revision: int = Field(ge=1)
+
+
+class RiskOfBiasResponse(ApiSchema):
+    id: str
+    revision_id: str
+    study_id: str
+    tool: str
+    domain: str
+    judgment: RiskJudgment
+    rationale: str | None
+    source_evidence_ids: list[str]
+    reviewer_user_id: str
+    created_at: datetime
+    revision: int
+    previous_revision_id: str | None
+
+
+class RiskOfBiasListResponse(ApiSchema):
+    items: list[RiskOfBiasResponse]
 
 
 class AuditResponse(ApiSchema):

@@ -20,6 +20,7 @@ from sci_search.application.authorization import (
     ResourceNotFound,
 )
 from sci_search.application.projects import ProjectRepository
+from sci_search.domain.risk_of_bias import RiskJudgment, RiskOfBiasRecord
 
 
 class ResourceVersionConflict(RuntimeError):
@@ -28,6 +29,10 @@ class ResourceVersionConflict(RuntimeError):
 
 
 class InvalidDocument(ValueError):
+    pass
+
+
+class InvalidRiskOfBiasReference(ValueError):
     pass
 
 
@@ -119,9 +124,7 @@ class ResearchApiService(Protocol):
 
     def retry_run(self, user_id: str, project_id: str, run_id: str) -> ResearchRunRecord: ...
 
-    def open_document(
-        self, user_id: str, project_id: str, document_id: str
-    ) -> DownloadRecord: ...
+    def open_document(self, user_id: str, project_id: str, document_id: str) -> DownloadRecord: ...
 
     def upload_document(
         self,
@@ -158,6 +161,38 @@ class ResearchApiService(Protocol):
 
     def list_audit(self, user_id: str, project_id: str) -> list[ResearchAuditRecord]: ...
 
+    def list_risk_of_bias(
+        self, user_id: str, project_id: str, *, study_id: str | None = None
+    ) -> list[RiskOfBiasRecord]: ...
+
+    def create_risk_of_bias(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        study_id: str,
+        tool: str,
+        domain: str,
+        judgment: RiskJudgment,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+    ) -> RiskOfBiasRecord: ...
+
+    def revise_risk_of_bias(
+        self,
+        user_id: str,
+        project_id: str,
+        record_id: str,
+        *,
+        expected_revision: int,
+        study_id: str,
+        tool: str,
+        domain: str,
+        judgment: RiskJudgment,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+    ) -> RiskOfBiasRecord: ...
+
 
 class InMemoryResearchApiService:
     """Reference adapter exercising the exact authorization contract used by HTTP routes."""
@@ -181,6 +216,8 @@ class InMemoryResearchApiService:
         self._validations: dict[tuple[str, str], ValidationRecord] = {}
         self._exports: dict[tuple[str, str], DownloadRecord] = {}
         self._audits: list[ResearchAuditRecord] = []
+        self._risk_of_bias: dict[tuple[str, str], RiskOfBiasRecord] = {}
+        self._risk_of_bias_revisions: dict[str, RiskOfBiasRecord] = {}
 
     def start_run(
         self,
@@ -216,7 +253,9 @@ class InMemoryResearchApiService:
         run = self.get_run(user_id, project_id, run_id)
         if run.status not in {"queued", "running"}:
             raise ValueError("only queued or running jobs can be cancelled")
-        updated = replace(run, status="cancel_requested", updated_at=self._clock(), version=run.version + 1)
+        updated = replace(
+            run, status="cancel_requested", updated_at=self._clock(), version=run.version + 1
+        )
         self._runs[(project_id, run_id)] = updated
         self._audit(project_id, "research_run.cancel_requested", "research_run")
         return updated
@@ -333,6 +372,102 @@ class InMemoryResearchApiService:
             key=lambda record: (record.occurred_at, record.id),
         )
 
+    def list_risk_of_bias(
+        self, user_id: str, project_id: str, *, study_id: str | None = None
+    ) -> list[RiskOfBiasRecord]:
+        self._require(Action.READ, user_id, project_id)
+        return sorted(
+            (
+                record
+                for (scope, _), record in self._risk_of_bias.items()
+                if scope == project_id and (study_id is None or record.study_id == study_id)
+            ),
+            key=lambda record: (record.study_id, record.tool, record.domain, record.id),
+        )
+
+    def create_risk_of_bias(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        study_id: str,
+        tool: str,
+        domain: str,
+        judgment: RiskJudgment,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+    ) -> RiskOfBiasRecord:
+        self._require(Action.REVIEW, user_id, project_id)
+        self._validate_risk_sources(project_id, source_evidence_ids)
+        try:
+            record = RiskOfBiasRecord(
+                id=self._id_source(),
+                revision_id=self._id_source(),
+                project_id=project_id,
+                study_id=study_id,
+                tool=tool,
+                domain=domain,
+                judgment=judgment,
+                rationale=rationale,
+                source_evidence_ids=source_evidence_ids,
+                reviewer_user_id=user_id,
+                created_at=self._clock(),
+                revision=1,
+                previous_revision_id=None,
+            )
+        except ValueError as error:
+            raise InvalidRiskOfBiasReference("invalid risk-of-bias judgment") from error
+        self._risk_of_bias[(project_id, record.id)] = record
+        self._risk_of_bias_revisions[record.revision_id] = record
+        self._audit(project_id, "risk_of_bias.created", "risk_of_bias")
+        return record
+
+    def revise_risk_of_bias(
+        self,
+        user_id: str,
+        project_id: str,
+        record_id: str,
+        *,
+        expected_revision: int,
+        study_id: str,
+        tool: str,
+        domain: str,
+        judgment: RiskJudgment,
+        rationale: str | None,
+        source_evidence_ids: tuple[str, ...],
+    ) -> RiskOfBiasRecord:
+        self._require(Action.REVIEW, user_id, project_id)
+        try:
+            current = self._risk_of_bias[(project_id, record_id)]
+        except KeyError as error:
+            raise ResourceNotFound from error
+        if current.revision != expected_revision:
+            self._audit(project_id, "risk_of_bias.revision_conflict", "risk_of_bias")
+            raise ResourceVersionConflict
+        self._validate_risk_sources(project_id, source_evidence_ids)
+        try:
+            revised = RiskOfBiasRecord(
+                id=current.id,
+                revision_id=self._id_source(),
+                project_id=project_id,
+                study_id=study_id,
+                tool=tool,
+                domain=domain,
+                judgment=judgment,
+                rationale=rationale,
+                source_evidence_ids=source_evidence_ids,
+                reviewer_user_id=user_id,
+                created_at=self._clock(),
+                revision=current.revision + 1,
+                previous_revision_id=current.revision_id,
+            )
+        except ValueError as error:
+            raise InvalidRiskOfBiasReference("invalid risk-of-bias judgment") from error
+        self._risk_of_bias[(project_id, record_id)] = revised
+        self._risk_of_bias_revisions[revised.revision_id] = revised
+        self._audit(project_id, "risk_of_bias.revised", "risk_of_bias")
+        return revised
+
     def seed_run(
         self, project_id: str, run_id: str, question: str, *, status: str
     ) -> ResearchRunRecord:
@@ -400,6 +535,36 @@ class InMemoryResearchApiService:
             ResearchAuditRecord(self._id_source(), project_id, action, entity_type, self._clock())
         )
 
+    def seed_risk_of_bias(
+        self,
+        project_id: str,
+        record_id: str,
+        *,
+        study_id: str,
+        tool: str,
+        domain: str,
+        judgment: str,
+        reviewer_user_id: str,
+    ) -> RiskOfBiasRecord:
+        record = RiskOfBiasRecord(
+            id=record_id,
+            revision_id=f"{record_id}:revision:1",
+            project_id=project_id,
+            study_id=study_id,
+            tool=tool,
+            domain=domain,
+            judgment=RiskJudgment(judgment),
+            rationale=None,
+            source_evidence_ids=(),
+            reviewer_user_id=reviewer_user_id,
+            created_at=self._clock(),
+            revision=1,
+            previous_revision_id=None,
+        )
+        self._risk_of_bias[(project_id, record.id)] = record
+        self._risk_of_bias_revisions[record.revision_id] = record
+        return record
+
     def _validate_pdf(
         self, filename: str, content_base64: str, authorization_confirmed: bool
     ) -> bytes:
@@ -431,6 +596,12 @@ class InMemoryResearchApiService:
 
     def _require(self, action: Action, user_id: str, project_id: str) -> None:
         self._policy.require(action, AuthorizationContext(user_id), project_id)
+
+    def _validate_risk_sources(self, project_id: str, source_evidence_ids: tuple[str, ...]) -> None:
+        if any(
+            (project_id, evidence_id) not in self._evidence for evidence_id in source_evidence_ids
+        ):
+            raise InvalidRiskOfBiasReference("source evidence is not available in this project")
 
     def _audit(self, project_id: str, action: str, entity_type: str) -> None:
         self._audits.append(

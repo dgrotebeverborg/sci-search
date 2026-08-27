@@ -17,8 +17,11 @@ from sci_search.infrastructure.tables import (
     DocumentRow,
     EvidenceRow,
     ProjectDocumentGrantRow,
+    PublicationDocumentRow,
     ResearchRunRow,
     ReviewRevisionRow,
+    RiskOfBiasRecordRow,
+    RiskOfBiasRevisionRow,
     RunDocumentRow,
     ValidationCheckRow,
 )
@@ -215,3 +218,77 @@ def test_run_validation_and_artifact_records_stay_inside_project(database: Datab
                 details={},
                 created_at=NOW,
             )
+
+
+def test_risk_of_bias_revisions_are_grounded_and_optimistically_persisted(
+    database: Database,
+) -> None:
+    project_id, reviewer_id = _project(database, "bias-reviewer")
+    blob = BlobRef("d" * 64, 800, "application/pdf", f"objects/dd/dd/{'d' * 64}")
+    with database.transaction() as session:
+        research = SqlResearchRepository(session)
+        document_id = research.grant_document(
+            project_id,
+            canonical_publication_key="doi:10.9999/risk-bias",
+            title="Risk of bias paper",
+            blob=blob,
+        )
+        publication_id = str(
+            session.scalar(
+                select(PublicationDocumentRow.publication_id).where(
+                    PublicationDocumentRow.document_id == UUID(document_id)
+                )
+            )
+        )
+        evidence_id = research.add_evidence(
+            project_id,
+            document_id=document_id,
+            statement="Season was not adjusted for.",
+            source_passage="The analysis did not adjust for seasonal vegetation availability.",
+            section="Methods",
+            page=4,
+            extraction_method="manual-test",
+            created_at=NOW,
+        )
+        record_id = research.add_risk_of_bias(
+            project_id,
+            study_id=publication_id,
+            reviewer_user_id=reviewer_id,
+            tool="ROBINS-I",
+            domain="confounding",
+            judgment="some_concerns",
+            rationale="Seasonal vegetation was not adjusted for.",
+            source_evidence_ids=(evidence_id,),
+            reviewed_at=NOW,
+        )
+
+    with database.transaction() as session:
+        accepted = SqlResearchRepository(session).try_revise_risk_of_bias(
+            project_id,
+            record_id,
+            reviewer_user_id=reviewer_id,
+            expected_revision=1,
+            judgment="high",
+            rationale="The unadjusted seasonal factor directly affects the outcome.",
+            source_evidence_ids=(evidence_id,),
+            reviewed_at=NOW,
+        )
+    with database.transaction() as session:
+        conflicted = SqlResearchRepository(session).try_revise_risk_of_bias(
+            project_id,
+            record_id,
+            reviewer_user_id=reviewer_id,
+            expected_revision=1,
+            judgment="low",
+            rationale="A stale competing assessment.",
+            source_evidence_ids=(evidence_id,),
+            reviewed_at=NOW,
+        )
+
+    assert accepted is True
+    assert conflicted is False
+    with database.transaction() as session:
+        record = session.get(RiskOfBiasRecordRow, UUID(record_id))
+        assert record is not None
+        assert record.current_revision == 2
+        assert session.scalar(select(func.count()).select_from(RiskOfBiasRevisionRow)) == 2

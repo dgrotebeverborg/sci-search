@@ -7,7 +7,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from sci_search.application.authorization import ResourceNotFound
-from sci_search.application.research_api import InvalidDocument, ResourceVersionConflict
+from sci_search.application.research_api import (
+    InvalidDocument,
+    InvalidRiskOfBiasReference,
+    ResourceVersionConflict,
+)
 
 
 async def resource_not_found_handler(
@@ -31,9 +35,13 @@ async def invalid_document_handler(request: Request, error: Exception) -> JSONRe
     return JSONResponse(status_code=422, content={"detail": "invalid authorized upload"})
 
 
-async def request_validation_handler(
-    request: Request, error: Exception
-) -> JSONResponse:
+async def invalid_risk_of_bias_handler(request: Request, error: Exception) -> JSONResponse:
+    assert isinstance(error, InvalidRiskOfBiasReference)
+    del request, error
+    return JSONResponse(status_code=422, content={"detail": "invalid risk-of-bias judgment"})
+
+
+async def request_validation_handler(request: Request, error: Exception) -> JSONResponse:
     """Return useful validation locations without reflecting uploaded/request values."""
 
     assert isinstance(error, RequestValidationError)
@@ -46,4 +54,6 @@ async def request_validation_handler(
         }
         for item in error.errors()
     ]
-    return JSONResponse(status_code=422, content={"detail": "request validation failed", "errors": details})
+    return JSONResponse(
+        status_code=422, content={"detail": "request validation failed", "errors": details}
+    )

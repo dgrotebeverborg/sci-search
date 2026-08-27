@@ -54,17 +54,17 @@
 
 **Files:**
 - Create: `sci_search/domain/risk_of_bias.py`
-- Create: `migrations/versions/0004_risk_of_bias.py`
+- Create: `migrations/versions/0005_risk_of_bias.py` (`0004_jobs` already existed)
 - Extend review repository and API
 - Test: `tests/domain/test_risk_of_bias.py`, `tests/api/test_risk_of_bias.py`
 
 **Interfaces:**
 - Produces versioned judgments with study, domain/tool, judgment, rationale, source evidence IDs, reviewer, timestamp, and revision lineage.
 
-- [ ] Write failing tests proving no judgment defaults to low risk and every non-unknown judgment requires rationale and a valid source reference.
-- [ ] Implement domain contract and optimistic revision persistence.
-- [ ] Enforce reviewer-or-higher mutation and viewer read permissions.
-- [ ] Add simultaneous-review conflict tests and audit assertions; commit.
+- [x] Write failing tests proving no judgment defaults to low risk and every non-unknown judgment requires rationale and a valid source reference.
+- [x] Implement domain contract and optimistic revision persistence.
+- [x] Enforce reviewer-or-higher mutation and viewer read permissions.
+- [x] Add simultaneous-review conflict tests and audit assertions; commit.
 
 ### Task 4: Independent gold-label workflow
 

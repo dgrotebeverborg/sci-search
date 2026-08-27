@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 
 from sci_search.api.dependencies import (
     AuthenticatedPrincipal,
@@ -16,10 +16,15 @@ from sci_search.api.schemas import (
     EvidenceListResponse,
     EvidenceResponse,
     EvidenceReview,
+    RiskOfBiasCreate,
+    RiskOfBiasListResponse,
+    RiskOfBiasResponse,
+    RiskOfBiasRevision,
     ValidationListResponse,
     ValidationResponse,
 )
 from sci_search.application.research_api import EvidenceRecord, ResearchApiService
+from sci_search.domain.risk_of_bias import RiskOfBiasRecord
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}", tags=["evidence review"])
 Principal = Annotated[AuthenticatedPrincipal, Depends(require_principal)]
@@ -38,6 +43,23 @@ def _evidence(record: EvidenceRecord) -> EvidenceResponse:
         created_at=record.created_at,
         review_decision=record.review_decision,
         review_note=record.review_note,
+    )
+
+
+def _risk_of_bias(record: RiskOfBiasRecord) -> RiskOfBiasResponse:
+    return RiskOfBiasResponse(
+        id=record.id,
+        revision_id=record.revision_id,
+        study_id=record.study_id,
+        tool=record.tool,
+        domain=record.domain,
+        judgment=record.judgment,
+        rationale=record.rationale,
+        source_evidence_ids=list(record.source_evidence_ids),
+        reviewer_user_id=record.reviewer_user_id,
+        created_at=record.created_at,
+        revision=record.revision,
+        previous_revision_id=record.previous_revision_id,
     )
 
 
@@ -96,4 +118,70 @@ def list_validation(
             )
             for record in service.list_validation(principal.user_id, project_id)
         ]
+    )
+
+
+@router.get("/risk-of-bias", response_model=RiskOfBiasListResponse)
+def list_risk_of_bias(
+    project_id: str,
+    principal: Principal,
+    service: ResearchService,
+    study_id: Annotated[str | None, Query(max_length=200)] = None,
+) -> RiskOfBiasListResponse:
+    return RiskOfBiasListResponse(
+        items=[
+            _risk_of_bias(record)
+            for record in service.list_risk_of_bias(
+                principal.user_id, project_id, study_id=study_id
+            )
+        ]
+    )
+
+
+@router.post(
+    "/risk-of-bias",
+    response_model=RiskOfBiasResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_risk_of_bias(
+    project_id: str,
+    body: RiskOfBiasCreate,
+    principal: CsrfPrincipal,
+    service: ResearchService,
+) -> RiskOfBiasResponse:
+    return _risk_of_bias(
+        service.create_risk_of_bias(
+            principal.user_id,
+            project_id,
+            study_id=body.study_id,
+            tool=body.tool,
+            domain=body.domain,
+            judgment=body.judgment,
+            rationale=body.rationale,
+            source_evidence_ids=tuple(dict.fromkeys(body.source_evidence_ids)),
+        )
+    )
+
+
+@router.patch("/risk-of-bias/{record_id}", response_model=RiskOfBiasResponse)
+def revise_risk_of_bias(
+    project_id: str,
+    record_id: str,
+    body: RiskOfBiasRevision,
+    principal: CsrfPrincipal,
+    service: ResearchService,
+) -> RiskOfBiasResponse:
+    return _risk_of_bias(
+        service.revise_risk_of_bias(
+            principal.user_id,
+            project_id,
+            record_id,
+            expected_revision=body.expected_revision,
+            study_id=body.study_id,
+            tool=body.tool,
+            domain=body.domain,
+            judgment=body.judgment,
+            rationale=body.rationale,
+            source_evidence_ids=tuple(dict.fromkeys(body.source_evidence_ids)),
+        )
     )
