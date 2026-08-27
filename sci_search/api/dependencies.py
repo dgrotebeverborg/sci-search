@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request, status
 
+from sci_search.application.projects import ProjectService
 from sci_search.application.sessions import InvalidSession, SessionService
 
 
@@ -16,6 +17,7 @@ class ApiServices:
     """Explicit services available to thin API routes."""
 
     sessions: SessionService
+    projects: ProjectService | None = None
 
 
 @dataclass(frozen=True, slots=True)

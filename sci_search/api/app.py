@@ -20,6 +20,7 @@ from sci_search.api.dependencies import (
     require_principal,
 )
 from sci_search.api.errors import resource_not_found_handler
+from sci_search.api.routes.projects import router as projects_router
 from sci_search.api.schemas import HealthResponse, SessionResponse
 from sci_search.application.authorization import ResourceNotFound
 
@@ -152,6 +153,7 @@ def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type", settings.csrf_header_name],
     )
+    app.include_router(projects_router)
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     def health() -> HealthResponse:

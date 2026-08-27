@@ -21,6 +21,7 @@ from sci_search.application.identity import (
 from sci_search.application.projects import (
     Membership,
     Project,
+    ProjectAuditRecord,
     ProjectRepository,
     ProjectRole,
     Workspace,
@@ -302,6 +303,27 @@ class SqlProjectRepository(ProjectRepository):
             raise OptimisticConflict
         return expected_version + 1
 
+    def update_project(self, project: Project) -> None:
+        row = self._session.get(ProjectRow, _uuid(project.id))
+        if row is None:
+            raise KeyError("unknown project")
+        row.name = project.name
+        row.is_private = project.is_private
+        row.deleted_at = project.deleted_at
+        row.version += 1
+
+    def update_membership(self, membership: Membership) -> None:
+        row: WorkspaceMembershipRow | ProjectMembershipRow | None
+        if membership.workspace_id is not None:
+            row = self._session.get(WorkspaceMembershipRow, _uuid(membership.id))
+        else:
+            row = self._session.get(ProjectMembershipRow, _uuid(membership.id))
+        if row is None:
+            raise KeyError("unknown membership")
+        row.role = membership.role.value
+        row.active = membership.active
+        row.version += 1
+
 
 def _session(row: SessionRow) -> Session:
     return Session(
@@ -402,6 +424,27 @@ class SqlAuditRepository:
                 actor_user_id=_uuid(event.actor_user_id) if event.actor_user_id else None,
                 workspace_id=_uuid(event.workspace_id) if event.workspace_id else None,
                 project_id=_uuid(event.project_id) if event.project_id else None,
+                action=event.action,
+                entity_type=event.entity_type,
+                entity_id=event.entity_id,
+                payload=event.payload,
+            )
+        )
+
+
+class SqlProjectAuditRepository:
+    """Adapter from application project audit records to the shared audit table."""
+
+    def __init__(self, session: OrmSession) -> None:
+        self._audits = SqlAuditRepository(session)
+
+    def add(self, event: ProjectAuditRecord) -> None:
+        self._audits.add(
+            AuditEvent(
+                id=str(uuid4()),
+                occurred_at=event.occurred_at,
+                actor_user_id=event.actor_user_id,
+                project_id=event.project_id,
                 action=event.action,
                 entity_type=event.entity_type,
                 entity_id=event.entity_id,
