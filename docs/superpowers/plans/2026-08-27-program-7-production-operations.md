@@ -89,10 +89,10 @@
 **Interfaces:**
 - Produces a deterministic deployment state machine.
 
-- [ ] Write a failing test with recorded command executor asserting order: backup, drain, migrate, start, readiness, release workers.
-- [ ] Implement explicit confirmation for production, bounded drain timeout, migration lock, health verification, and rollback eligibility check.
-- [ ] Document compromised session revocation, provider outage, leaked secret rotation, failed migration, data restore, and user access removal.
-- [ ] Run test-stack deployment and rollback rehearsal; commit.
+- [x] Write a failing test with recorded command executor asserting order: backup, drain, migrate, start, readiness, release workers.
+- [x] Implement explicit confirmation for production, bounded drain timeout, migration lock, health verification, and rollback eligibility check.
+- [x] Document compromised session revocation, provider outage, leaked secret rotation, failed migration, data restore, and user access removal.
+- [x] Run test-stack deployment and rollback rehearsal; commit.
 
 ### Task 6: Program 7 verification
 

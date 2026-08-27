@@ -13,7 +13,7 @@ case "${1:-web}" in
     ;;
   migrate)
     shift
-    exec alembic -c /app/alembic.ini upgrade head "$@"
+    exec python -m scripts.migrate "$@"
     ;;
   backup)
     shift
