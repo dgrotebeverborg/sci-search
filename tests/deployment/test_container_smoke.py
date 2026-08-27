@@ -34,6 +34,38 @@ def test_production_compose_only_publishes_caddy_ports() -> None:
         assert not services[name].get("ports"), name
 
 
+def test_test_override_preserves_production_application_composition() -> None:
+    rendered = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "compose.yml",
+            "-f",
+            "compose.test.yml",
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "SCI_SEARCH_ALLOWED_ORIGINS": "https://localhost",
+            "SCI_SEARCH_PUBLIC_BASE_URL": "https://localhost",
+            "SCI_SEARCH_OIDC_ISSUER": "https://idp.example.test",
+            "SCI_SEARCH_OIDC_CLIENT_ID": "test-client",
+            "SCI_SEARCH_OIDC_CALLBACK_URL": "https://localhost/auth/callback",
+            "SCI_SEARCH_HOSTNAME": "localhost",
+        },
+    )
+    services = json.loads(rendered.stdout)["services"]
+    assert services["web"]["environment"]["SCI_SEARCH_ENVIRONMENT"] == "production"
+    assert services["worker"]["environment"]["SCI_SEARCH_ENVIRONMENT"] == "production"
+
+
 @pytest.mark.skipif(
     os.environ.get("SCI_SEARCH_CONTAINER_TESTS") != "1",
     reason="set SCI_SEARCH_CONTAINER_TESTS=1 for the image smoke gate",

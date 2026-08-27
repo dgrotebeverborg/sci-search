@@ -3,9 +3,6 @@ services:
     ports:
       - "127.0.0.1:58080:80"
       - "127.0.0.1:58443:443"
-  web:
-    environment:
-      SCI_SEARCH_ENVIRONMENT: test
   postgres:
     volumes: !reset []
     tmpfs:
