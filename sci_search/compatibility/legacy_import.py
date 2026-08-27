@@ -6,6 +6,7 @@ import hashlib
 import json
 import mimetypes
 import sqlite3
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -100,6 +101,127 @@ class ImportResult:
     evidence_added: int
     blobs_added: int
     already_imported: bool = False
+
+
+def inventory_legacy(root: Path, *, maximum_records: int = 100_000) -> dict[str, Any]:
+    """Return a deterministic, tolerant inventory without changing source files."""
+    if maximum_records < 1:
+        raise ValueError("maximum_records must be positive")
+    resolved_root = root.resolve(strict=True)
+    memory_root = resolved_root / "scientific_memory"
+    database_path = memory_root / "memory.sqlite3"
+    if not database_path.is_file():
+        raise ValueError("legacy scientific_memory/memory.sqlite3 is required")
+    tracked: set[Path] = {database_path}
+    publications: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    blobs: dict[str, dict[str, Any]] = {}
+    metadata_by_key: dict[str, list[dict[str, Any]]] = {}
+    with _read_only_sqlite(database_path) as connection:
+        _require_columns(
+            connection,
+            "publications",
+            {"publication_id", "canonical_key", "metadata_json", "content_sha256", "cache_path"},
+        )
+        rows = connection.execute(
+            "SELECT publication_id,canonical_key,metadata_json,content_sha256,cache_path "
+            "FROM publications ORDER BY publication_id LIMIT ?",
+            (maximum_records + 1,),
+        ).fetchall()
+        if len(rows) > maximum_records:
+            raise ValueError("legacy publication inventory exceeds maximum_records")
+        evidence_count = int(
+            connection.execute("SELECT COUNT(*) FROM evidence_records").fetchone()[0]
+        )
+    for row in rows:
+        source_id = str(row["publication_id"])
+        canonical_key = str(row["canonical_key"])
+        metadata = _json_object(row["metadata_json"], "publication metadata")
+        metadata_by_key.setdefault(canonical_key, []).append(metadata)
+        path = _contained_path(resolved_root, memory_root / str(row["cache_path"]))
+        relative = path.relative_to(resolved_root).as_posix()
+        mode = path.stat().st_mode if path.exists() else 0
+        readable = path.is_file() and bool(mode & (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH))
+        record: dict[str, Any] = {
+            "source_id": source_id,
+            "canonical_key": canonical_key,
+            "title": str(metadata.get("title") or "Untitled legacy publication"),
+            "path": relative,
+        }
+        if readable:
+            digest = _sha256_file(path)
+            tracked.add(path)
+            record.update(
+                {"classification": "document", "sha256": digest, "size": path.stat().st_size}
+            )
+            blob = blobs.setdefault(
+                digest,
+                {"sha256": digest, "size": path.stat().st_size, "reference_count": 0},
+            )
+            blob["reference_count"] += 1
+        else:
+            record["classification"] = "unreadable"
+            errors.append({"kind": "unreadable_document", "source_id": source_id, "path": relative})
+        publications.append(record)
+
+    run_paths = sorted((resolved_root / "research_runs").glob("*/run.json"))
+    if len(run_paths) > maximum_records:
+        raise ValueError("legacy run inventory exceeds maximum_records")
+    runs: list[dict[str, Any]] = []
+    for candidate in run_paths:
+        path = _contained_path(resolved_root, candidate)
+        tracked.add(path)
+        try:
+            payload = _json_object(path.read_text(encoding="utf-8"), "research run")
+        except (OSError, UnicodeError, ValueError) as error:
+            runs.append(
+                {
+                    "source_id": path.parent.name,
+                    "path": path.relative_to(resolved_root).as_posix(),
+                    "classification": "invalid",
+                }
+            )
+            errors.append(
+                {"kind": "invalid_run", "source_id": path.parent.name, "detail": str(error)}
+            )
+            continue
+        complete = bool(str(payload.get("question") or "").strip())
+        runs.append(
+            {
+                "source_id": str(payload.get("run_id") or path.parent.name),
+                "path": path.relative_to(resolved_root).as_posix(),
+                "classification": "complete" if complete else "incomplete",
+            }
+        )
+
+    conflicts = []
+    for canonical_key, variants in sorted(metadata_by_key.items()):
+        serialized = sorted(
+            {json.dumps(item, sort_keys=True, separators=(",", ":")) for item in variants}
+        )
+        if len(serialized) > 1:
+            conflicts.append({"canonical_key": canonical_key, "variant_count": len(serialized)})
+    return {
+        "schema_version": 1,
+        "source_root": str(resolved_root),
+        "source_fingerprint": _source_fingerprint(resolved_root, tracked),
+        "counts": {
+            "publications": len(publications),
+            "runs": len(runs),
+            "evidence": evidence_count,
+            "unique_blobs": len(blobs),
+            "unreadable_files": sum(
+                item["classification"] == "unreadable" for item in publications
+            ),
+            "metadata_conflicts": len(conflicts),
+            "incomplete_runs": sum(item["classification"] != "complete" for item in runs),
+        },
+        "publications": publications,
+        "runs": runs,
+        "blobs": [blobs[key] for key in sorted(blobs)],
+        "metadata_conflicts": conflicts,
+        "errors": errors,
+    }
 
 
 def scan_legacy(root: Path) -> ImportManifest:

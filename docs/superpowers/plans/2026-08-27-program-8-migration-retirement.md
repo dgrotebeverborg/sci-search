@@ -30,10 +30,10 @@
 **Interfaces:**
 - Produces deterministic JSON manifest of runs, corpora, memory rows, documents, hashes, sizes, references, unreadable files, and conflicts.
 
-- [ ] Create a fixture with duplicated blobs, conflicting publication metadata, incomplete run JSON, and an unreadable document; write expected counts/hashes by hand.
-- [ ] Verify inventory test fails before behavior exists.
-- [ ] Implement bounded traversal, path containment, content hashing, schema classification, and error collection without mutation.
-- [ ] Run inventory twice and assert byte-identical manifests; commit.
+- [x] Create a fixture with duplicated blobs, conflicting publication metadata, incomplete run JSON, and an unreadable document; write expected counts/hashes by hand.
+- [x] Verify inventory test fails before behavior exists.
+- [x] Implement bounded traversal, path containment, content hashing, schema classification, and error collection without mutation.
+- [x] Run inventory twice and assert byte-identical manifests; commit.
 
 ### Task 2: Production import and parity reports
 
