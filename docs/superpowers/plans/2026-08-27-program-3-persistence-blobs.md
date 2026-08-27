@@ -44,11 +44,11 @@
 **Interfaces:**
 - Implements Program 2 identity, session, workspace, project, membership, and audit repository protocols.
 
-- [ ] Write failing tests for provisioning idempotency, role updates, optimistic conflicts, session rotation, and atomic audit creation.
-- [ ] Add a cross-project test proving a guessed project ID cannot retrieve membership or resources through repository methods.
-- [ ] Implement SQLAlchemy repositories with explicit transactions and scoped selectors.
-- [ ] Force a failure after the domain write but before commit; assert neither domain row nor audit event persists.
-- [ ] Run focused and Program 2 suites, then commit.
+- [x] Write failing tests for provisioning idempotency, role updates, optimistic conflicts, session rotation, and atomic audit creation.
+- [x] Add a cross-project test proving a guessed project ID cannot retrieve membership or resources through repository methods.
+- [x] Implement SQLAlchemy repositories with explicit transactions and scoped selectors.
+- [x] Force a failure after the domain write but before commit; assert neither domain row nor audit event persists.
+- [x] Run focused and Program 2 suites, then commit.
 
 ### Task 3: Content-addressed blob contract
 
