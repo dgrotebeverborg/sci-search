@@ -29,12 +29,12 @@
 **Interfaces:**
 - Produces: `ExternalIdentity`, `User`, `Workspace`, `Project`, `ProjectRole`, `Membership`, `IdentityRepository`, and `ProjectRepository`.
 
-- [ ] Write a failing test proving first login creates one user, one personal workspace, and one owner membership for `(https://connect.surfconext.nl, stable-subject)`.
-- [ ] Run `python -m pytest tests/application/test_identity_projects.py::test_first_login_provisions_private_workspace -q`; expect import failure.
-- [ ] Implement immutable contracts and `provision_user(identity, profile, repositories, clock)` with normalized issuer, non-empty subject, and profile-only email.
-- [ ] Add a failing test proving the same email with different subjects creates different users and the same subject with changed email reuses one user.
-- [ ] Implement identity lookup exclusively by `(issuer, subject)` and rerun the file.
-- [ ] Commit with `git commit -m "feat: add federated identity and project contracts"`.
+- [x] Write a failing test proving first login creates one user, one personal workspace, and one owner membership for `(https://connect.surfconext.nl, stable-subject)`.
+- [x] Run `python -m pytest tests/application/test_identity_projects.py::test_first_login_provisions_private_workspace -q`; expect import failure.
+- [x] Implement immutable contracts and `provision_user(identity, profile, repositories, clock)` with normalized issuer, non-empty subject, and profile-only email.
+- [x] Add a failing test proving the same email with different subjects creates different users and the same subject with changed email reuses one user.
+- [x] Implement identity lookup exclusively by `(issuer, subject)` and rerun the file.
+- [x] Commit with `git commit -m "feat: add federated identity and project contracts"`.
 
 ### Task 2: Central project policy
 
@@ -45,12 +45,12 @@
 **Interfaces:**
 - Produces: `Action`, `AuthorizationContext`, `ProjectPolicy.require(action, context, project_id) -> ProjectGrant`.
 
-- [ ] Write a literal role/action table test covering owner, editor, reviewer, and viewer for read, download, run management, review, membership, and delete actions.
-- [ ] Verify RED: `python -m pytest tests/application/test_authorization.py -q` fails because `ProjectPolicy` is absent.
-- [ ] Implement default-deny policy with explicit role grants and a single `ResourceNotFound` failure for absent and inaccessible projects.
-- [ ] Add tests proving inactive membership, deleted project, workspace mismatch, and guessed identifiers all deny without revealing existence.
-- [ ] Run authorization and identity tests; expect PASS.
-- [ ] Commit with `git commit -m "feat: enforce centralized project authorization"`.
+- [x] Write a literal role/action table test covering owner, editor, reviewer, and viewer for read, download, run management, review, membership, and delete actions.
+- [x] Verify RED: `python -m pytest tests/application/test_authorization.py -q` fails because `ProjectPolicy` is absent.
+- [x] Implement default-deny policy with explicit role grants and a single `ResourceNotFound` failure for absent and inaccessible projects.
+- [x] Add tests proving inactive membership, deleted project, workspace mismatch, and guessed identifiers all deny without revealing existence.
+- [x] Run authorization and identity tests; expect PASS.
+- [x] Commit with `git commit -m "feat: enforce centralized project authorization"`.
 
 ### Task 3: Revocable server-side sessions
 
