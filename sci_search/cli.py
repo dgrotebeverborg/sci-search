@@ -9,7 +9,6 @@ from pathlib import Path
 
 from sci_search.api.bootstrap import build_api_application, run_api_server
 from sci_search.comparison import comparison_report
-from sci_search.compatibility.local_web import run_legacy_local_web
 from sci_search.configuration import load_env_file, load_legacy_mistral_key
 from sci_search.corpus import load_corpus
 from sci_search.discovery_evaluation import evaluate_discovery
@@ -58,14 +57,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--port", default=8000, type=int)
     serve.add_argument("--additional-corpus", action="append", type=Path, default=[])
     serve.add_argument(
-        "--legacy-local-web",
-        action="store_true",
-        help="temporarily run the retired local handler instead of FastAPI",
-    )
-    serve.add_argument(
         "--unsafe-development",
         action="store_true",
-        help="enable loopback-only development authentication or legacy web compatibility",
+        help="enable loopback-only development authentication",
     )
     online = subparsers.add_parser(
         "research-online", help="discover, acquire and analyze an online evidence corpus"
@@ -125,13 +119,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         loopback_hosts = {"127.0.0.1", "localhost", "::1"}
         if args.unsafe_development and args.host not in loopback_hosts:
             parser.error("unsafe development mode is restricted to a loopback host")
-        corpora = (args.corpus, *args.additional_corpus)
-        if args.legacy_local_web:
-            if not args.unsafe_development:
-                parser.error("legacy local web requires --unsafe-development")
-            load_legacy_mistral_key(Path("."))
-            run_legacy_local_web(args.host, args.port, corpora)
-            return 0
         app = build_api_application(args.corpus, unsafe_development=args.unsafe_development)
         run_api_server(app, args.host, args.port)
         return 0

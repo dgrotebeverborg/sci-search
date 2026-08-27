@@ -179,33 +179,7 @@ class ResearchRunManager:
         self.memory = memory
         self.analyzer = analyzer
         self._states: dict[str, dict[str, Any]] = {}
-        self._threads: dict[str, threading.Thread] = {}
         self._lock = threading.RLock()
-
-    def start(
-        self,
-        question: str,
-        *,
-        limits: ResearchLimits | None = None,
-        question_brief: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        cleaned = " ".join(question.strip().split())
-        if not cleaned:
-            raise ValueError("question is required")
-        selected_limits = limits or ResearchLimits()
-        run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
-        state = self._new_state(run_id, cleaned, selected_limits, question_brief=question_brief)
-        self._set_state(run_id, state)
-        thread = threading.Thread(
-            target=self._execute_guarded,
-            args=(run_id, cleaned, selected_limits),
-            daemon=True,
-            name=f"sci-search-{run_id}",
-        )
-        with self._lock:
-            self._threads[run_id] = thread
-        thread.start()
-        return self.get(run_id)
 
     def run_sync(
         self,

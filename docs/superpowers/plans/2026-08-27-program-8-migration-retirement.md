@@ -92,11 +92,11 @@
 **Interfaces:**
 - Makes FastAPI, durable jobs, PostgreSQL, and blob storage the only production runtime path.
 
-- [ ] Write tests proving production configuration cannot instantiate the legacy server/thread/SQLite runtime.
-- [ ] Verify RED while legacy selection remains possible.
-- [ ] Remove production selection paths and imports; keep explicit read-only migration tooling.
-- [ ] Run artifact/CLI compatibility tests and document any versioned deprecation rather than silently changing formats.
-- [ ] Run full suite and commit.
+- [x] Write tests proving production configuration cannot instantiate the legacy server/thread/SQLite runtime.
+- [x] Verify RED while legacy selection remains possible.
+- [x] Remove production selection paths and imports; keep explicit read-only migration tooling.
+- [x] Run artifact/CLI compatibility tests and document any versioned deprecation rather than silently changing formats.
+- [x] Run full suite and commit.
 
 ### Task 6: Final platform acceptance
 

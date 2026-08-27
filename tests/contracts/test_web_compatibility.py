@@ -33,32 +33,9 @@ def test_serve_selects_fastapi_with_safe_loopback_defaults(monkeypatch: pytest.M
     ]
 
 
-def test_legacy_server_requires_two_explicit_opt_in_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple] = []
-    monkeypatch.setattr(
-        cli,
-        "run_legacy_local_web",
-        lambda host, port, corpora: calls.append((host, port, corpora)),
-    )
-
+def test_retired_legacy_server_flag_is_rejected() -> None:
     with pytest.raises(SystemExit):
         cli.main(("--corpus", str(CORPUS), "serve", "--legacy-local-web"))
-
-    assert (
-        cli.main(
-            (
-                "--corpus",
-                str(CORPUS),
-                "serve",
-                "--legacy-local-web",
-                "--unsafe-development",
-            )
-        )
-        == 0
-    )
-    assert calls == [("127.0.0.1", 8000, (CORPUS,))]
 
 
 def test_unsafe_development_mode_cannot_bind_beyond_loopback() -> None:
