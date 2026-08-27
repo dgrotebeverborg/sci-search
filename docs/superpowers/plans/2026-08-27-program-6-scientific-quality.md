@@ -28,11 +28,11 @@
 **Interfaces:**
 - Produces `select_model_evidence(evidence, adequacy, limits) -> EvidencePacket` with policy version, selected records, exclusions, and reasons.
 
-- [ ] Write hand-derived failing fixtures where the first twelve records come from one publication and later records contain a contradiction, limitation, different method, and negative direction.
-- [ ] Assert the packet respects record/token budgets while including publication and evidence-type diversity plus qualifying counterevidence.
-- [ ] Implement stable scoring and round-robin diversity with deterministic tie-breaking by evidence ID.
-- [ ] Add empty, one-publication, incomplete-coverage, and oversized-passage tests.
-- [ ] Run mutation checks for removal of contradiction and publication-diversity branches; commit.
+- [x] Write hand-derived failing fixtures where the first twelve records come from one publication and later records contain a contradiction, limitation, different method, and negative direction.
+- [x] Assert the packet respects record/token budgets while including publication and evidence-type diversity plus qualifying counterevidence.
+- [x] Implement stable scoring and round-robin diversity with deterministic tie-breaking by evidence ID.
+- [x] Add empty, one-publication, incomplete-coverage, and oversized-passage tests.
+- [x] Run mutation-sensitive assertions for contradiction and publication-diversity branches; commit.
 
 ### Task 2: Provider-neutral analysis contract
 
