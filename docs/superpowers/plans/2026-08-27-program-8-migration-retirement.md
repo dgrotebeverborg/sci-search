@@ -76,11 +76,11 @@
 **Interfaces:**
 - Produces operator checklist and executable acceptance evidence.
 
-- [ ] Restore the latest backup into a staging stack and run the import/parity report.
-- [ ] Authenticate two OIDC test subjects, verify private/shared projects and roles, and run simultaneous research jobs.
-- [ ] Drain legacy writes, perform final incremental import, switch traffic, and verify readiness and audit events.
-- [ ] Rehearse rollback within the compatibility window and verify no new source data is lost.
-- [ ] Record measured timings, thresholds, responsible role, and go/no-go checks; commit documentation.
+- [x] Restore the latest backup into a staging stack and run the import/parity report.
+- [x] Authenticate two OIDC test subjects, verify private/shared projects and roles, and run simultaneous research jobs.
+- [x] Drain legacy writes, perform final incremental import, switch traffic, and verify readiness and audit events.
+- [x] Rehearse rollback within the compatibility window and verify no new source data is lost.
+- [x] Record measured timings, thresholds, responsible role, and go/no-go checks; commit documentation.
 
 ### Task 5: Retire obsolete runtime paths
 

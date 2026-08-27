@@ -98,6 +98,32 @@ def _create_ledger(manifest: ImportManifest, target: LegacyImportTarget) -> None
         )
         if existing is not None:
             return
+        prior_mappings: dict[str, dict[str, str]] = {
+            "publications": {},
+            "runs": {},
+            "evidence": {},
+        }
+        prior_rows = session.scalars(
+            select(LegacyImportRow).where(
+                LegacyImportRow.project_id == _uuid(target.project_id),
+                LegacyImportRow.status == "completed",
+            )
+        )
+        allowed = {
+            "publications": {item.source_id for item in manifest.publications},
+            "runs": {item.source_id for item in manifest.runs},
+            "evidence": {item.source_id for item in manifest.evidence},
+        }
+        for prior in prior_rows:
+            raw = prior.manifest_json.get("mappings", {})
+            for kind in prior_mappings:
+                prior_mappings[kind].update(
+                    {
+                        source_id: target_id
+                        for source_id, target_id in raw.get(kind, {}).items()
+                        if source_id in allowed[kind]
+                    }
+                )
         now = datetime.now(UTC)
         session.add(
             LegacyImportRow(
@@ -111,7 +137,7 @@ def _create_ledger(manifest: ImportManifest, target: LegacyImportTarget) -> None
                     "run_ids": [item.source_id for item in manifest.runs],
                     "evidence_ids": [item.source_id for item in manifest.evidence],
                     "conflict_policy": "preserve_source_variants",
-                    "mappings": {"publications": {}, "runs": {}, "evidence": {}},
+                    "mappings": prior_mappings,
                 },
                 counts_json={"publications": 0, "runs": 0, "evidence": 0, "blobs": 0},
                 status="in_progress",
@@ -224,6 +250,8 @@ def _runs(manifest: ImportManifest, target: LegacyImportTarget, start: int, stop
         document_ids = mappings["publications"]
         mapped = dict(mappings["runs"])
         for run in manifest.runs[start:stop]:
+            if run.source_id in mapped:
+                continue
             run_id = research.create_run(
                 target.project_id,
                 created_by_user_id=target.actor_user_id,
@@ -258,6 +286,8 @@ def _evidence(manifest: ImportManifest, target: LegacyImportTarget, start: int, 
         document_ids = mappings["publications"]
         mapped = dict(mappings["evidence"])
         for item in manifest.evidence[start:stop]:
+            if item.source_id in mapped:
+                continue
             mapped[item.source_id] = research.add_evidence(
                 target.project_id,
                 document_id=document_ids[item.publication_id],
