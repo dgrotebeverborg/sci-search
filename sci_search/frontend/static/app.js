@@ -1,9 +1,10 @@
 import {setStatus} from './api.js';
 import {initializeAuth} from './auth.js';
+import {configureUploadPermissions, initializeDocumentUpload} from './documents.js';
 import {loadEvidence} from './evidence.js';
-import {showExports} from './exports.js';
+import {loadExports} from './exports.js';
 import {initializeProjects, onProjectChange} from './projects.js';
-import {initializeRuns} from './runs.js';
+import {configureRunPermissions, initializeRuns} from './runs.js';
 import {loadValidation} from './validation.js';
 
 async function start() {
@@ -12,10 +13,13 @@ async function start() {
     onProjectChange((project) => {
       loadEvidence(project);
       loadValidation(project);
-      showExports(project);
+      loadExports(project);
+      configureRunPermissions(project);
+      configureUploadPermissions(project);
     });
     await initializeProjects();
     initializeRuns();
+    initializeDocumentUpload();
   } catch (error) {
     setStatus(error.message || 'The workspace could not be loaded.', 'error');
   }

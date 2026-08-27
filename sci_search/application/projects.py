@@ -228,6 +228,19 @@ class ProjectService:
             raise LookupError("resource not found")
         return project
 
+    def role_for_user(self, user_id: str, project_id: str) -> ProjectRole:
+        from sci_search.application.authorization import ResourceNotFound
+
+        project = self.repository.project_by_id(project_id)
+        if project is None or project.deleted_at is not None:
+            raise ResourceNotFound
+        membership = self.repository.membership_for_project(project_id, user_id)
+        if membership is None:
+            membership = self.repository.membership_for_workspace(project.workspace_id, user_id)
+        if membership is None or not membership.active:
+            raise ResourceNotFound
+        return membership.role
+
     def create(self, user_id: str, workspace_id: str, name: str, is_private: bool) -> Project:
         membership = self.repository.membership_for_workspace(workspace_id, user_id)
         if membership is None or not membership.active or membership.role is not ProjectRole.OWNER:

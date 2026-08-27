@@ -46,6 +46,7 @@ class ProjectResponse(ApiSchema):
     owner_user_id: str
     is_private: bool
     created_at: datetime
+    role: ProjectRole
 
 
 class ProjectListResponse(ApiSchema):
@@ -160,3 +161,13 @@ class AuditResponse(ApiSchema):
 
 class AuditListResponse(ApiSchema):
     items: list[AuditResponse]
+
+
+class ExportResponse(ApiSchema):
+    id: str
+    filename: str
+    content_type: str
+
+
+class ExportListResponse(ApiSchema):
+    items: list[ExportResponse]

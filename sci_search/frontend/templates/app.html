@@ -83,6 +83,14 @@
         <div class="section-heading"><div><p class="eyebrow">Source traceability</p><h2>Evidence</h2></div></div>
         <p class="empty-state" id="evidence-empty">Evidence will appear here when a review has produced source-linked findings.</p>
         <div id="evidence-list"></div>
+        <div class="status" id="review-status" aria-live="polite"></div>
+        <div class="upload-controls" id="upload-controls" hidden>
+          <label for="upload-candidate-id">Publication or candidate identifier</label>
+          <input id="upload-candidate-id" maxlength="200" placeholder="Candidate identifier">
+          <input id="authorized-document" type="file" accept="application/pdf,.pdf" hidden>
+          <button class="button button-secondary" id="upload-document-button" type="button">Add authorized full text</button>
+          <p class="help">Only upload a PDF you are authorized to use. Its signature and parseability are validated.</p>
+        </div>
       </section>
 
       <section class="panel" id="validation">

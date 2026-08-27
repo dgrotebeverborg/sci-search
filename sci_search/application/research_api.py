@@ -95,6 +95,13 @@ class ResearchAuditRecord:
     occurred_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ExportRecord:
+    id: str
+    filename: str
+    content_type: str
+
+
 class ResearchApiService(Protocol):
     def start_run(
         self,
@@ -146,6 +153,8 @@ class ResearchApiService(Protocol):
     def list_validation(self, user_id: str, project_id: str) -> list[ValidationRecord]: ...
 
     def open_export(self, user_id: str, project_id: str, export_id: str) -> DownloadRecord: ...
+
+    def list_exports(self, user_id: str, project_id: str) -> list[ExportRecord]: ...
 
     def list_audit(self, user_id: str, project_id: str) -> list[ResearchAuditRecord]: ...
 
@@ -308,6 +317,14 @@ class InMemoryResearchApiService:
             return self._exports[(project_id, export_id)]
         except KeyError as error:
             raise ResourceNotFound from error
+
+    def list_exports(self, user_id: str, project_id: str) -> list[ExportRecord]:
+        self._require(Action.DOWNLOAD, user_id, project_id)
+        return [
+            ExportRecord(export_id, download.filename, download.content_type)
+            for (scope, export_id), download in sorted(self._exports.items())
+            if scope == project_id
+        ]
 
     def list_audit(self, user_id: str, project_id: str) -> list[ResearchAuditRecord]:
         self._require(Action.MANAGE_MEMBERSHIP, user_id, project_id)

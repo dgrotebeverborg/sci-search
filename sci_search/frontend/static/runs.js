@@ -4,6 +4,15 @@ import {currentProject} from './projects.js';
 let activeRun = null;
 let pollTimer = null;
 
+export function currentRun() { return activeRun; }
+
+export function configureRunPermissions(project) {
+  const allowed = Boolean(project && ['owner', 'editor'].includes(project.role));
+  document.querySelector('#question-form button[type="submit"]').disabled = !allowed;
+  document.getElementById('research-question').disabled = !allowed;
+  document.getElementById('review-depth').disabled = !allowed;
+}
+
 function renderRun(run) {
   activeRun = run;
   document.getElementById('run-panel').hidden = false;

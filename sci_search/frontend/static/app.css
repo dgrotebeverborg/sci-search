@@ -73,6 +73,10 @@ h1 { max-width: 900px; margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 5rem
 .evidence-card { padding: 1.1rem 0; border-top: 1px solid var(--line); }
 .evidence-card blockquote { margin: .7rem 0; padding-left: 1rem; border-left: 5px solid var(--uu-yellow); color: #444; }
 .record-meta { color: var(--muted); font-size: .78rem; }
+.review-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.upload-controls { margin-top: 1.5rem; padding: 1rem; border: 1px solid var(--line); background: var(--surface); }
+.upload-controls label { display: block; margin-bottom: .35rem; font-size: .82rem; font-weight: 700; }
+.upload-controls input:not([type="file"]) { width: min(420px, 100%); margin-right: .5rem; padding: .55rem; border: 1px solid var(--ink); background: var(--white); }
 .validation-item { display: flex; justify-content: space-between; gap: 1rem; padding: .8rem 0; border-top: 1px solid var(--line); }
 .download-panel { margin-top: 3rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2rem; align-items: center; padding: 1.5rem; border: 2px solid var(--ink); background: var(--uu-yellow); }
 .download-panel p { margin: .3rem 0; max-width: 700px; }

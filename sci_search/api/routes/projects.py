@@ -17,7 +17,7 @@ from sci_search.api.schemas import (
     ProjectResponse,
     ProjectUpdate,
 )
-from sci_search.application.projects import Membership, Project, ProjectService
+from sci_search.application.projects import Membership, Project, ProjectRole, ProjectService
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 Principal = Annotated[AuthenticatedPrincipal, Depends(require_principal)]
@@ -34,7 +34,7 @@ def _service(request: Request) -> ProjectService:
 ProjectServiceDependency = Annotated[ProjectService, Depends(_service)]
 
 
-def _project_response(project: Project) -> ProjectResponse:
+def _project_response(project: Project, role: ProjectRole) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
         workspace_id=project.workspace_id,
@@ -42,6 +42,7 @@ def _project_response(project: Project) -> ProjectResponse:
         owner_user_id=project.owner_user_id,
         is_private=project.is_private,
         created_at=project.created_at,
+        role=role,
     )
 
 
@@ -58,7 +59,10 @@ def _membership_response(membership: Membership) -> MembershipResponse:
 @router.get("", response_model=ProjectListResponse)
 def list_projects(principal: Principal, service: ProjectServiceDependency) -> ProjectListResponse:
     return ProjectListResponse(
-        items=[_project_response(item) for item in service.list_for_user(principal.user_id)]
+        items=[
+            _project_response(item, service.role_for_user(principal.user_id, item.id))
+            for item in service.list_for_user(principal.user_id)
+        ]
     )
 
 
@@ -69,7 +73,8 @@ def create_project(
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
     return _project_response(
-        service.create(principal.user_id, body.workspace_id, body.name, body.is_private)
+        service.create(principal.user_id, body.workspace_id, body.name, body.is_private),
+        ProjectRole.OWNER,
     )
 
 
@@ -79,7 +84,10 @@ def read_project(
     principal: Principal,
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
-    return _project_response(service.get(principal.user_id, project_id))
+    return _project_response(
+        service.get(principal.user_id, project_id),
+        service.role_for_user(principal.user_id, project_id),
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -89,7 +97,10 @@ def update_project(
     principal: CsrfPrincipal,
     service: ProjectServiceDependency,
 ) -> ProjectResponse:
-    return _project_response(service.rename(principal.user_id, project_id, body.name))
+    return _project_response(
+        service.rename(principal.user_id, project_id, body.name),
+        ProjectRole.OWNER,
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -42,11 +42,14 @@ def login(request: Request) -> HTMLResponse:
 
 
 @router.post("/auth/development")
-def development_login(request: Request) -> RedirectResponse:
+def development_login(
+    request: Request,
+    user_id: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+) -> RedirectResponse:
     settings = request.app.state.api_settings
     if not settings.development_auth_enabled or settings.environment == "production":
         return RedirectResponse("/auth/login", status_code=303)
-    issued = request.app.state.api_services.sessions.create(settings.development_user_id)
+    issued = request.app.state.api_services.sessions.create(user_id or settings.development_user_id)
     response = RedirectResponse("/app", status_code=303)
     response.set_cookie(
         settings.session_cookie_name,

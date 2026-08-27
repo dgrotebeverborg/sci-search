@@ -27,7 +27,7 @@ NOW = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
 DEVELOPMENT_USER = "development-researcher"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def live_browser_url() -> str:
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
@@ -49,6 +49,31 @@ def live_browser_url() -> str:
             workspace_id="development-personal",
         )
     )
+    for role in (ProjectRole.EDITOR, ProjectRole.REVIEWER, ProjectRole.VIEWER):
+        workspace_id = f"{role.value}-workspace"
+        project_id = f"{role.value}-project"
+        projects.add_workspace(Workspace(workspace_id, f"{role.value.title()} workspace", role.value, True, NOW))
+        projects.add_membership(
+            Membership(
+                f"{role.value}-workspace-membership",
+                role.value,
+                ProjectRole.OWNER,
+                True,
+                NOW,
+                workspace_id=workspace_id,
+            )
+        )
+        projects.add_project(Project(project_id, workspace_id, f"{role.value.title()} study", role.value, True, NOW))
+        projects.add_membership(
+            Membership(
+                f"{role.value}-project-membership",
+                role.value,
+                role,
+                True,
+                NOW,
+                project_id=project_id,
+            )
+        )
     projects.add_project(
         Project(
             "development-project",
@@ -81,6 +106,26 @@ def live_browser_url() -> str:
         clock=lambda: NOW,
         id_source=identifiers.__next__,
     )
+    for project_id in (
+        "development-project",
+        "editor-project",
+        "reviewer-project",
+        "viewer-project",
+    ):
+        research_service.seed_evidence(
+            project_id,
+            "browser-evidence",
+            statement="A source-linked scientific finding",
+            source_passage="This exact passage supports the finding.",
+        )
+        research_service.seed_validation(project_id, "browser-validation", "provenance", "passed")
+        research_service.seed_export(
+            project_id,
+            "browser-export",
+            filename="research-package.zip",
+            content_type="application/zip",
+            chunks=(b"research-package",),
+        )
     sessions = SessionService(InMemorySessionRepository(), clock=lambda: NOW)
     app = create_app(
         ApiSettings(

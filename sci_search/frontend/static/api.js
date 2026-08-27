@@ -1,5 +1,14 @@
 let csrfToken = null;
 
+export class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 export async function initializeSession() {
   const session = await request('/api/v1/session');
   csrfToken = session.csrf_token;
@@ -23,7 +32,7 @@ export async function request(path, options = {}) {
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || `Request failed (${response.status})`);
+    throw new ApiError(payload.detail || `Request failed (${response.status})`, response.status, payload);
   }
   if (response.status === 204) return null;
   return response.json();
