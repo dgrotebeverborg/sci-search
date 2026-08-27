@@ -409,6 +409,36 @@ class LegacyImportRow(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class StorageGCPlanRow(Base):
+    __tablename__ = "storage_gc_plans"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class StorageGCItemRow(Base):
+    __tablename__ = "storage_gc_items"
+    __table_args__ = (UniqueConstraint("plan_id", "object_kind", "object_id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    plan_id: Mapped[UUID] = mapped_column(
+        ForeignKey("storage_gc_plans.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    object_id: Mapped[UUID] = mapped_column(nullable=False)
+    blob_key: Mapped[str] = mapped_column(String(1000), nullable=False)
+    digest: Mapped[str | None] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(200), nullable=False)
+    reference_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    project_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
 class JobRow(Base):
     __tablename__ = "jobs"
     __table_args__ = (

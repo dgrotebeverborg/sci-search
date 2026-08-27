@@ -61,11 +61,11 @@
 **Interfaces:**
 - Produces `plan_gc(now, grace_period) -> GCPlan` and `apply_gc(plan_id, confirmation) -> GCResult`.
 
-- [ ] Write failing tests for shared blobs, revoked grants, active exports, temporary files, grace periods, stale plans, and concurrent new references.
-- [ ] Implement a transactionally recorded dry-run plan with object digest, reason, size, reference count, and cutoff.
-- [ ] Recheck references and plan version immediately before each bounded deletion batch.
-- [ ] Assert shared/re-referenced objects survive and audit events record deletion metadata without bytes.
-- [ ] Run storage tests and commit.
+- [x] Write failing tests for shared blobs, revoked grants, active exports, temporary files, grace periods, stale plans, and concurrent new references.
+- [x] Implement a transactionally recorded dry-run plan with object digest, reason, size, reference count, and cutoff.
+- [x] Recheck references and plan version immediately before each bounded deletion batch.
+- [x] Assert shared/re-referenced objects survive and audit events record deletion metadata without bytes.
+- [x] Run storage tests and commit.
 
 ### Task 4: Cutover and rollback rehearsal
 
