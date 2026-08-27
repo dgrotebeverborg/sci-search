@@ -106,7 +106,7 @@
 
 ### Task 6: Program 4 verification
 
-- [ ] Run PostgreSQL/Redis worker integration tests including duplicate delivery and lease expiry.
-- [ ] Run restart, cancellation, quota, and parity system tests.
-- [ ] Run all existing scientific tests, Ruff, Pyright, coverage, migration, and package checks.
-- [ ] Document queue draining, failed-job retry, cancellation, and rollback to synchronous compatibility mode.
+- [x] Run PostgreSQL/Redis worker integration tests including duplicate delivery and lease expiry.
+- [x] Run restart, cancellation, quota, and parity system tests.
+- [x] Run all existing scientific tests, Ruff, Pyright, coverage, migration, and package checks.
+- [x] Document queue draining, failed-job retry, cancellation, and rollback to synchronous compatibility mode.

@@ -94,3 +94,17 @@ def test_head_can_roll_back_to_previous_program_3_schema(empty_database: str) ->
     assert "legacy_imports" not in tables
     engine.dispose()
     command.upgrade(configuration, "head")
+
+
+def test_program_3_schema_upgrades_to_durable_jobs_head(empty_database: str) -> None:
+    configuration = _configuration(empty_database)
+    command.upgrade(configuration, "0003_legacy_import")
+    engine = create_engine(empty_database)
+    before = set(inspect(engine).get_table_names())
+    assert "legacy_imports" in before
+    assert "jobs" not in before
+
+    command.upgrade(configuration, "head")
+    after = set(inspect(engine).get_table_names())
+    assert {"jobs", "job_checkpoints", "stage_attempts"} <= after
+    engine.dispose()
