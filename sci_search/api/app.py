@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -26,12 +27,15 @@ from sci_search.api.errors import (
     resource_not_found_handler,
     version_conflict_handler,
 )
+from sci_search.api.frontend import STATIC_DIRECTORY
+from sci_search.api.frontend import router as frontend_router
 from sci_search.api.routes.audit import router as audit_router
 from sci_search.api.routes.documents import router as documents_router
 from sci_search.api.routes.exports import router as exports_router
 from sci_search.api.routes.projects import router as projects_router
 from sci_search.api.routes.reviews import router as reviews_router
 from sci_search.api.routes.runs import router as runs_router
+from sci_search.api.routes.workspaces import router as workspaces_router
 from sci_search.api.schemas import HealthResponse, SessionResponse
 from sci_search.application.authorization import ResourceNotFound
 from sci_search.application.research_api import InvalidDocument, ResourceVersionConflict
@@ -50,6 +54,7 @@ class ApiSettings:
     csrf_header_name: str = "X-CSRF-Token"
     max_request_body_bytes: int = 10 * 1024 * 1024
     development_auth_enabled: bool = False
+    development_user_id: str = "development-researcher"
 
     def __post_init__(self) -> None:
         if self.max_request_body_bytes <= 0:
@@ -168,6 +173,9 @@ def create_app(settings: ApiSettings, services: ApiServices) -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type", settings.csrf_header_name],
     )
+    app.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
+    app.include_router(frontend_router)
+    app.include_router(workspaces_router)
     app.include_router(projects_router)
     app.include_router(runs_router)
     app.include_router(documents_router)

@@ -52,6 +52,16 @@ class ProjectListResponse(ApiSchema):
     items: list[ProjectResponse]
 
 
+class WorkspaceResponse(ApiSchema):
+    id: str
+    name: str
+    is_personal: bool
+
+
+class WorkspaceListResponse(ApiSchema):
+    items: list[WorkspaceResponse]
+
+
 class MembershipCreate(ApiSchema):
     user_id: str = Field(min_length=1, max_length=100)
     role: ProjectRole

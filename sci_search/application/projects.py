@@ -70,6 +70,8 @@ class ProjectRepository(Protocol):
 
     def list_projects(self) -> list[Project]: ...
 
+    def list_workspaces(self) -> list[Workspace]: ...
+
     def list_memberships(self) -> list[Membership]: ...
 
     def update_project(self, project: Project) -> None: ...
@@ -206,6 +208,18 @@ class ProjectService:
             if (direct is not None and direct.active) or (inherited is not None and inherited.active):
                 visible.append(project)
         return sorted(visible, key=lambda project: (project.created_at, project.id))
+
+    def list_workspaces_for_user(self, user_id: str) -> list[Workspace]:
+        workspaces = [
+            workspace
+            for workspace in self.repository.list_workspaces()
+            if (
+                (membership := self.repository.membership_for_workspace(workspace.id, user_id))
+                is not None
+                and membership.active
+            )
+        ]
+        return sorted(workspaces, key=lambda workspace: (not workspace.is_personal, workspace.name))
 
     def get(self, user_id: str, project_id: str) -> Project:
         self._require(ProjectRole.VIEWER, user_id, project_id)
