@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import mimetypes
 from collections.abc import Callable
 from datetime import datetime
@@ -15,8 +16,13 @@ from uuid import UUID, uuid4
 from pypdf import PdfReader
 from sqlalchemy import func, select
 
-from sci_search.application.authorization import Action, AuthorizationContext, ProjectPolicy
-from sci_search.application.blobs import BlobStore
+from sci_search.application.authorization import (
+    Action,
+    AuthorizationContext,
+    ProjectPolicy,
+    ResourceNotFound,
+)
+from sci_search.application.blobs import BlobStore, content_addressed_key
 from sci_search.application.projects import (
     Membership,
     Project,
@@ -39,7 +45,7 @@ from sci_search.application.research_api import (
 )
 from sci_search.application.sessions import IssuedSession, Session, SessionService
 from sci_search.domain.risk_of_bias import RiskJudgment, RiskOfBiasRecord
-from sci_search.infrastructure.database import Database
+from sci_search.infrastructure.database import Database, lock_blob_key
 from sci_search.infrastructure.queue import JobQueue
 from sci_search.infrastructure.repositories import (
     SqlProjectAuditRepository,
@@ -327,18 +333,35 @@ class DatabaseResearchApiService(ResearchApiService):
         content_base64: str,
         authorization_confirmed: bool,
     ) -> DocumentRecord:
-        content = _validate_pdf(
-            filename,
-            content_base64,
-            authorization_confirmed,
-            self._maximum_upload_bytes,
-        )
-        blob = self._blobs.put(
-            BytesIO(content), self._maximum_upload_bytes, content_type="application/pdf"
-        )
         now = self._clock()
         with self._database.transaction() as session:
             self._require(session, Action.MANAGE_RUNS, user_id, project_id)
+            try:
+                run_uuid = UUID(run_id)
+            except ValueError:
+                raise ResourceNotFound from None
+            run_exists = session.scalar(
+                select(ResearchRunRow.id).where(
+                    ResearchRunRow.id == run_uuid,
+                    ResearchRunRow.project_id == UUID(project_id),
+                )
+            )
+            if run_exists is None:
+                raise ResourceNotFound
+            content = _validate_pdf(
+                filename,
+                content_base64,
+                authorization_confirmed,
+                self._maximum_upload_bytes,
+            )
+            expected_digest = hashlib.sha256(content).hexdigest()
+            lock_blob_key(session, content_addressed_key(expected_digest))
+            blob = self._blobs.put(
+                BytesIO(content),
+                self._maximum_upload_bytes,
+                content_type="application/pdf",
+                expected_sha256=expected_digest,
+            )
             repository = SqlResearchRepository(session)
             document_id = repository.grant_document(
                 project_id,

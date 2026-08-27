@@ -115,3 +115,9 @@ def test_dockerfile_pins_base_digest_and_declares_non_root_runtime() -> None:
     assert "setuptools==84.0.0 wheel==0.46.3" in dockerfile
     assert "/opt/sci-search/bin/pip uninstall --yes setuptools wheel" in dockerfile
     assert "/usr/local/bin/python -m pip uninstall --yes setuptools wheel" in dockerfile
+
+
+def test_container_exposes_reference_aware_storage_gc_operator_command() -> None:
+    entrypoint = (ROOT / "docker" / "entrypoint.sh").read_text(encoding="utf-8")
+    assert "storage-gc)" in entrypoint
+    assert "python -m scripts.storage_gc" in entrypoint

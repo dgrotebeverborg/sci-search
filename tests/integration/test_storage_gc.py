@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 from alembic import command
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from sci_search.application.blobs import BlobNotFound
 from sci_search.application.projects import Project
@@ -203,5 +203,150 @@ def test_gc_refuses_stale_plan(tmp_path: Path) -> None:
         assert result.stale is True
         assert result.deleted == 0
         assert blobs.stat(blob.key).sha256 == blob.sha256
+    finally:
+        database.dispose()
+
+
+def test_gc_preserves_blob_bytes_shared_by_stale_document_and_live_artifact(
+    tmp_path: Path,
+) -> None:
+    database = _database()
+    blobs = FilesystemBlobStore(tmp_path / "blobs")
+    try:
+        target = _target(database)
+        shared = blobs.put(BytesIO(b"shared cross-kind bytes"), 100)
+        with database.transaction() as session:
+            repository = SqlResearchRepository(session)
+            document_id = repository.grant_document(
+                target.project_id,
+                canonical_publication_key="cross-kind",
+                title="Cross-kind document",
+                blob=shared,
+            )
+            repository.revoke_document(
+                target.project_id, document_id, revoked_at=NOW - timedelta(days=50)
+            )
+            session.execute(
+                update(DocumentRow)
+                .where(DocumentRow.id == UUID(document_id))
+                .values(created_at=NOW - timedelta(days=50))
+            )
+            repository.add_artifact(
+                target.project_id,
+                run_id=None,
+                kind="literature_review_pdf",
+                blob_key=shared.key,
+                input_fingerprint="shared-live-artifact",
+                generator_version="test",
+                created_at=NOW - timedelta(days=1),
+                expires_at=None,
+            )
+
+        service = RetentionService(database, blobs)
+        plan = service.plan_gc(NOW, timedelta(days=30))
+        assert [item.object_kind for item in plan.items] == ["document"]
+
+        result = service.apply_gc(plan.id, confirmation=plan.id)
+
+        assert result.deleted == 1
+        assert blobs.stat(shared.key).sha256 == shared.sha256
+        with database.transaction() as session:
+            assert session.get(DocumentRow, UUID(document_id)) is None
+            artifact = session.scalar(select(ArtifactRow).where(ArtifactRow.blob_key == shared.key))
+            assert artifact is not None
+            audit = session.scalar(select(AuditEventRow))
+            assert audit is not None
+            assert audit.action == "storage.record_deleted"
+            assert audit.payload["blob_deleted"] is False
+    finally:
+        database.dispose()
+
+
+def test_gc_preserves_blob_bytes_shared_by_expired_artifact_and_active_document(
+    tmp_path: Path,
+) -> None:
+    database = _database()
+    blobs = FilesystemBlobStore(tmp_path / "blobs")
+    try:
+        target = _target(database)
+        shared = blobs.put(BytesIO(b"active document bytes"), 100)
+        with database.transaction() as session:
+            repository = SqlResearchRepository(session)
+            repository.grant_document(
+                target.project_id,
+                canonical_publication_key="active-cross-kind",
+                title="Active document",
+                blob=shared,
+            )
+            artifact_id = repository.add_artifact(
+                target.project_id,
+                run_id=None,
+                kind="temporary_upload",
+                blob_key=shared.key,
+                input_fingerprint="shared-expired-artifact",
+                generator_version="test",
+                created_at=NOW - timedelta(days=50),
+                expires_at=NOW - timedelta(days=40),
+            )
+
+        service = RetentionService(database, blobs)
+        plan = service.plan_gc(NOW, timedelta(days=30))
+        assert [item.object_kind for item in plan.items] == ["artifact"]
+
+        result = service.apply_gc(plan.id, confirmation=plan.id)
+
+        assert result.deleted == 1
+        assert blobs.stat(shared.key).sha256 == shared.sha256
+        with database.transaction() as session:
+            assert session.get(ArtifactRow, UUID(artifact_id)) is None
+    finally:
+        database.dispose()
+
+
+def test_gc_commits_metadata_removal_before_external_blob_deletion(tmp_path: Path) -> None:
+    database = _database()
+    stored = FilesystemBlobStore(tmp_path / "blobs")
+    try:
+        target = _target(database)
+        blob = stored.put(BytesIO(b"commit-before-delete"), 100)
+        with database.transaction() as session:
+            repository = SqlResearchRepository(session)
+            document_id = repository.grant_document(
+                target.project_id,
+                canonical_publication_key="commit-order",
+                title="Commit order",
+                blob=blob,
+            )
+            repository.revoke_document(
+                target.project_id, document_id, revoked_at=NOW - timedelta(days=50)
+            )
+            session.execute(
+                update(DocumentRow)
+                .where(DocumentRow.id == UUID(document_id))
+                .values(created_at=NOW - timedelta(days=50))
+            )
+
+        class CommitObservingStore:
+            def stat(self, key: str):
+                return stored.stat(key)
+
+            def delete(self, key: str) -> None:
+                with database.transaction() as session:
+                    assert (
+                        session.scalar(
+                            select(func.count())
+                            .select_from(DocumentRow)
+                            .where(DocumentRow.blob_key == key)
+                        )
+                        == 0
+                    )
+                stored.delete(key)
+
+        service = RetentionService(database, CommitObservingStore())  # type: ignore[arg-type]
+        plan = service.plan_gc(NOW, timedelta(days=30))
+
+        assert service.apply_gc(plan.id, confirmation=plan.id).deleted == 1
+        with pytest.raises(BlobNotFound):
+            stored.stat(blob.key)
     finally:
         database.dispose()

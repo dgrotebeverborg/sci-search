@@ -101,10 +101,10 @@
 ### Task 6: Final platform acceptance
 
 - [ ] Execute every acceptance item in the master roadmap with captured command output.
-- [ ] Run formatting, linting, typing, coverage, packaging, migrations, dependency audit, container scan, API security, browser, worker recovery, backup/restore, and scientific validation suites.
+- [x] Run formatting, linting, typing, coverage, packaging, migrations, dependency audit, container scan, API security, browser, worker recovery, backup/restore, and scientific validation suites.
 - [ ] Verify a SURFconext test-environment login and stable `(issuer, subject)` identity mapping.
-- [ ] Verify cross-project denial for reads, writes, uploads, reviews, downloads, exports, jobs, and audit endpoints.
-- [ ] Verify worker restart produces no duplicate evidence or artifacts.
-- [ ] Verify content deduplication and project-scoped grants after migration and garbage collection.
+- [x] Verify cross-project denial for reads, writes, uploads, reviews, downloads, exports, jobs, and audit endpoints.
+- [x] Verify worker restart produces no duplicate evidence or artifacts.
+- [x] Verify content deduplication and project-scoped grants after migration and garbage collection.
 - [ ] Obtain explicit repository-owner approval before deleting retained legacy copies after the rollback window.
 - [ ] Tag the production release only after all evidence is attached to the release checklist.

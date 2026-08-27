@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, select
 
 from sci_search.application.blobs import BlobNotFound, BlobStore
-from sci_search.infrastructure.database import Database
+from sci_search.infrastructure.database import Database, lock_blob_key
 from sci_search.infrastructure.tables import (
     ArtifactRow,
     AuditEventRow,
@@ -123,9 +123,7 @@ class RetentionService:
                 .order_by(ArtifactRow.id)
             )
             for artifact in expired:
-                references = _artifact_blob_references(session, artifact)
-                if references != 0:
-                    continue
+                references = max(_blob_row_references(session, artifact.blob_key) - 1, 0)
                 try:
                     blob = self._blobs.stat(artifact.blob_key)
                     digest, size = blob.sha256, blob.size
@@ -140,8 +138,8 @@ class RetentionService:
                         blob_key=artifact.blob_key,
                         digest=digest,
                         size=size,
-                        reason="expired temporary or generated artifact after grace period",
-                        reference_count=0,
+                        reason="expired artifact record after grace period",
+                        reference_count=references,
                         project_ids_json=[str(artifact.project_id)],
                         state="planned",
                     )
@@ -197,6 +195,23 @@ class RetentionService:
                     deleted_count += 1
                 else:
                     skipped_count += 1
+        while True:
+            with self._database.transaction() as session:
+                pending_ids = list(
+                    session.scalars(
+                        select(StorageGCItemRow.id)
+                        .where(
+                            StorageGCItemRow.plan_id == plan_uuid,
+                            StorageGCItemRow.state == "pending_blob_delete",
+                        )
+                        .order_by(StorageGCItemRow.id)
+                        .limit(self._batch_size)
+                    )
+                )
+            if not pending_ids:
+                break
+            for item_id in pending_ids:
+                self._finalize_item(plan_uuid, item_id)
         with self._database.transaction() as session:
             plan = session.get(StorageGCPlanRow, plan_uuid)
             if plan is not None:
@@ -218,7 +233,7 @@ class RetentionService:
             )
             if item is None:
                 return False
-            project_ids = list(item.project_ids_json)
+            lock_blob_key(session, item.blob_key)
             if item.object_kind == "document":
                 document = session.scalar(
                     select(DocumentRow).where(DocumentRow.id == item.object_id).with_for_update()
@@ -246,13 +261,36 @@ class RetentionService:
                     artifact is None
                     or artifact.expires_at is None
                     or artifact.expires_at > self._clock()
-                    or _artifact_blob_references(session, artifact) != 0
                 ):
                     item.state = "skipped_referenced"
                     return False
                 session.delete(artifact)
-            self._blobs.delete(item.blob_key)
-            item.state = "deleted"
+            session.flush()
+            item.state = "pending_blob_delete"
+            return True
+
+    def _finalize_item(self, plan_id: UUID, item_id: UUID) -> None:
+        with self._database.transaction() as session:
+            item = session.scalar(
+                select(StorageGCItemRow)
+                .where(
+                    StorageGCItemRow.id == item_id,
+                    StorageGCItemRow.plan_id == plan_id,
+                    StorageGCItemRow.state == "pending_blob_delete",
+                )
+                .with_for_update()
+            )
+            if item is None:
+                return
+            lock_blob_key(session, item.blob_key)
+            project_ids = list(item.project_ids_json)
+            blob_deleted = _blob_row_references(session, item.blob_key) == 0
+            if blob_deleted:
+                try:
+                    self._blobs.delete(item.blob_key)
+                except BlobNotFound:
+                    pass
+            item.state = "deleted" if blob_deleted else "deleted_record_blob_retained"
             for project_id in project_ids:
                 session.add(
                     AuditEventRow(
@@ -260,7 +298,9 @@ class RetentionService:
                         occurred_at=self._clock(),
                         actor_user_id=None,
                         project_id=UUID(project_id),
-                        action="storage.blob_deleted",
+                        action=(
+                            "storage.blob_deleted" if blob_deleted else "storage.record_deleted"
+                        ),
                         entity_type=item.object_kind,
                         entity_id=str(item.object_id),
                         payload={
@@ -268,10 +308,10 @@ class RetentionService:
                             "digest": item.digest,
                             "size": item.size,
                             "reason": item.reason,
+                            "blob_deleted": blob_deleted,
                         },
                     )
                 )
-            return True
 
 
 def _document_references(session: Any, document_id: UUID) -> int:
@@ -298,24 +338,16 @@ def _document_references(session: Any, document_id: UUID) -> int:
     return sum(int(value or 0) for value in counts)
 
 
-def _artifact_blob_references(session: Any, artifact: ArtifactRow) -> int:
+def _blob_row_references(session: Any, blob_key: str) -> int:
     documents = int(
         session.scalar(
-            select(func.count())
-            .select_from(DocumentRow)
-            .where(DocumentRow.blob_key == artifact.blob_key)
+            select(func.count()).select_from(DocumentRow).where(DocumentRow.blob_key == blob_key)
         )
         or 0
     )
     artifacts = int(
         session.scalar(
-            select(func.count())
-            .select_from(ArtifactRow)
-            .where(
-                ArtifactRow.blob_key == artifact.blob_key,
-                ArtifactRow.id != artifact.id,
-                or_(ArtifactRow.expires_at.is_(None), ArtifactRow.expires_at > artifact.expires_at),
-            )
+            select(func.count()).select_from(ArtifactRow).where(ArtifactRow.blob_key == blob_key)
         )
         or 0
     )

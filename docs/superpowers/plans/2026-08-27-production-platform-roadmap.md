@@ -42,26 +42,26 @@
 
 Each program may begin only when the preceding program meets all of these gates:
 
-- [ ] Its focused unit and integration tests pass.
-- [ ] `python -m pytest -q` passes for the complete repository.
-- [ ] Ruff, Pyright, and package-build checks pass at the current documented baseline.
-- [ ] Database migrations, if any, upgrade an empty database and the previous program schema.
-- [ ] New protected-resource operations have cross-project denial tests.
-- [ ] Documentation describes forward migration and rollback.
-- [ ] The program has no unresolved high-severity security or scientific-integrity regression.
+- [x] Its focused unit and integration tests pass.
+- [x] `python -m pytest -q` passes for the complete repository.
+- [x] Ruff, Pyright, and package-build checks pass at the current documented baseline.
+- [x] Database migrations, if any, upgrade an empty database and the previous program schema.
+- [x] New protected-resource operations have cross-project denial tests.
+- [x] Documentation describes forward migration and rollback.
+- [x] The program has no unresolved high-severity security or scientific-integrity regression.
 
 ## Final acceptance run
 
-- [ ] Start the complete Docker Compose stack with production-like secrets and TLS test certificates.
-- [ ] Authenticate two different OIDC subjects and verify each receives a distinct private workspace.
-- [ ] Create a shared project and verify owner, editor, reviewer, and viewer behavior.
-- [ ] Start simultaneous research runs in separate projects and terminate a worker during one run.
-- [ ] Restart the worker and verify the interrupted run resumes without duplicate evidence or artifacts.
-- [ ] Attempt cross-project reads, mutations, uploads, reviews, downloads, and exports; verify uniform not-found responses.
-- [ ] Verify model-invalid evidence produces the deterministic fallback and an audit record.
-- [ ] Back up PostgreSQL and object storage, restore into an isolated stack, and compare manifest counts and hashes.
-- [ ] Run the complete deterministic, integration, migration, browser, packaging, typing, linting, and security suites.
-- [ ] Record production deployment, rollback, recovery, and storage-cleanup evidence in the release checklist.
+- [x] Start the complete Docker Compose stack with production-like secrets and TLS test certificates.
+- [ ] Authenticate two different SURFconext test-environment subjects and verify each receives a distinct private workspace.
+- [x] Create a shared project and verify owner, editor, reviewer, and viewer behavior.
+- [x] Start simultaneous research runs in separate projects and terminate a worker during one run.
+- [x] Restart the worker and verify the interrupted run resumes without duplicate evidence or artifacts.
+- [x] Attempt cross-project reads, mutations, uploads, reviews, downloads, and exports; verify uniform not-found responses.
+- [x] Verify model-invalid evidence produces the deterministic fallback and an audit record.
+- [x] Back up PostgreSQL and object storage, restore into an isolated stack, and compare manifest counts and hashes.
+- [x] Run the complete deterministic, integration, migration, browser, packaging, typing, linting, and security suites.
+- [x] Record production deployment, rollback, recovery, and storage-cleanup evidence in the release checklist.
 
 ## Workspace prerequisite
 

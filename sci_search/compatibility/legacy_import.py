@@ -15,8 +15,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 
-from sci_search.application.blobs import BlobStore
-from sci_search.infrastructure.database import Database
+from sci_search.application.blobs import BlobStore, content_addressed_key
+from sci_search.infrastructure.database import Database, lock_blob_key
 from sci_search.infrastructure.repositories import SqlResearchRepository
 from sci_search.infrastructure.tables import (
     AuditEventRow,
@@ -292,16 +292,6 @@ def _apply_import_atomic(
     if imported is not None:
         return ImportResult(False, manifest.source_fingerprint, 0, 0, 0, 0, True)
 
-    blobs_by_publication: dict[str, Any] = {}
-    for publication in manifest.publications:
-        with publication.document_path.open("rb") as source:
-            blobs_by_publication[publication.source_id] = blob_store.put(
-                source,
-                max(publication.size, 1),
-                content_type=publication.content_type,
-                expected_sha256=publication.sha256,
-            )
-
     with target.database.transaction() as session:
         # Recheck inside the write transaction for retries or competing operators.
         imported = session.scalar(
@@ -313,6 +303,16 @@ def _apply_import_atomic(
         if imported is not None:
             return ImportResult(False, manifest.source_fingerprint, 0, 0, 0, 0, True)
 
+        blobs_by_publication: dict[str, Any] = {}
+        for publication in manifest.publications:
+            lock_blob_key(session, content_addressed_key(publication.sha256))
+            with publication.document_path.open("rb") as source:
+                blobs_by_publication[publication.source_id] = blob_store.put(
+                    source,
+                    max(publication.size, 1),
+                    content_type=publication.content_type,
+                    expected_sha256=publication.sha256,
+                )
         research = SqlResearchRepository(session)
         publication_count_before = int(
             session.scalar(select(func.count()).select_from(PublicationRow)) or 0

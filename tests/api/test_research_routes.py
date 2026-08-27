@@ -158,6 +158,43 @@ def test_unrelated_user_cannot_enumerate_any_research_resource(research_api: tup
     assert {response.content for response in responses} == {b'{"detail":"resource not found"}'}
 
 
+def test_unrelated_user_cannot_mutate_upload_review_or_control_jobs(
+    research_api: tuple,
+) -> None:
+    client, headers = _client_as(research_api, "unrelated")
+    requests = [
+        client.post(
+            "/api/v1/projects/project-owner/runs",
+            json={
+                "question": "Attempted cross-project write",
+                "review_depth": "focused",
+                "idempotency_key": "cross-project-job",
+            },
+            headers=headers,
+        ),
+        client.post(
+            "/api/v1/projects/project-owner/documents/upload",
+            json={
+                "run_id": "run-visible",
+                "candidate_id": "candidate-1",
+                "filename": "paper.pdf",
+                "content_base64": base64.b64encode(_parseable_pdf()).decode("ascii"),
+                "authorization_confirmed": True,
+            },
+            headers=headers,
+        ),
+        client.patch(
+            "/api/v1/projects/project-owner/evidence/evidence-1/review",
+            json={"decision": "accepted", "expected_version": 1},
+            headers=headers,
+        ),
+        client.post("/api/v1/projects/project-owner/runs/run-visible/cancel", headers=headers),
+        client.post("/api/v1/projects/project-owner/runs/run-failed/retry", headers=headers),
+    ]
+    assert {response.status_code for response in requests} == {404}
+    assert {response.content for response in requests} == {b'{"detail":"resource not found"}'}
+
+
 def test_editor_can_cancel_and_retry_runs(research_api: tuple) -> None:
     client, headers = _client_as(research_api, "editor")
 

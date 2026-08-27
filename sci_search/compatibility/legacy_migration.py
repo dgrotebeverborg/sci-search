@@ -8,6 +8,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 
+from sci_search.application.blobs import content_addressed_key
+from sci_search.infrastructure.database import lock_blob_key
 from sci_search.infrastructure.repositories import SqlResearchRepository
 from sci_search.infrastructure.tables import (
     AuditEventRow,
@@ -186,19 +188,20 @@ def _publications(
     stop: int,
 ) -> None:
     selected = manifest.publications[start:stop]
-    blobs: dict[str, Any] = {}
-    for publication in selected:
-        with publication.document_path.open("rb") as source:
-            blobs[publication.source_id] = blob_store.put(
-                source,
-                max(publication.size, 1),
-                content_type=publication.content_type,
-                expected_sha256=publication.sha256,
-            )
     with target.database.transaction() as session:
         ledger = _locked_ledger(manifest, target, session)
         if int(ledger.checkpoint_json.get("publications", 0)) != start:
             return
+        blobs: dict[str, Any] = {}
+        for publication in selected:
+            lock_blob_key(session, content_addressed_key(publication.sha256))
+            with publication.document_path.open("rb") as source:
+                blobs[publication.source_id] = blob_store.put(
+                    source,
+                    max(publication.size, 1),
+                    content_type=publication.content_type,
+                    expected_sha256=publication.sha256,
+                )
         research = SqlResearchRepository(session)
         before = int(session.scalar(select(func.count()).select_from(DocumentRow)) or 0)
         summary, mappings = _mapping_copies(ledger)

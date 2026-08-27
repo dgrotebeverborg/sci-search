@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import base64
 import json
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from alembic import command
+from pypdf import PdfWriter
 from sqlalchemy import func, select
 
+from sci_search.application.authorization import ResourceNotFound
 from sci_search.application.identity import ExternalIdentity, IdentityProfile, provision_user
 from sci_search.infrastructure.database import Database
 from sci_search.infrastructure.filesystem_blobs import FilesystemBlobStore
@@ -125,6 +130,76 @@ def test_research_run_is_idempotent_durable_and_queued(database: Database) -> No
         == first
     )
     assert queue.messages[0][1] == "research"
+
+
+def test_unauthorized_production_upload_does_not_write_blob(database: Database) -> None:
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "upload-owner"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+        unrelated = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "upload-unrelated"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    project = DatabaseProjectService(database, clock=lambda: NOW).create(
+        owner.user.id, owner.workspace.id, "Private uploads", True
+    )
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    pdf = BytesIO()
+    writer.write(pdf)
+    blobs = Mock()
+    service = DatabaseResearchApiService(database, blobs, Mock(), clock=lambda: NOW)
+
+    with pytest.raises(ResourceNotFound):
+        service.upload_document(
+            unrelated.user.id,
+            project.id,
+            run_id="00000000-0000-0000-0000-000000000001",
+            candidate_id="unauthorized",
+            filename="paper.pdf",
+            content_base64=base64.b64encode(pdf.getvalue()).decode("ascii"),
+            authorization_confirmed=True,
+        )
+
+    blobs.put.assert_not_called()
+
+
+def test_upload_to_missing_run_does_not_write_blob(database: Database) -> None:
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "missing-run-owner"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    project = DatabaseProjectService(database, clock=lambda: NOW).create(
+        owner.user.id, owner.workspace.id, "Upload validation", True
+    )
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    pdf = BytesIO()
+    writer.write(pdf)
+    blobs = Mock()
+    service = DatabaseResearchApiService(database, blobs, Mock(), clock=lambda: NOW)
+
+    with pytest.raises(ResourceNotFound):
+        service.upload_document(
+            owner.user.id,
+            project.id,
+            run_id="00000000-0000-0000-0000-000000000001",
+            candidate_id="missing-run",
+            filename="paper.pdf",
+            content_base64=base64.b64encode(pdf.getvalue()).decode("ascii"),
+            authorization_confirmed=True,
+        )
+
+    blobs.put.assert_not_called()
 
 
 def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(

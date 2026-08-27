@@ -158,18 +158,19 @@ def test_migration_holds_and_releases_a_database_advisory_lock(tmp_path: Path) -
     reason="set SCI_SEARCH_DEPLOY_REHEARSAL=1 for the isolated Compose rehearsal",
 )
 def test_real_test_stack_deployment_and_rollback_rehearsal(tmp_path: Path) -> None:
+    image = os.environ.get("SCI_SEARCH_TEST_IMAGE", "sci-search:program7-test")
     compose = tmp_path / "compose.rehearsal.yml"
     compose.write_text(
-        """services:
+        f"""services:
   web:
-    image: sci-search:program7-test
+    image: {image}
     entrypoint: ["python", "-m", "http.server", "58999", "--bind", "0.0.0.0"]
     ports: ["127.0.0.1:58999:58999"]
   worker:
-    image: sci-search:program7-test
+    image: {image}
     entrypoint: ["python", "-c", "import time; time.sleep(600)"]
   migrate:
-    image: sci-search:program7-test
+    image: {image}
     entrypoint: ["python", "-c", "print('migration lock rehearsal')"]
     profiles: ["admin"]
 """,
@@ -198,6 +199,7 @@ def test_real_test_stack_deployment_and_rollback_rehearsal(tmp_path: Path) -> No
                 readiness_url="http://127.0.0.1:58999/",
                 readiness_interval_seconds=0.1,
                 readiness_attempts=20,
+                drain_timeout_seconds=1,
             ),
             executor=executor,
         )

@@ -27,6 +27,10 @@ case "${1:-web}" in
     shift
     exec python -m scripts.verify_restore "$@"
     ;;
+  storage-gc)
+    shift
+    exec python -m scripts.storage_gc "$@"
+    ;;
   *)
     exec "$@"
     ;;

@@ -200,7 +200,7 @@ def test_restore_rejects_incomplete_or_tampered_backup(tmp_path: Path) -> None:
 def test_real_postgres_and_minio_restore_drill(tmp_path: Path) -> None:
     """Prove two project grants to one blob and a report survive a real restore."""
 
-    image = "sci-search:program7-test"
+    image = os.environ.get("SCI_SEARCH_TEST_IMAGE", "sci-search:program7-test")
     source_bucket = "sci-search-backup-source"
     restored_bucket = "sci-search-backup-restored"
     restored_database = "sci_search_restore_test"

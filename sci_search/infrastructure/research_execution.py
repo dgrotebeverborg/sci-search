@@ -15,8 +15,8 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from sci_search.application.blobs import BlobStore
-from sci_search.infrastructure.database import Database
+from sci_search.application.blobs import BlobStore, content_addressed_key
+from sci_search.infrastructure.database import Database, lock_blob_key
 from sci_search.infrastructure.repositories import SqlResearchRepository
 from sci_search.infrastructure.tables import ArtifactRow, EvidenceRow
 from sci_search.mistral_analysis import MistralAnalyzer
@@ -114,14 +114,18 @@ class ProductionResearchStage:
             if not publication_id or not source.is_file():
                 continue
             maximum = max(source.stat().st_size, 1)
-            with source.open("rb") as stream:
-                blob = self._blobs.put(
-                    stream,
-                    maximum,
-                    content_type=str(record.get("content_type") or "application/octet-stream"),
-                )
             canonical = str(record.get("doi") or publication_id).strip().casefold()
+            with source.open("rb") as stream:
+                expected_digest = hashlib.file_digest(stream, "sha256").hexdigest()
             with self._database.transaction() as session:
+                lock_blob_key(session, content_addressed_key(expected_digest))
+                with source.open("rb") as stream:
+                    blob = self._blobs.put(
+                        stream,
+                        maximum,
+                        content_type=str(record.get("content_type") or "application/octet-stream"),
+                        expected_sha256=expected_digest,
+                    )
                 repository = SqlResearchRepository(session)
                 document_id = repository.grant_document(
                     project_id,
@@ -229,8 +233,15 @@ class ProductionResearchStage:
         fingerprint = hashlib.sha256(question.encode()).hexdigest()
         artifact_ids: list[str] = []
         for kind, content_type, body in payloads:
-            blob = self._blobs.put(BytesIO(body), len(body), content_type=content_type)
+            expected_digest = hashlib.sha256(body).hexdigest()
             with self._database.transaction() as session:
+                lock_blob_key(session, content_addressed_key(expected_digest))
+                blob = self._blobs.put(
+                    BytesIO(body),
+                    len(body),
+                    content_type=content_type,
+                    expected_sha256=expected_digest,
+                )
                 existing = session.scalar(
                     select(ArtifactRow.id).where(
                         ArtifactRow.project_id == UUID(project_id),
