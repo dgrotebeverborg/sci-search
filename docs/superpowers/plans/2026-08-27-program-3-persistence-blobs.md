@@ -29,11 +29,11 @@
 **Interfaces:**
 - Produces: `Database`, `transaction()` context manager, and schema for identities, sessions, workspaces, memberships, projects, and audit events.
 
-- [ ] Write a failing integration test that upgrades an empty PostgreSQL database to head, downgrades one revision, and upgrades again.
-- [ ] Run the test against the integration database and verify missing Alembic configuration causes RED.
-- [ ] Implement naming conventions, UTC timestamps, foreign keys, unique `(issuer, subject)`, unique membership keys, optimistic versions, and append-only audit rows.
-- [ ] Add a test proving migration startup is explicit and normal application startup does not alter schema.
-- [ ] Run migration tests and commit.
+- [x] Write a failing integration test that upgrades an empty PostgreSQL database to head, downgrades one revision, and upgrades again.
+- [x] Run the test against the integration database and verify missing Alembic configuration causes RED.
+- [x] Implement naming conventions, UTC timestamps, foreign keys, unique `(issuer, subject)`, unique membership keys, optimistic versions, and append-only audit rows.
+- [x] Add a test proving migration startup is explicit and normal application startup does not alter schema.
+- [x] Run migration tests and commit.
 
 ### Task 2: SQL repositories and transaction boundaries
 
