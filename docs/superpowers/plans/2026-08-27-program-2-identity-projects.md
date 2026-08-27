@@ -78,12 +78,12 @@
 **Interfaces:**
 - Produces: `OidcProvider.authorization_redirect`, `exchange_callback`, `logout_redirect`, and callback mapping to `ExternalIdentity`.
 
-- [ ] Write failing tests against a local fake discovery/JWKS server for state, nonce, PKCE, issuer, audience, signature, algorithm, issued-at, expiry, and exact redirect URI.
-- [ ] Verify each negative case fails for its intended missing validation before implementation.
-- [ ] Integrate Authlib Authorization Code flow; do not parse or verify JWT signatures manually.
-- [ ] Map only `iss` and `sub` into the identity key; keep names, email, affiliation, and institution as profile claims.
-- [ ] Add cookie tests asserting `Secure`, `HttpOnly`, `SameSite=Lax`, bounded lifetime, and rotation after callback.
-- [ ] Run `python -m pytest tests/infrastructure/test_oidc.py tests/api/test_auth.py -q` and commit.
+- [x] Write failing tests against a local fake discovery/JWKS server for state, nonce, PKCE, issuer, audience, signature, algorithm, issued-at, expiry, and exact redirect URI.
+- [x] Verify each negative case fails for its intended missing validation before implementation.
+- [x] Integrate Authlib Authorization Code flow; do not parse or verify JWT signatures manually.
+- [x] Map only `iss` and `sub` into the identity key; keep names, email, affiliation, and institution as profile claims.
+- [x] Add cookie tests asserting `Secure`, `HttpOnly`, `SameSite=Lax`, bounded lifetime, and rotation after callback.
+- [x] Run `python -m pytest tests/infrastructure/test_oidc.py tests/api/test_auth.py -q` and commit.
 
 ### Task 5: Cross-project isolation matrix
 
