@@ -89,10 +89,10 @@
 - Create: `docs/SCIENTIFIC_RELEASE_PROTOCOL.md`
 - Test: deterministic benchmark command coverage
 
-- [ ] Define credential-scoped live cases, acquisition/model budgets, sanitization, immutable question versions, and artifact retention.
-- [ ] Keep live outcomes informational until researcher-reviewed; never rewrite expected gold labels from current output.
-- [ ] Document release blocking thresholds and manual reviewer sign-off.
-- [ ] Run deterministic protocol commands and commit.
+- [x] Define credential-scoped live cases, acquisition/model budgets, sanitization, immutable question versions, and artifact retention.
+- [x] Keep live outcomes informational until researcher-reviewed; never rewrite expected gold labels from current output.
+- [x] Document release blocking thresholds and manual reviewer sign-off.
+- [x] Run deterministic protocol commands and commit.
 
 ### Task 6: Program 6 verification
 

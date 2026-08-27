@@ -1,0 +1,19 @@
+{
+  "schema_version": "sci_search_scheduled_scientific_protocol_v1",
+  "version": 1,
+  "question_benchmark": "researcher_questions_v1.json",
+  "question_sha256": "03c3974a04a6d1094ddda61146ba5577623d1bc240d750e3a07fcd5747a2b14c",
+  "case_ids": [
+    "energy-iron-air-rte-comparability",
+    "agriculture-biochar-yield-heterogeneity",
+    "boundary-wild-goat-population"
+  ],
+  "budgets": {
+    "per_query": 5,
+    "max_full_texts": 2,
+    "max_acquisition_attempts": 6,
+    "max_model_calls_per_case": 1
+  },
+  "scientific_status": "informational_pending_researcher_review",
+  "artifact_retention_days": 30
+}
