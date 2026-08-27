@@ -138,7 +138,9 @@ def test_login_project_creation_switching_and_logout_in_chromium(
 ) -> None:
     page = chromium_browser.new_page()
     errors: list[str] = []
-    page.on("console", lambda message: errors.append(message.text) if message.type == "error" else None)
+    page.on(
+        "console", lambda message: errors.append(message.text) if message.type == "error" else None
+    )
     page.goto(live_browser_url)
 
     expect(page).to_have_url(f"{live_browser_url}/auth/login")

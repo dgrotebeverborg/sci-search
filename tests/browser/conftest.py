@@ -52,7 +52,9 @@ def live_browser_url() -> str:
     for role in (ProjectRole.EDITOR, ProjectRole.REVIEWER, ProjectRole.VIEWER):
         workspace_id = f"{role.value}-workspace"
         project_id = f"{role.value}-project"
-        projects.add_workspace(Workspace(workspace_id, f"{role.value.title()} workspace", role.value, True, NOW))
+        projects.add_workspace(
+            Workspace(workspace_id, f"{role.value.title()} workspace", role.value, True, NOW)
+        )
         projects.add_membership(
             Membership(
                 f"{role.value}-workspace-membership",
@@ -63,7 +65,9 @@ def live_browser_url() -> str:
                 workspace_id=workspace_id,
             )
         )
-        projects.add_project(Project(project_id, workspace_id, f"{role.value.title()} study", role.value, True, NOW))
+        projects.add_project(
+            Project(project_id, workspace_id, f"{role.value.title()} study", role.value, True, NOW)
+        )
         projects.add_membership(
             Membership(
                 f"{role.value}-project-membership",

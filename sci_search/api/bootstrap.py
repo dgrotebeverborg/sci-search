@@ -36,7 +36,9 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         raise ValueError("SCI_SEARCH_ENVIRONMENT must be development, test, or production")
     origins = tuple(
         value.strip()
-        for value in os.environ.get("SCI_SEARCH_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(",")
+        for value in os.environ.get("SCI_SEARCH_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(
+            ","
+        )
         if value.strip()
     )
     secret = os.environ.get("SCI_SEARCH_SESSION_SECRET", "").strip()
@@ -79,8 +81,10 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
             project_id=project.id,
         )
     )
+
     def identifiers() -> str:
         return str(uuid4())
+
     project_service = ProjectService(
         projects,
         InMemoryProjectAuditRepository(),

@@ -72,13 +72,17 @@ class ResearchService:
             generic = self.generic_engine.investigate(contextualized, session_id=session_id)
             payload = generic.to_dict()
             payload["synthesis"] = build_structured_synthesis(payload)
+            raw_evidence = payload.get("evidence")
+            analysis_evidence = raw_evidence if isinstance(raw_evidence, list) else []
+            raw_adequacy = payload.get("answer_adequacy")
+            analysis_adequacy = raw_adequacy if isinstance(raw_adequacy, dict) else {}
             payload["ai_analysis"] = gate_model_analysis(
                 analyze_if_configured(
                     question,
-                    payload.get("evidence", []),
-                    adequacy=payload.get("answer_adequacy", {}),
+                    analysis_evidence,
+                    adequacy=analysis_adequacy,
                 ),
-                payload.get("answer_adequacy", {}),
+                analysis_adequacy,
             )
             payload["question"] = question
             payload["contextualized_question"] = (

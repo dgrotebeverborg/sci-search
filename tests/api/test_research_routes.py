@@ -164,9 +164,7 @@ def test_editor_can_cancel_and_retry_runs(research_api: tuple) -> None:
     cancelled = client.post(
         "/api/v1/projects/project-editor/runs/run-visible/cancel", headers=headers
     )
-    retried = client.post(
-        "/api/v1/projects/project-editor/runs/run-failed/retry", headers=headers
-    )
+    retried = client.post("/api/v1/projects/project-editor/runs/run-failed/retry", headers=headers)
 
     assert cancelled.json()["status"] == "cancel_requested"
     assert retried.json()["status"] == "queued"

@@ -30,8 +30,7 @@ def _record(
 
 def test_late_counterevidence_and_method_diversity_survive_leading_record_bias() -> None:
     evidence = [
-        _record(f"lead-{index:02d}", "publication-a", score=50 - index)
-        for index in range(12)
+        _record(f"lead-{index:02d}", "publication-a", score=50 - index) for index in range(12)
     ]
     evidence.extend(
         (
@@ -129,8 +128,7 @@ def test_oversized_passage_is_bounded_without_losing_selected_statement() -> Non
 
 def test_token_budget_exclusions_are_recorded() -> None:
     evidence = [
-        _record(f"e{index}", f"p{index}", passage="Evidence text. " * 80)
-        for index in range(5)
+        _record(f"e{index}", f"p{index}", passage="Evidence text. " * 80) for index in range(5)
     ]
 
     packet = select_model_evidence(

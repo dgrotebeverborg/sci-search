@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sci_search.researcher_benchmark import validate_researcher_benchmark
 
@@ -85,7 +85,8 @@ _RESULT_FIELDS = {
 def sanitize_live_result(payload: dict[str, Any]) -> dict[str, Any]:
     """Allowlist diagnostics; omit passages, provider payloads, URLs and credentials."""
 
-    rows = payload.get("results") if isinstance(payload.get("results"), list) else []
+    raw_rows = payload.get("results")
+    rows = cast(list[Any], raw_rows) if isinstance(raw_rows, list) else []
     return {
         "schema_version": "sci_search_scheduled_scientific_result_v1",
         "question_sha256": str(payload.get("question_sha256") or ""),

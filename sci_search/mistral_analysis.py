@@ -275,9 +275,7 @@ def analyze_if_configured(
         selected = MistralAnalyzer(key)
     from sci_search.application.analysis import MistralAnalysisProvider, analyze_evidence
 
-    return analyze_evidence(
-        question, evidence, adequacy or {}, MistralAnalysisProvider(selected)
-    )
+    return analyze_evidence(question, evidence, adequacy or {}, MistralAnalysisProvider(selected))
 
 
 def validate_analysis(payload: Any, evidence: list[dict[str, Any]]) -> dict[str, Any]:

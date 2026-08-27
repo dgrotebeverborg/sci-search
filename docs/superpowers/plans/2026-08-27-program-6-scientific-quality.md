@@ -96,8 +96,8 @@
 
 ### Task 6: Program 6 verification
 
-- [ ] Run model packet mutation tests and provider contract tests.
-- [ ] Run risk-of-bias authorization and concurrent revision tests.
-- [ ] Run all locked scientific, reliability, metamorphic, and validation benchmarks.
-- [ ] Compare representative pre/post migration deterministic answers and provenance.
-- [ ] Run full engineering gates and verify no model-invalid assertion enters persisted evidence or reports.
+- [x] Run model packet mutation tests and provider contract tests.
+- [x] Run risk-of-bias authorization and concurrent revision tests.
+- [x] Run all locked scientific, reliability, metamorphic, and validation benchmarks.
+- [x] Compare representative pre/post migration deterministic answers and provenance.
+- [x] Run full engineering gates and verify no model-invalid assertion enters persisted evidence or reports.

@@ -205,7 +205,9 @@ class ProjectService:
                 continue
             direct = self.repository.membership_for_project(project.id, user_id)
             inherited = self.repository.membership_for_workspace(project.workspace_id, user_id)
-            if (direct is not None and direct.active) or (inherited is not None and inherited.active):
+            if (direct is not None and direct.active) or (
+                inherited is not None and inherited.active
+            ):
                 visible.append(project)
         return sorted(visible, key=lambda project: (project.created_at, project.id))
 

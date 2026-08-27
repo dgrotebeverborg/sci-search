@@ -144,12 +144,9 @@ def _packet_record(packet: EvidencePacket) -> dict[str, Any]:
         "policy_version": packet.policy_version,
         "selected_ids": list(packet.selected_ids),
         "excluded": [
-            {"evidence_id": item.evidence_id, "reason": item.reason}
-            for item in packet.exclusions
+            {"evidence_id": item.evidence_id, "reason": item.reason} for item in packet.exclusions
         ],
-        "selection_reasons": {
-            key: list(value) for key, value in packet.selection_reasons.items()
-        },
+        "selection_reasons": {key: list(value) for key, value in packet.selection_reasons.items()},
         "estimated_tokens": packet.estimated_tokens,
         "max_records": packet.max_records,
         "max_tokens": packet.max_tokens,

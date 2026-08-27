@@ -71,7 +71,9 @@ def project_api() -> tuple[
     )
     audits = InMemoryProjectAuditRepository()
     identifiers = iter(f"generated-{index}" for index in range(20))
-    service = ProjectService(repository, audits, clock=lambda: NOW, id_source=lambda: next(identifiers))
+    service = ProjectService(
+        repository, audits, clock=lambda: NOW, id_source=lambda: next(identifiers)
+    )
     sessions = SessionService(
         InMemorySessionRepository(),
         clock=lambda: NOW,
@@ -195,9 +197,7 @@ def test_owner_membership_operations_are_audited(project_api: tuple) -> None:
         headers=headers,
     )
     listed = client.get("/api/v1/projects/owner-project/members")
-    removed = client.delete(
-        "/api/v1/projects/owner-project/members/colleague", headers=headers
-    )
+    removed = client.delete("/api/v1/projects/owner-project/members/colleague", headers=headers)
 
     assert added.status_code == 201
     assert changed.json()["role"] == "reviewer"

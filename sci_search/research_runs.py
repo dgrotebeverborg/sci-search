@@ -519,11 +519,14 @@ class ResearchRunManager:
         if self.memory is not None:
             self.memory.apply_lifecycle(payload)
         payload["synthesis"] = build_structured_synthesis(payload)
-        adequacy = payload.get("answer_adequacy", {})
+        raw_adequacy = payload.get("answer_adequacy")
+        adequacy = raw_adequacy if isinstance(raw_adequacy, dict) else {}
         answer_ids = {str(item) for item in adequacy.get("answer_evidence_ids", []) if str(item)}
+        raw_evidence = payload.get("evidence")
+        evidence_records = raw_evidence if isinstance(raw_evidence, list) else []
         answer_evidence = [
             item
-            for item in payload.get("evidence", [])
+            for item in evidence_records
             if isinstance(item, dict) and str(item.get("id")) in answer_ids
         ]
         payload["ai_analysis"] = gate_model_analysis(

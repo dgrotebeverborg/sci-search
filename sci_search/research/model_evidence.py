@@ -30,7 +30,9 @@ class EvidenceSelectionLimits:
 
     def __post_init__(self) -> None:
         if self.max_records < 1 or self.max_tokens < 1 or self.max_passage_chars < 80:
-            raise ValueError("evidence packet limits must be positive and passages need 80 characters")
+            raise ValueError(
+                "evidence packet limits must be positive and passages need 80 characters"
+            )
 
 
 @dataclass(frozen=True, slots=True)
