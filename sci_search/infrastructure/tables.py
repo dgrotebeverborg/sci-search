@@ -181,3 +181,166 @@ class AuditEventRow(Base):
     entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(1000), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class PublicationRow(Base):
+    __tablename__ = "publications"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    canonical_key: Mapped[str] = mapped_column(String(1000), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(2000), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentRow(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    size: Mapped[int] = mapped_column(nullable=False)
+    content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    blob_key: Mapped[str] = mapped_column(String(1000), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PublicationDocumentRow(Base):
+    __tablename__ = "publication_documents"
+    __table_args__ = (UniqueConstraint("publication_id", "document_id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    publication_id: Mapped[UUID] = mapped_column(
+        ForeignKey("publications.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProjectDocumentGrantRow(Base):
+    __tablename__ = "project_document_grants"
+    __table_args__ = (UniqueConstraint("project_id", "document_id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class ResearchRunRow(Base):
+    __tablename__ = "research_runs"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    question: Mapped[str] = mapped_column(String(5000), nullable=False)
+    configuration_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class RunDocumentRow(Base):
+    __tablename__ = "run_documents"
+    __table_args__ = (UniqueConstraint("run_id", "document_id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    relation: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EvidenceRow(Base):
+    __tablename__ = "evidence_records"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="SET NULL"), index=True
+    )
+    statement: Mapped[str] = mapped_column(String(10000), nullable=False)
+    source_passage: Mapped[str] = mapped_column(String(20000), nullable=False)
+    section: Mapped[str | None] = mapped_column(String(1000))
+    page: Mapped[int | None]
+    extraction_method: Mapped[str] = mapped_column(String(500), nullable=False)
+    context_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+
+
+class ValidationCheckRow(Base):
+    __tablename__ = "validation_checks"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    evidence_id: Mapped[UUID] = mapped_column(
+        ForeignKey("evidence_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    check_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReviewRevisionRow(Base):
+    __tablename__ = "review_revisions"
+    __table_args__ = (UniqueConstraint("evidence_id", "evidence_version"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    evidence_id: Mapped[UUID] = mapped_column(
+        ForeignKey("evidence_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    reviewer_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    evidence_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    decision: Mapped[str] = mapped_column(String(50), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(10000))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ArtifactRow(Base):
+    __tablename__ = "artifacts"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="SET NULL"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    blob_key: Mapped[str] = mapped_column(String(1000), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

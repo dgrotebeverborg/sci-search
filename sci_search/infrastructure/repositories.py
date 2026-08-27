@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session as OrmSession
 
+from sci_search.application.authorization import ResourceNotFound
+from sci_search.application.blobs import BlobRef
 from sci_search.application.identity import (
     ExternalIdentity,
     IdentityRepository,
@@ -25,12 +27,22 @@ from sci_search.application.projects import (
 )
 from sci_search.application.sessions import Session, SessionRepository
 from sci_search.infrastructure.tables import (
+    ArtifactRow,
     AuditEventRow,
+    DocumentRow,
+    EvidenceRow,
     ExternalIdentityRow,
+    ProjectDocumentGrantRow,
     ProjectMembershipRow,
     ProjectRow,
+    PublicationDocumentRow,
+    PublicationRow,
+    ResearchRunRow,
+    ReviewRevisionRow,
+    RunDocumentRow,
     SessionRow,
     UserRow,
+    ValidationCheckRow,
     WorkspaceMembershipRow,
     WorkspaceRow,
 )
@@ -397,6 +409,353 @@ class SqlAuditRepository:
         )
 
 
+class SqlResearchRepository:
+    """Project-scoped metadata for documents and provenance-bearing evidence."""
+
+    def __init__(self, session: OrmSession) -> None:
+        self._session = session
+
+    def grant_document(
+        self,
+        project_id: str,
+        *,
+        canonical_publication_key: str,
+        title: str,
+        blob: BlobRef,
+    ) -> str:
+        project_uuid = _uuid(project_id)
+        if self._session.get(ProjectRow, project_uuid) is None:
+            raise ResourceNotFound
+
+        document = self._session.scalar(
+            select(DocumentRow).where(DocumentRow.sha256 == blob.sha256)
+        )
+        if document is None:
+            document = DocumentRow(
+                id=uuid4(),
+                sha256=blob.sha256,
+                size=blob.size,
+                content_type=blob.content_type,
+                blob_key=blob.key,
+            )
+            self._session.add(document)
+            self._session.flush([document])
+        elif (
+            document.size != blob.size
+            or document.content_type != blob.content_type
+            or document.blob_key != blob.key
+        ):
+            raise ValueError("blob metadata does not match the stored digest")
+
+        publication = self._session.scalar(
+            select(PublicationRow).where(PublicationRow.canonical_key == canonical_publication_key)
+        )
+        if publication is None:
+            publication = PublicationRow(
+                id=uuid4(),
+                canonical_key=canonical_publication_key,
+                title=title,
+                metadata_json={},
+            )
+            self._session.add(publication)
+            self._session.flush([publication])
+
+        link = self._session.scalar(
+            select(PublicationDocumentRow).where(
+                PublicationDocumentRow.publication_id == publication.id,
+                PublicationDocumentRow.document_id == document.id,
+            )
+        )
+        if link is None:
+            self._session.add(
+                PublicationDocumentRow(
+                    id=uuid4(),
+                    publication_id=publication.id,
+                    document_id=document.id,
+                )
+            )
+
+        grant = self._session.scalar(
+            select(ProjectDocumentGrantRow).where(
+                ProjectDocumentGrantRow.project_id == project_uuid,
+                ProjectDocumentGrantRow.document_id == document.id,
+            )
+        )
+        if grant is None:
+            self._session.add(
+                ProjectDocumentGrantRow(
+                    id=uuid4(),
+                    project_id=project_uuid,
+                    document_id=document.id,
+                    version=1,
+                )
+            )
+        elif grant.revoked_at is not None:
+            grant.revoked_at = None
+            grant.version += 1
+        return str(document.id)
+
+    def resolve_blob_key(self, project_id: str, document_id: str) -> str:
+        """Resolve only after an active project grant has been proven."""
+        blob_key = self._session.scalar(
+            select(DocumentRow.blob_key)
+            .join(
+                ProjectDocumentGrantRow,
+                ProjectDocumentGrantRow.document_id == DocumentRow.id,
+            )
+            .where(
+                ProjectDocumentGrantRow.project_id == _uuid(project_id),
+                ProjectDocumentGrantRow.document_id == _uuid(document_id),
+                ProjectDocumentGrantRow.revoked_at.is_(None),
+            )
+        )
+        if blob_key is None:
+            raise ResourceNotFound
+        return blob_key
+
+    def revoke_document(self, project_id: str, document_id: str, *, revoked_at: datetime) -> None:
+        result = self._session.execute(
+            update(ProjectDocumentGrantRow)
+            .where(
+                ProjectDocumentGrantRow.project_id == _uuid(project_id),
+                ProjectDocumentGrantRow.document_id == _uuid(document_id),
+                ProjectDocumentGrantRow.revoked_at.is_(None),
+            )
+            .values(
+                revoked_at=revoked_at,
+                version=ProjectDocumentGrantRow.version + 1,
+            )
+        )
+        if result.rowcount != 1:  # type: ignore[attr-defined]
+            raise ResourceNotFound
+
+    def create_run(
+        self,
+        project_id: str,
+        *,
+        created_by_user_id: str,
+        question: str,
+        configuration: dict[str, Any],
+        created_at: datetime,
+    ) -> str:
+        project_uuid = _uuid(project_id)
+        user_uuid = _uuid(created_by_user_id)
+        if (
+            self._session.get(ProjectRow, project_uuid) is None
+            or self._session.get(UserRow, user_uuid) is None
+        ):
+            raise ResourceNotFound
+        if not question.strip():
+            raise ValueError("research question cannot be empty")
+        run = ResearchRunRow(
+            id=uuid4(),
+            project_id=project_uuid,
+            created_by_user_id=user_uuid,
+            question=question,
+            configuration_json=configuration,
+            status="created",
+            created_at=created_at,
+            updated_at=created_at,
+            version=1,
+        )
+        self._session.add(run)
+        self._session.flush([run])
+        return str(run.id)
+
+    def link_run_document(
+        self,
+        project_id: str,
+        run_id: str,
+        document_id: str,
+        *,
+        relation: str,
+    ) -> str:
+        run_uuid = self._require_run(project_id, run_id)
+        self.resolve_blob_key(project_id, document_id)
+        existing = self._session.scalar(
+            select(RunDocumentRow).where(
+                RunDocumentRow.run_id == run_uuid,
+                RunDocumentRow.document_id == _uuid(document_id),
+            )
+        )
+        if existing is not None:
+            return str(existing.id)
+        link = RunDocumentRow(
+            id=uuid4(),
+            run_id=run_uuid,
+            document_id=_uuid(document_id),
+            relation=relation,
+        )
+        self._session.add(link)
+        self._session.flush([link])
+        return str(link.id)
+
+    def add_evidence(
+        self,
+        project_id: str,
+        *,
+        document_id: str,
+        statement: str,
+        source_passage: str,
+        section: str | None,
+        page: int | None,
+        extraction_method: str,
+        created_at: datetime,
+        run_id: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> str:
+        # Authorize the association before persisting scientific assertions.
+        self.resolve_blob_key(project_id, document_id)
+        run_uuid = self._require_run(project_id, run_id) if run_id else None
+        if not statement.strip() or not source_passage.strip() or not extraction_method.strip():
+            raise ValueError("evidence requires a statement, source passage, and extraction method")
+        evidence = EvidenceRow(
+            id=uuid4(),
+            project_id=_uuid(project_id),
+            document_id=_uuid(document_id),
+            run_id=run_uuid,
+            statement=statement,
+            source_passage=source_passage,
+            section=section,
+            page=page,
+            extraction_method=extraction_method,
+            context_json=context or {},
+            created_at=created_at,
+            updated_at=created_at,
+            version=1,
+        )
+        self._session.add(evidence)
+        self._session.flush([evidence])
+        return str(evidence.id)
+
+    def add_validation_check(
+        self,
+        project_id: str,
+        evidence_id: str,
+        *,
+        check_name: str,
+        status: str,
+        details: dict[str, Any],
+        created_at: datetime,
+    ) -> str:
+        evidence_uuid = _uuid(evidence_id)
+        evidence_exists = self._session.scalar(
+            select(EvidenceRow.id).where(
+                EvidenceRow.id == evidence_uuid,
+                EvidenceRow.project_id == _uuid(project_id),
+            )
+        )
+        if evidence_exists is None:
+            raise ResourceNotFound
+        check = ValidationCheckRow(
+            id=uuid4(),
+            evidence_id=evidence_uuid,
+            check_name=check_name,
+            status=status,
+            details_json=details,
+            created_at=created_at,
+        )
+        self._session.add(check)
+        self._session.flush([check])
+        return str(check.id)
+
+    def add_artifact(
+        self,
+        project_id: str,
+        *,
+        run_id: str | None,
+        kind: str,
+        blob_key: str,
+        input_fingerprint: str,
+        generator_version: str,
+        created_at: datetime,
+        expires_at: datetime | None = None,
+    ) -> str:
+        project_uuid = _uuid(project_id)
+        run_uuid = self._require_run(project_id, run_id) if run_id else None
+        if run_uuid is None and self._session.get(ProjectRow, project_uuid) is None:
+            raise ResourceNotFound
+        artifact = ArtifactRow(
+            id=uuid4(),
+            project_id=project_uuid,
+            run_id=run_uuid,
+            kind=kind,
+            blob_key=blob_key,
+            input_fingerprint=input_fingerprint,
+            generator_version=generator_version,
+            created_at=created_at,
+            expires_at=expires_at,
+        )
+        self._session.add(artifact)
+        self._session.flush([artifact])
+        return str(artifact.id)
+
+    def try_review(
+        self,
+        project_id: str,
+        evidence_id: str,
+        *,
+        reviewer_user_id: str,
+        expected_version: int,
+        decision: str,
+        note: str | None,
+        reviewed_at: datetime,
+    ) -> bool:
+        result = self._session.execute(
+            update(EvidenceRow)
+            .where(
+                EvidenceRow.id == _uuid(evidence_id),
+                EvidenceRow.project_id == _uuid(project_id),
+                EvidenceRow.version == expected_version,
+            )
+            .values(version=expected_version + 1, updated_at=reviewed_at)
+        )
+        accepted = result.rowcount == 1  # type: ignore[attr-defined]
+        if accepted:
+            revision = ReviewRevisionRow(
+                id=uuid4(),
+                evidence_id=_uuid(evidence_id),
+                project_id=_uuid(project_id),
+                reviewer_user_id=_uuid(reviewer_user_id),
+                evidence_version=expected_version + 1,
+                decision=decision,
+                note=note,
+                reviewed_at=reviewed_at,
+            )
+            self._session.add(revision)
+            self._session.flush([revision])
+
+        self._session.add(
+            AuditEventRow(
+                id=uuid4(),
+                occurred_at=reviewed_at,
+                actor_user_id=_uuid(reviewer_user_id),
+                project_id=_uuid(project_id),
+                action=("evidence.review_accepted" if accepted else "evidence.review_conflict"),
+                entity_type="evidence",
+                entity_id=evidence_id,
+                payload={
+                    "attempted_decision": decision,
+                    "note": note,
+                    "expected_version": expected_version,
+                },
+            )
+        )
+        return accepted
+
+    def _require_run(self, project_id: str, run_id: str) -> UUID:
+        run_uuid = _uuid(run_id)
+        exists = self._session.scalar(
+            select(ResearchRunRow.id).where(
+                ResearchRunRow.id == run_uuid,
+                ResearchRunRow.project_id == _uuid(project_id),
+            )
+        )
+        if exists is None:
+            raise ResourceNotFound
+        return run_uuid
+
+
 class SqlUnitOfWork:
     """Repository bundle sharing the transaction owned by ``Database``."""
 
@@ -405,4 +764,5 @@ class SqlUnitOfWork:
         self.projects = SqlProjectRepository(session)
         self.sessions = SqlSessionRepository(session)
         self.audit = SqlAuditRepository(session)
+        self.research = SqlResearchRepository(session)
         self.provisioning = ProvisioningRepositories(self.identities, self.projects)

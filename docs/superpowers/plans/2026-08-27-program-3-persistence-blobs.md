@@ -89,10 +89,10 @@
 **Interfaces:**
 - Produces project-scoped publication, document-grant, run-document, evidence, validation-check, revision, and artifact repositories.
 
-- [ ] Write failing tests proving one digest can be referenced by two projects while revoking one project does not revoke the other.
-- [ ] Write concurrent-review tests proving optimistic version conflicts preserve both attempted audit events without overwriting accepted state.
-- [ ] Implement schema and repositories; require authorization before resolving a blob key.
-- [ ] Run migration, isolation, and storage tests and commit.
+- [x] Write failing tests proving one digest can be referenced by two projects while revoking one project does not revoke the other.
+- [x] Write concurrent-review tests proving optimistic version conflicts preserve both attempted audit events without overwriting accepted state.
+- [x] Implement schema and repositories; require authorization before resolving a blob key.
+- [x] Run migration, isolation, and storage tests and commit.
 
 ### Task 6: Legacy dry-run and idempotent import
 
