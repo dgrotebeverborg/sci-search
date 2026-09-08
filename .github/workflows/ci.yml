@@ -37,7 +37,13 @@ jobs:
         with:
           version: "0.8.17"
           enable-cache: true
-      - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - name: Select a stable Python release
+        uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: false
+      - run: uv sync --frozen --extra dev --python "${{ steps.python.outputs.python-path }}"
       - name: Install browser test dependencies
         run: uv run python -m playwright install --with-deps chromium
       - name: Start isolated integration services
