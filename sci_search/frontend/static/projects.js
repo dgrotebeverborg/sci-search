@@ -62,4 +62,5 @@ export async function initializeProjects() {
       setStatus(error.message, 'error');
     }
   });
+  document.querySelector('#new-project-form button[type="submit"]').disabled = !activeWorkspace;
 }

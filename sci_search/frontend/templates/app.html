@@ -13,7 +13,7 @@
       <a class="brand" href="/app" aria-label="Sci-Search home">Sci-Search</a>
       <div class="account">
         <span id="account-name">Researcher</span>
-        <button class="button button-quiet" id="logout-button" type="button">Sign out</button>
+        <button class="button button-quiet" id="logout-button" type="button" disabled>Sign out</button>
       </div>
     </div>
   </header>
@@ -23,7 +23,7 @@
       <p class="eyebrow">Workspace</p>
       <h2 id="workspace-name">Personal workspace</h2>
       <label for="project-select">Project</label>
-      <select id="project-select" aria-describedby="project-help"></select>
+      <select disabled id="project-select" aria-describedby="project-help"></select>
       <p class="help" id="project-help">Research runs and evidence stay inside the selected project.</p>
       <details class="new-project">
         <summary>New project</summary>
@@ -34,7 +34,7 @@
             <input id="new-project-private" type="checkbox" checked>
             Private project
           </label>
-          <button class="button button-primary" type="submit">Create project</button>
+          <button disabled class="button button-primary" type="submit">Create project</button>
         </form>
       </details>
       <div class="nav-links" aria-label="Project sections">
@@ -60,12 +60,12 @@
         <form class="question-form" id="question-form">
           <label for="research-question">Research question</label>
           <div class="question-row">
-            <textarea {% if workspace_preview %}disabled{% endif %} id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
-            <button {% if workspace_preview %}disabled{% endif %} class="button button-primary" type="submit">Start review</button>
+            <textarea disabled id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
+            <button disabled class="button button-primary" type="submit">Start review</button>
           </div>
           <div class="review-setting">
             <label for="review-depth">Review depth</label>
-            <select {% if workspace_preview %}disabled{% endif %} id="review-depth">
+            <select disabled id="review-depth">
               <option value="focused">Focused review</option>
               <option value="deep">Deep review</option>
             </select>

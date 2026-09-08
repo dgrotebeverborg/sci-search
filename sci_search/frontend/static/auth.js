@@ -7,4 +7,5 @@ export async function initializeAuth() {
     await request('/api/v1/session/logout', {method: 'POST'});
     window.location.assign('/auth/login');
   });
+  document.getElementById('logout-button').disabled = false;
 }

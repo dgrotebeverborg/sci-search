@@ -9,6 +9,8 @@ import {loadValidation} from './validation.js';
 
 async function start() {
   try {
+    initializeRuns();
+    initializeDocumentUpload();
     await initializeAuth();
     onProjectChange((project) => {
       loadEvidence(project);
@@ -18,8 +20,6 @@ async function start() {
       configureUploadPermissions(project);
     });
     await initializeProjects();
-    initializeRuns();
-    initializeDocumentUpload();
   } catch (error) {
     setStatus(error.message || 'The workspace could not be loaded.', 'error');
   }
