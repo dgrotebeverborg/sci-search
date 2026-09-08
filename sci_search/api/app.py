@@ -69,6 +69,7 @@ class ApiSettings:
     max_request_body_bytes: int = 10 * 1024 * 1024
     development_auth_enabled: bool = False
     development_user_id: str = "development-researcher"
+    workspace_preview: bool = False
 
     def __post_init__(self) -> None:
         if self.max_request_body_bytes <= 0:
@@ -84,6 +85,8 @@ class ApiSettings:
         callback = urlparse(self.oidc_callback_url)
         if callback.scheme != "https" or not callback.netloc:
             raise ValueError("production OIDC callback must use HTTPS")
+        if self.workspace_preview:
+            raise ValueError("workspace preview is forbidden in production")
         if self.development_auth_enabled:
             raise ValueError("development authentication is forbidden in production")
         if self.session_secret in _DEFAULT_SECRETS or len(self.session_secret) < 32:

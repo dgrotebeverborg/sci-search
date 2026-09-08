@@ -60,7 +60,7 @@ def test_gc_is_dry_run_and_keeps_shared_active_and_recent_objects(tmp_path: Path
                 .where(DocumentRow.id.in_([UUID(old_id), UUID(active_id)]))
                 .values(created_at=NOW - timedelta(days=60))
             )
-        service = RetentionService(database, blobs)
+        service = RetentionService(database, blobs, clock=lambda: NOW)
         plan = service.plan_gc(NOW, timedelta(days=30))
         assert [item.object_id for item in plan.items] == [old_id]
         assert blobs.stat(old.key).sha256 == old.sha256
@@ -107,7 +107,7 @@ def test_gc_rechecks_references_and_deletes_only_still_unreferenced_objects(tmp_
                 .where(DocumentRow.id == UUID(document_id))
                 .values(created_at=NOW - timedelta(days=50))
             )
-        service = RetentionService(database, blobs)
+        service = RetentionService(database, blobs, clock=lambda: NOW)
         stale_plan = service.plan_gc(NOW, timedelta(days=30))
         with database.transaction() as session:
             SqlResearchRepository(session).grant_document(
@@ -153,7 +153,7 @@ def test_gc_expires_temporary_artifacts_but_preserves_active_exports(tmp_path: P
                 created_at=NOW - timedelta(days=1),
                 expires_at=None,
             )
-        service = RetentionService(database, blobs)
+        service = RetentionService(database, blobs, clock=lambda: NOW)
         plan = service.plan_gc(NOW, timedelta(days=30))
         assert len(plan.items) == 1
         assert plan.items[0].object_kind == "artifact"
@@ -242,7 +242,7 @@ def test_gc_preserves_blob_bytes_shared_by_stale_document_and_live_artifact(
                 expires_at=None,
             )
 
-        service = RetentionService(database, blobs)
+        service = RetentionService(database, blobs, clock=lambda: NOW)
         plan = service.plan_gc(NOW, timedelta(days=30))
         assert [item.object_kind for item in plan.items] == ["document"]
 
@@ -289,7 +289,7 @@ def test_gc_preserves_blob_bytes_shared_by_expired_artifact_and_active_document(
                 expires_at=NOW - timedelta(days=40),
             )
 
-        service = RetentionService(database, blobs)
+        service = RetentionService(database, blobs, clock=lambda: NOW)
         plan = service.plan_gc(NOW, timedelta(days=30))
         assert [item.object_kind for item in plan.items] == ["artifact"]
 
@@ -342,7 +342,7 @@ def test_gc_commits_metadata_removal_before_external_blob_deletion(tmp_path: Pat
                     )
                 stored.delete(key)
 
-        service = RetentionService(database, CommitObservingStore())  # type: ignore[arg-type]
+        service = RetentionService(database, CommitObservingStore(), clock=lambda: NOW)  # type: ignore[arg-type]
         plan = service.plan_gc(NOW, timedelta(days=30))
 
         assert service.apply_gc(plan.id, confirmation=plan.id).deleted == 1

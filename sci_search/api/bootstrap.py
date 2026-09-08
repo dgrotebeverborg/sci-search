@@ -45,7 +45,7 @@ _DEVELOPMENT_USER = "development-researcher"
 
 
 def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> FastAPI:
-    """Build the loopback development API; production composition follows in Program 7."""
+    """Build either the explicit workspace preview or the configured production application."""
 
     environment = os.environ.get("SCI_SEARCH_ENVIRONMENT", "development").strip().lower()
     if environment not in {"development", "test", "production"}:
@@ -54,6 +54,11 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         if unsafe_development:
             raise ValueError("development authentication is forbidden in production")
         return _build_production_application(ProductionSettings.from_environment())
+    if not unsafe_development:
+        raise ValueError(
+            "Local workspace preview requires --unsafe-development; "
+            "live research requires SCI_SEARCH_ENVIRONMENT=production with configured services."
+        )
     origins = tuple(
         value.strip()
         for value in os.environ.get("SCI_SEARCH_ALLOWED_ORIGINS", "http://127.0.0.1:8000").split(
@@ -127,6 +132,7 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         session_secret=secret,
         development_auth_enabled=unsafe_development,
         development_user_id=_DEVELOPMENT_USER,
+        workspace_preview=True,
     )
 
     app = create_app(

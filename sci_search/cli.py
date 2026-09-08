@@ -119,7 +119,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         loopback_hosts = {"127.0.0.1", "localhost", "::1"}
         if args.unsafe_development and args.host not in loopback_hosts:
             parser.error("unsafe development mode is restricted to a loopback host")
-        app = build_api_application(args.corpus, unsafe_development=args.unsafe_development)
+        try:
+            app = build_api_application(args.corpus, unsafe_development=args.unsafe_development)
+        except ValueError as error:
+            parser.error(str(error))
         run_api_server(app, args.host, args.port)
         return 0
 

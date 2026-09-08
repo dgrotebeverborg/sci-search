@@ -101,3 +101,6 @@ h1 { max-width: 900px; margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 5rem
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+.preview-notice { border: 1px solid var(--ink); border-top: 6px solid var(--uu-yellow); padding: 1rem; margin-bottom: 1rem; }
+.preview-notice p { margin: .4rem 0 0; font-size: .9rem; }

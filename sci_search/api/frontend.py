@@ -67,5 +67,8 @@ def researcher_app(request: Request, principal: Principal) -> HTMLResponse:
     return _templates.TemplateResponse(
         request,
         "app.html",
-        {"user_id": principal.user_id},
+        {
+            "user_id": principal.user_id,
+            "workspace_preview": request.app.state.api_settings.workspace_preview,
+        },
     )

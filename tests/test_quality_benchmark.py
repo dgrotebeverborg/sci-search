@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import pytest
+
 from sci_search.corpus import load_corpus
 from sci_search.generic_research import GenericResearchEngine
 from sci_search.quality_benchmark import evaluate_quality_benchmark
@@ -18,6 +20,7 @@ class QualityBenchmarkTests(unittest.TestCase):
         self.assertEqual(result["case_count"], 24)
         self.assertEqual(result["failed"], 0, result["failures"])
 
+    @pytest.mark.retained_corpus
     def test_diverse_question_benchmark_passes_with_exact_provenance(self) -> None:
         result = evaluate_quality_benchmark(ROOT / "benchmarks" / "diverse_questions.json")
         self.assertEqual(result["case_count"], 43)
@@ -52,6 +55,7 @@ class QualityBenchmarkTests(unittest.TestCase):
         )
         self.assertEqual(plastic.profile_id, "generic")
 
+    @pytest.mark.retained_corpus
     def test_iron_air_summary_leads_with_values_and_operating_context(self) -> None:
         engine = GenericResearchEngine(load_corpus(ROOT / "corpora" / "iron_air_real"))
         report = engine.investigate(

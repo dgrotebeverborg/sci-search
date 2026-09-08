@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from sci_search.api.dependencies import (
     AuthenticatedPrincipal,
@@ -36,11 +36,18 @@ def _response(run: ResearchRunRecord) -> RunResponse:
 
 @router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
 def start_run(
+    request: Request,
     project_id: str,
     body: RunCreate,
     principal: CsrfPrincipal,
     service: ResearchService,
 ) -> RunResponse:
+    if request.app.state.api_settings.workspace_preview:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Research execution is disabled in the temporary workspace preview. "
+            "Use the configured database and worker service for live reviews.",
+        )
     return _response(
         service.start_run(
             principal.user_id,

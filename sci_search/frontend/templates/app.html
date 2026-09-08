@@ -46,6 +46,13 @@
     </nav>
 
     <main id="main-content" tabindex="-1">
+      {% if workspace_preview %}
+      <aside id="workspace-preview-notice" class="preview-notice" role="note">
+        <strong>Temporary workspace preview</strong>
+        <p>You can create and switch projects. Changes are not saved after the server stops.
+        Research execution is disabled; live reviews require the configured database and worker service.</p>
+      </aside>
+      {% endif %}
       <section class="hero" id="research">
         <p class="eyebrow">Scientific evidence search</p>
         <h1>Start with a research question.</h1>
@@ -53,12 +60,12 @@
         <form class="question-form" id="question-form">
           <label for="research-question">Research question</label>
           <div class="question-row">
-            <textarea id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
-            <button class="button button-primary" type="submit">Start review</button>
+            <textarea {% if workspace_preview %}disabled{% endif %} id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
+            <button {% if workspace_preview %}disabled{% endif %} class="button button-primary" type="submit">Start review</button>
           </div>
           <div class="review-setting">
             <label for="review-depth">Review depth</label>
-            <select id="review-depth">
+            <select {% if workspace_preview %}disabled{% endif %} id="review-depth">
               <option value="focused">Focused review</option>
               <option value="deep">Deep review</option>
             </select>

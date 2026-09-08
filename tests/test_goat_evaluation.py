@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import pytest
+
 from sci_search.corpus import load_corpus
 from sci_search.generic_evaluation import evaluate_generic
 from sci_search.generic_research import GenericResearchEngine
@@ -11,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "corpora" / "goat_foraging"
 
 
+@pytest.mark.retained_corpus
 class GoatForagingEvaluationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

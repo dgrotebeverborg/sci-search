@@ -4,12 +4,14 @@ import socket
 import threading
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 import uvicorn
 from playwright.sync_api import Browser, Playwright, sync_playwright
 
 from sci_search.api.app import ApiSettings, create_app
+from sci_search.api.bootstrap import build_api_application
 from sci_search.api.dependencies import ApiServices
 from sci_search.application.projects import (
     InMemoryProjectAuditRepository,
@@ -28,7 +30,7 @@ DEVELOPMENT_USER = "development-researcher"
 
 
 @pytest.fixture
-def live_browser_url() -> str:
+def live_browser_url(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(128)
@@ -142,6 +144,10 @@ def live_browser_url() -> str:
         ),
         ApiServices(sessions=sessions, projects=project_service, research=research_service),
     )
+    if getattr(request, "param", None) == "workspace-preview":
+        monkeypatch.setenv("SCI_SEARCH_ENVIRONMENT", "development")
+        monkeypatch.setenv("SCI_SEARCH_ALLOWED_ORIGINS", origin)
+        app = build_api_application(Path("fixtures/iron_air_pilot"), unsafe_development=True)
     server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="off"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
     thread.start()

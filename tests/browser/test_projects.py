@@ -161,3 +161,25 @@ def test_login_project_creation_switching_and_logout_in_chromium(
     expect(page).to_have_url(f"{live_browser_url}/auth/login")
     assert errors == []
     page.close()
+
+
+@pytest.mark.parametrize("live_browser_url", ["workspace-preview"], indirect=True)
+def test_local_workspace_preview_keeps_research_disabled_after_project_creation(
+    live_browser_url: str, chromium_browser: Browser
+) -> None:
+    page = chromium_browser.new_page()
+    try:
+        page.goto(live_browser_url)
+        page.get_by_role("button", name="Continue with development account").click()
+        expect(page.locator("#workspace-preview-notice")).to_be_visible()
+        expect(page.get_by_role("button", name="Start review")).to_be_disabled()
+        page.get_by_text("New project", exact=True).click()
+        page.get_by_label("Project name").fill("Preview project")
+        page.get_by_role("button", name="Create project").click()
+        expect(page.locator("#project-select option")).to_have_count(2)
+        expect(page.get_by_role("button", name="Start review")).to_be_disabled()
+        expect(page.locator("#research-question")).to_be_disabled()
+        page.get_by_role("button", name="Sign out").click()
+        expect(page).to_have_url(f"{live_browser_url}/auth/login")
+    finally:
+        page.close()
