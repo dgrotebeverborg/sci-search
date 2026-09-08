@@ -26,6 +26,7 @@ DEFAULT_THRESHOLDS = {
     "unsupported_answer_assertions": 0,
     "hallucinated_values": 0,
     "missing_important_conclusions": 0,
+    "reviewer_disagreement_rate": 1.0,
 }
 
 DEFAULT_MINIMUM_SAMPLES = {
@@ -41,6 +42,7 @@ DEFAULT_MINIMUM_SAMPLES = {
     "unsupported_answer_assertions": 1,
     "hallucinated_values": 1,
     "missing_important_conclusions": 1,
+    "reviewer_disagreement_rate": 1,
 }
 
 
@@ -201,13 +203,21 @@ class ValidationWorkspace:
             archive.writestr("benchmark.json", self.specification_path.read_bytes())
             for case in self.specification["cases"]:
                 case_id = str(case["id"])
+                detail = self.case(case_id)
                 archive.writestr(
                     f"annotations/{case_id}.json", self._annotation_path(case_id).read_bytes()
                 )
                 archive.writestr(
                     f"cases/{case_id}.json",
-                    json.dumps(self.case(case_id), indent=2, ensure_ascii=False) + "\n",
+                    json.dumps(detail, indent=2, ensure_ascii=False) + "\n",
                 )
+                if detail["scorecard"]["gold_eligible"]:
+                    gold = self._gold_record(case_id)
+                    validate_gold_record(gold)
+                    archive.writestr(
+                        f"gold/{case_id}.json",
+                        json.dumps(gold, indent=2, ensure_ascii=False) + "\n",
+                    )
             replay_manifest = next(
                 (
                     root / "replay-manifest.json"
@@ -227,7 +237,8 @@ class ValidationWorkspace:
         annotation = self._annotation(case_id)
         kind = str(payload.get("kind") or "")
         identifier = str(payload.get("id") or "").strip()
-        reviewer = " ".join(str(payload.get("reviewer") or "local researcher").split())[:120]
+        review = _researcher_review(payload)
+        reviewer = str(review["reviewer"])
         if kind == "publication":
             if not identifier:
                 raise ValueError("publication id is required")
@@ -239,16 +250,22 @@ class ValidationWorkspace:
                 raise ValueError(
                     "a reason is required for irrelevant or uncertain publication labels"
                 )
-            annotation["publication_labels"][identifier] = {
+            values = {
                 "label": label,
+                "selection_label": {
+                    "relevant": "must_retrieve",
+                    "background": "contextual",
+                    "irrelevant": "must_exclude",
+                    "uncertain": "uncertain",
+                }[label],
                 "reason": reason,
                 "title": _clean(payload.get("title"), 500),
                 "doi": _clean(payload.get("doi"), 200).lower(),
                 "year": int(payload["year"]) if str(payload.get("year") or "").isdigit() else None,
-                "review_state": "researcher_confirmed",
-                "reviewer": reviewer,
-                "reviewed_at": _now(),
             }
+            annotation["publication_labels"][identifier] = _reviewed_label(
+                annotation["publication_labels"].get(identifier), values, label, review
+            )
         elif kind == "evidence":
             if not identifier:
                 raise ValueError("evidence id is required")
@@ -265,13 +282,13 @@ class ValidationWorkspace:
             reason = _clean(payload.get("reason"), 1000)
             if any(value is False for value in flags.values()) and not reason:
                 raise ValueError("a reason is required when an evidence field is incorrect")
-            annotation["evidence_labels"][identifier] = {
+            values = {
                 **flags,
                 "reason": reason,
-                "review_state": "researcher_confirmed",
-                "reviewer": reviewer,
-                "reviewed_at": _now(),
             }
+            annotation["evidence_labels"][identifier] = _reviewed_label(
+                annotation["evidence_labels"].get(identifier), values, flags, review
+            )
         elif kind == "assertion":
             if not identifier:
                 raise ValueError("assertion id is required")
@@ -281,13 +298,13 @@ class ValidationWorkspace:
             reason = _clean(payload.get("reason"), 1000)
             if support != "supported" and not reason:
                 raise ValueError("a reason is required for unsupported or unclear assertions")
-            annotation["assertion_labels"][identifier] = {
+            values = {
                 "support": support,
                 "reason": reason,
-                "review_state": "researcher_confirmed",
-                "reviewer": reviewer,
-                "reviewed_at": _now(),
             }
+            annotation["assertion_labels"][identifier] = _reviewed_label(
+                annotation["assertion_labels"].get(identifier), values, support, review
+            )
         elif kind == "conclusion":
             if not identifier:
                 raise ValueError("conclusion id is required")
@@ -295,13 +312,44 @@ class ValidationWorkspace:
             reason = _clean(payload.get("reason"), 1000)
             if not covered and not reason:
                 raise ValueError("a reason is required when an important conclusion is missing")
-            annotation["conclusion_labels"][identifier] = {
+            values = {
                 "covered": covered,
                 "reason": reason,
-                "review_state": "researcher_confirmed",
-                "reviewer": reviewer,
-                "reviewed_at": _now(),
             }
+            annotation["conclusion_labels"][identifier] = _reviewed_label(
+                annotation["conclusion_labels"].get(identifier), values, covered, review
+            )
+        elif kind == "counterevidence":
+            label = str(payload.get("label") or "")
+            if not identifier or label not in {"present", "absent", "uncertain"}:
+                raise ValueError("counterevidence requires an id and a valid label")
+            values = {
+                "label": label,
+                "evidence_ids": _string_list(payload.get("evidence_ids")),
+                "reason": _clean(payload.get("reason"), 1000),
+            }
+            annotation["counterevidence_labels"][identifier] = _reviewed_label(
+                annotation["counterevidence_labels"].get(identifier), values, label, review
+            )
+        elif kind == "distinction":
+            label = str(payload.get("label") or "")
+            if not identifier or label not in {"required", "not_required", "unclear"}:
+                raise ValueError("distinction requires an id and a valid label")
+            values = {"label": label, "reason": _clean(payload.get("reason"), 1000)}
+            annotation["distinction_labels"][identifier] = _reviewed_label(
+                annotation["distinction_labels"].get(identifier), values, label, review
+            )
+        elif kind == "answerability":
+            if not identifier:
+                raise ValueError("answerability id is required")
+            answerable = _required_bool(payload.get("answerable"))
+            values = {
+                "answerable": answerable,
+                "reason": _clean(payload.get("reason"), 1000),
+            }
+            annotation["answerability_labels"][identifier] = _reviewed_label(
+                annotation["answerability_labels"].get(identifier), values, answerable, review
+            )
         elif kind == "case":
             status = str(payload.get("status") or "")
             if status not in {"in_progress", "complete"}:
@@ -315,13 +363,43 @@ class ValidationWorkspace:
             annotation["status"] = status
             annotation["notes"] = _clean(payload.get("notes"), 4000)
             annotation["reviewer"] = reviewer
+            annotation["review_revisions"] = [
+                *annotation.get("review_revisions", []),
+                {**review, "decision": status},
+            ]
         else:
             raise ValueError(
-                "annotation kind must be publication, evidence, assertion, conclusion, or case"
+                "annotation kind must be publication, evidence, assertion, conclusion, "
+                "counterevidence, distinction, answerability, or case"
             )
         annotation["updated_at"] = _now()
         self._write_annotation(case_id, annotation)
         return self._case_detail(case, annotation, include_records=True)
+
+    def _gold_record(self, case_id: str) -> dict[str, Any]:
+        annotation = self._annotation(case_id)
+        publications = annotation["publication_labels"]
+        return {
+            "schema_version": "researcher_gold_v1",
+            "case_id": case_id,
+            "must_retrieve_publications": sorted(
+                key
+                for key, item in publications.items()
+                if item.get("selection_label") == "must_retrieve"
+                and item.get("review_state") == "researcher_confirmed"
+            ),
+            "must_exclude_publications": sorted(
+                key
+                for key, item in publications.items()
+                if item.get("selection_label") == "must_exclude"
+                and item.get("review_state") == "researcher_confirmed"
+            ),
+            "key_conclusions": annotation["conclusion_labels"],
+            "counterevidence": annotation["counterevidence_labels"],
+            "required_distinctions": annotation["distinction_labels"],
+            "answerability": annotation["answerability_labels"],
+            "review_revisions": annotation.get("review_revisions", []),
+        }
 
     def _case_detail(
         self, case: dict[str, Any], annotation: dict[str, Any], *, include_records: bool
@@ -415,6 +493,10 @@ class ValidationWorkspace:
                 "evidence_labels": {},
                 "assertion_labels": {},
                 "conclusion_labels": {},
+                "counterevidence_labels": {},
+                "distinction_labels": {},
+                "answerability_labels": {},
+                "review_revisions": [],
                 "created_at": _now(),
                 "updated_at": _now(),
             }
@@ -464,7 +546,15 @@ class ValidationWorkspace:
 
     def _annotation(self, case_id: str) -> dict[str, Any]:
         with self._lock:
-            return json.loads(self._annotation_path(case_id).read_text(encoding="utf-8"))
+            annotation = json.loads(self._annotation_path(case_id).read_text(encoding="utf-8"))
+        for name in (
+            "counterevidence_labels",
+            "distinction_labels",
+            "answerability_labels",
+            "review_revisions",
+        ):
+            annotation.setdefault(name, {} if name.endswith("_labels") else [])
+        return annotation
 
     def _write_annotation(self, case_id: str, payload: dict[str, Any]) -> None:
         path = self._annotation_path(case_id)
@@ -564,6 +654,11 @@ class ValidationWorkspace:
         )
         if unchecked_conclusions:
             missing.append(f"{unchecked_conclusions} important conclusions")
+        if not any(
+            item.get("review_state") == "researcher_confirmed"
+            for item in annotation["answerability_labels"].values()
+        ):
+            missing.append("overall answerability judgment")
         return {
             "ready": not missing,
             "missing": missing,
@@ -656,6 +751,7 @@ def score_case(
             sum(item["annotation"].get("covered") is False for item in confirmed_conclusions),
             len(confirmed_conclusions),
         ),
+        "reviewer_disagreement_rate": _reviewer_disagreement(annotation),
     }
     metric_rows = []
     count_metrics = {
@@ -664,7 +760,7 @@ def score_case(
         "missing_important_conclusions",
     }
     for name, (numerator, denominator) in stats.items():
-        threshold = thresholds[name]
+        threshold = thresholds.get(name, DEFAULT_THRESHOLDS[name])
         evaluable = denominator >= int(minimum_samples.get(name, 1))
         value = (
             numerator
@@ -720,11 +816,17 @@ def score_case(
         "gold_eligible": annotation.get("status") == "complete"
         and not hard_failures
         and bool(evaluated)
+        and _has_independent_named_reviews(annotation)
         and all(
             item["evaluable"]
             for item in metric_rows
             if item["id"]
-            not in {"numerical_value_correctness", "unit_correctness", "hallucinated_values"}
+            not in {
+                "numerical_value_correctness",
+                "unit_correctness",
+                "hallucinated_values",
+                "reviewer_disagreement_rate",
+            }
         ),
     }
 
@@ -951,6 +1053,130 @@ def _reference_key(item: dict[str, Any]) -> str:
     if not doi:
         raise ValueError("silver publication requires DOI")
     return f"doi:{doi}"
+
+
+def _researcher_review(payload: dict[str, Any]) -> dict[str, Any]:
+    reviewer = " ".join(str(payload.get("reviewer") or "").split())[:120]
+    if not reviewer or reviewer.casefold() in {
+        "system",
+        "sci-search",
+        "local researcher",
+        "anonymous",
+    }:
+        raise ValueError("a named researcher is required for a gold-label revision")
+    if payload.get("independent_review") is not True:
+        raise ValueError("researcher confirmation must be an independent review")
+    blinded = payload.get("blinded_to_system_output")
+    if blinded is not True and blinded is not False:
+        raise ValueError("blinded review state must be recorded")
+    return {
+        "reviewer": reviewer,
+        "independent_review": True,
+        "blinded_to_system_output": blinded,
+        "reviewed_at": _now(),
+    }
+
+
+def _reviewed_label(
+    existing: Any,
+    values: dict[str, Any],
+    decision: Any,
+    review: dict[str, Any],
+) -> dict[str, Any]:
+    revisions = list(existing.get("review_revisions", [])) if isinstance(existing, dict) else []
+    revisions.append({**review, "decision": decision})
+    return {
+        **values,
+        "review_state": "researcher_confirmed",
+        "reviewer": review["reviewer"],
+        "reviewed_at": review["reviewed_at"],
+        "review_revisions": revisions,
+    }
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))[:200]
+
+
+def _reviewer_disagreement(annotation: dict[str, Any]) -> tuple[int, int]:
+    disagreements = 0
+    independently_repeated = 0
+    for map_name in (
+        "publication_labels",
+        "evidence_labels",
+        "assertion_labels",
+        "conclusion_labels",
+        "counterevidence_labels",
+        "distinction_labels",
+        "answerability_labels",
+    ):
+        for item in annotation.get(map_name, {}).values():
+            revisions = item.get("review_revisions", []) if isinstance(item, dict) else []
+            reviewers = {entry.get("reviewer") for entry in revisions if entry.get("reviewer")}
+            if len(reviewers) < 2:
+                continue
+            independently_repeated += 1
+            decisions = {
+                json.dumps(entry.get("decision"), sort_keys=True, default=str)
+                for entry in revisions
+            }
+            disagreements += len(decisions) > 1
+    return disagreements, independently_repeated
+
+
+def _has_independent_named_reviews(annotation: dict[str, Any]) -> bool:
+    revisions = annotation.get("review_revisions", [])
+    if not revisions:
+        return False
+    return all(
+        item.get("reviewer")
+        and item.get("independent_review") is True
+        and isinstance(item.get("blinded_to_system_output"), bool)
+        for item in revisions
+    )
+
+
+def validate_gold_record(payload: dict[str, Any]) -> None:
+    """Validate the locked gold-label contract without promoting pending labels."""
+
+    required = {
+        "schema_version",
+        "case_id",
+        "must_retrieve_publications",
+        "must_exclude_publications",
+        "key_conclusions",
+        "counterevidence",
+        "required_distinctions",
+        "answerability",
+        "review_revisions",
+    }
+    if set(payload) != required or payload.get("schema_version") != "researcher_gold_v1":
+        raise ValueError("gold label record does not match researcher_gold_v1")
+    if not str(payload.get("case_id") or "").strip():
+        raise ValueError("gold label case id is required")
+    for name in ("must_retrieve_publications", "must_exclude_publications"):
+        values = payload.get(name)
+        if not isinstance(values, list) or len(values) != len(set(values)):
+            raise ValueError(f"{name} must contain unique publication identifiers")
+    for name in ("key_conclusions", "counterevidence", "required_distinctions", "answerability"):
+        if not isinstance(payload.get(name), dict):
+            raise ValueError(f"{name} must be an object")
+    if not payload["answerability"]:
+        raise ValueError("gold labels require an answerability judgment")
+    revisions = payload.get("review_revisions")
+    if not isinstance(revisions, list) or not revisions:
+        raise ValueError("gold labels require a named researcher review revision")
+    if not all(
+        isinstance(item, dict)
+        and str(item.get("reviewer") or "").strip()
+        and item.get("independent_review") is True
+        and isinstance(item.get("blinded_to_system_output"), bool)
+        and item.get("reviewed_at")
+        for item in revisions
+    ):
+        raise ValueError("gold label review provenance is incomplete")
 
 
 def _optional_bool(value: Any) -> bool | None:

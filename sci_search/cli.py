@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from collections.abc import Sequence
 from pathlib import Path
 
+from sci_search.api.bootstrap import build_api_application, run_api_server
 from sci_search.comparison import comparison_report
 from sci_search.configuration import load_env_file, load_legacy_mistral_key
 from sci_search.corpus import load_corpus
@@ -26,7 +26,6 @@ from sci_search.pipeline import build_evidence_store
 from sci_search.reporting import render_html, render_json, render_markdown
 from sci_search.research_runs import REVIEW_PROFILES, ResearchLimits, ResearchRunManager
 from sci_search.scientific_memory import ScientificMemory
-from sci_search.web import CorpusCatalogService, run_server
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -57,6 +56,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", default=8000, type=int)
     serve.add_argument("--additional-corpus", action="append", type=Path, default=[])
+    serve.add_argument(
+        "--unsafe-development",
+        action="store_true",
+        help="enable loopback-only development authentication",
+    )
     online = subparsers.add_parser(
         "research-online", help="discover, acquire and analyze an online evidence corpus"
     )
@@ -111,6 +115,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(rendered)
         return 0 if state["status"] == "complete" else 1
 
+    if args.command == "serve":
+        loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+        if args.unsafe_development and args.host not in loopback_hosts:
+            parser.error("unsafe development mode is restricted to a loopback host")
+        try:
+            app = build_api_application(args.corpus, unsafe_development=args.unsafe_development)
+        except ValueError as error:
+            parser.error(str(error))
+        run_api_server(app, args.host, args.port)
+        return 0
+
     store, warnings = build_evidence_store(args.corpus)
     if args.command == "compare":
         payload = comparison_report(store.query_results(args.metric))
@@ -159,21 +174,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output.write_text(rendered, encoding="utf-8")
         else:
             print(rendered)
-        return 0
-    if args.command == "serve":
-        load_legacy_mistral_key(Path("."))
-        if os.environ.get("OPENALEX_API_KEY"):
-            memory = ScientificMemory(Path("data/scientific_memory"))
-            memory.bootstrap_runs(Path("data/research_runs"))
-            for corpus in (args.corpus, *args.additional_corpus):
-                memory.bootstrap_corpus(corpus, corpus_id=corpus.name)
-            run_manager = ResearchRunManager(Path("data/research_runs"), memory=memory)
-        else:
-            run_manager = None
-        service = CorpusCatalogService(
-            (args.corpus, *args.additional_corpus), run_manager=run_manager
-        )
-        run_server(args.host, args.port, service)
         return 0
     return 2
 

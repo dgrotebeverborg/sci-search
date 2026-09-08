@@ -1,0 +1,19 @@
+services:
+  caddy:
+    ports:
+      - "127.0.0.1:58080:80"
+      - "127.0.0.1:58443:443"
+  postgres:
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql/data
+  redis:
+    command:
+      - exec redis-server --save "" --appendonly no --requirepass "$$(cat /run/secrets/redis_password)"
+    volumes: !reset []
+    tmpfs:
+      - /data
+  minio:
+    volumes: !reset []
+    tmpfs:
+      - /data

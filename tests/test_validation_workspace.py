@@ -9,6 +9,24 @@ from sci_search.validation_workspace import ValidationWorkspace
 
 
 class ValidationWorkspaceTests(unittest.TestCase):
+    def _annotate(
+        self,
+        workspace: ValidationWorkspace,
+        case_id: str,
+        payload: dict[str, object],
+        *,
+        reviewer: str = "Researcher A",
+    ) -> dict[str, object]:
+        return workspace.annotate(
+            case_id,
+            {
+                **payload,
+                "reviewer": reviewer,
+                "independent_review": True,
+                "blinded_to_system_output": True,
+            },
+        )
+
     def _workspace(self, root: Path) -> ValidationWorkspace:
         cases = [
             {
@@ -126,13 +144,16 @@ class ValidationWorkspaceTests(unittest.TestCase):
             detail = workspace.case("case-0")
             assertion = detail["assertions"][0]["assertion_id"]
             conclusion = detail["important_conclusions"][0]["conclusion_id"]
-            workspace.annotate(
-                "case-0", {"kind": "publication", "id": "publication:one", "label": "relevant"}
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "publication", "id": "publication:one", "label": "relevant"},
             )
-            workspace.annotate(
-                "case-0", {"kind": "assertion", "id": assertion, "support": "supported"}
+            self._annotate(
+                workspace, "case-0", {"kind": "assertion", "id": assertion, "support": "supported"}
             )
-            workspace.annotate(
+            self._annotate(
+                workspace,
                 "case-0",
                 {
                     "kind": "evidence",
@@ -144,25 +165,42 @@ class ValidationWorkspaceTests(unittest.TestCase):
                     "context_correct": True,
                 },
             )
-            workspace.annotate("case-0", {"kind": "conclusion", "id": conclusion, "covered": True})
-            complete = workspace.annotate(
-                "case-0", {"kind": "case", "status": "complete", "notes": "checked"}
+            self._annotate(
+                workspace, "case-0", {"kind": "conclusion", "id": conclusion, "covered": True}
+            )
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "answerability", "id": "overall", "answerable": True},
+            )
+            complete = self._annotate(
+                workspace, "case-0", {"kind": "case", "status": "complete", "notes": "checked"}
             )
             self.assertEqual(complete["scorecard"]["status"], "passed")
             self.assertTrue(complete["scorecard"]["gold_eligible"])
             metrics = {item["id"]: item for item in complete["scorecard"]["metrics"]}
             self.assertEqual(metrics["provenance_correctness"]["value"], 1.0)
             self.assertEqual(metrics["unsupported_answer_assertions"]["value"], 0)
+            import io
+            import zipfile
+
+            with zipfile.ZipFile(io.BytesIO(workspace.export_package())) as archive:
+                gold = json.loads(archive.read("gold/case-0.json"))
+            self.assertEqual(gold["schema_version"], "researcher_gold_v1")
+            self.assertEqual(gold["must_retrieve_publications"], ["publication:one"])
 
     def test_provenance_and_unsupported_assertions_are_hard_gates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = self._workspace(Path(temporary))
             detail = workspace.case("case-0")
             assertion = detail["assertions"][0]["assertion_id"]
-            workspace.annotate(
-                "case-0", {"kind": "publication", "id": "publication:one", "label": "relevant"}
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "publication", "id": "publication:one", "label": "relevant"},
             )
-            workspace.annotate(
+            self._annotate(
+                workspace,
                 "case-0",
                 {
                     "kind": "assertion",
@@ -171,7 +209,8 @@ class ValidationWorkspaceTests(unittest.TestCase):
                     "reason": "source does not support the statement",
                 },
             )
-            failed = workspace.annotate(
+            failed = self._annotate(
+                workspace,
                 "case-0",
                 {
                     "kind": "evidence",
@@ -193,7 +232,8 @@ class ValidationWorkspaceTests(unittest.TestCase):
     def test_researcher_can_add_a_relevant_publication_missing_from_retrieval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = self._workspace(Path(temporary))
-            detail = workspace.annotate(
+            detail = self._annotate(
+                workspace,
                 "case-0",
                 {
                     "kind": "publication",
@@ -215,6 +255,92 @@ class ValidationWorkspaceTests(unittest.TestCase):
                 if item["id"] == "relevant_paper_recall"
             )
             self.assertEqual(metric["value"], 0.0)
+
+    def test_silver_or_system_output_cannot_be_promoted_without_named_independent_review(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = self._workspace(Path(temporary))
+            with self.assertRaisesRegex(ValueError, "named researcher"):
+                workspace.annotate(
+                    "case-0",
+                    {"kind": "publication", "id": "publication:one", "label": "relevant"},
+                )
+            with self.assertRaisesRegex(ValueError, "independent"):
+                workspace.annotate(
+                    "case-0",
+                    {
+                        "kind": "publication",
+                        "id": "publication:one",
+                        "label": "relevant",
+                        "reviewer": "Researcher A",
+                        "independent_review": False,
+                        "blinded_to_system_output": True,
+                    },
+                )
+
+    def test_explicit_gold_labels_capture_blinding_revisions_and_disagreement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = self._workspace(Path(temporary))
+            self._annotate(
+                workspace,
+                "case-0",
+                {
+                    "kind": "counterevidence",
+                    "id": "counter-1",
+                    "label": "present",
+                    "evidence_ids": ["evidence:one"],
+                },
+            )
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "distinction", "id": "method-scale", "label": "required"},
+            )
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "answerability", "id": "overall", "answerable": True},
+            )
+            self._annotate(
+                workspace,
+                "case-0",
+                {"kind": "answerability", "id": "overall", "answerable": False},
+                reviewer="Researcher B",
+            )
+
+            detail = workspace.case("case-0")
+            answerability = detail["annotation"]["answerability_labels"]["overall"]
+            self.assertEqual(len(answerability["review_revisions"]), 2)
+            self.assertTrue(answerability["review_revisions"][0]["blinded_to_system_output"])
+            disagreement = next(
+                item
+                for item in detail["scorecard"]["metrics"]
+                if item["id"] == "reviewer_disagreement_rate"
+            )
+            self.assertEqual(disagreement["value"], 1.0)
+
+    def test_gold_label_schema_declares_required_scientific_label_groups(self) -> None:
+        schema = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / "benchmarks"
+                / "researcher_gold_v1.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        required = set(schema["required"])
+        self.assertTrue(
+            {
+                "must_retrieve_publications",
+                "must_exclude_publications",
+                "key_conclusions",
+                "counterevidence",
+                "required_distinctions",
+                "answerability",
+                "review_revisions",
+            }
+            <= required
+        )
 
     def test_validation_full_text_and_export_are_auditable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

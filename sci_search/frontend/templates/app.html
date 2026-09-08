@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sci-Search · Research workspace</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to research workspace</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/app" aria-label="Sci-Search home">Sci-Search</a>
+      <div class="account">
+        <span id="account-name">Researcher</span>
+        <button class="button button-quiet" id="logout-button" type="button" disabled>Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <nav class="project-nav" aria-label="Project navigation">
+      <p class="eyebrow">Workspace</p>
+      <h2 id="workspace-name">Personal workspace</h2>
+      <label for="project-select">Project</label>
+      <select disabled id="project-select" aria-describedby="project-help"></select>
+      <p class="help" id="project-help">Research runs and evidence stay inside the selected project.</p>
+      <details class="new-project">
+        <summary>New project</summary>
+        <form id="new-project-form">
+          <label for="new-project-name">Project name</label>
+          <input id="new-project-name" name="name" maxlength="300" required>
+          <label class="check-row">
+            <input id="new-project-private" type="checkbox" checked>
+            Private project
+          </label>
+          <button disabled class="button button-primary" type="submit">Create project</button>
+        </form>
+      </details>
+      <div class="nav-links" aria-label="Project sections">
+        <a href="#research">Research</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#validation">Validation</a>
+        <a href="#exports">Downloads</a>
+      </div>
+    </nav>
+
+    <main id="main-content" tabindex="-1">
+      {% if workspace_preview %}
+      <aside id="workspace-preview-notice" class="preview-notice" role="note">
+        <strong>Temporary workspace preview</strong>
+        <p>You can create and switch projects. Changes are not saved after the server stops.
+        Research execution is disabled; live reviews require the configured database and worker service.</p>
+      </aside>
+      {% endif %}
+      <section class="hero" id="research">
+        <p class="eyebrow">Scientific evidence search</p>
+        <h1>Start with a research question.</h1>
+        <p class="lede">Sci-Search discovers literature, analyzes retained full texts, and keeps every conclusion traceable to its source.</p>
+        <form class="question-form" id="question-form">
+          <label for="research-question">Research question</label>
+          <div class="question-row">
+            <textarea disabled id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
+            <button disabled class="button button-primary" type="submit">Start review</button>
+          </div>
+          <div class="review-setting">
+            <label for="review-depth">Review depth</label>
+            <select disabled id="review-depth">
+              <option value="focused">Focused review</option>
+              <option value="deep">Deep review</option>
+            </select>
+          </div>
+        </form>
+        <div class="status" id="global-status" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" id="run-panel" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">Current review</p><h2 id="run-question"></h2></div>
+          <span class="status-badge" id="run-status"></span>
+        </div>
+        <p id="run-progress">Preparing the research workflow…</p>
+        <div class="button-row">
+          <button class="button button-secondary" id="cancel-run" type="button">Cancel review</button>
+          <button class="button button-secondary" id="retry-run" type="button" hidden>Retry review</button>
+        </div>
+      </section>
+
+      <section class="panel" id="evidence">
+        <div class="section-heading"><div><p class="eyebrow">Source traceability</p><h2>Evidence</h2></div></div>
+        <p class="empty-state" id="evidence-empty">Evidence will appear here when a review has produced source-linked findings.</p>
+        <div id="evidence-list"></div>
+        <div class="status" id="review-status" aria-live="polite"></div>
+        <div class="upload-controls" id="upload-controls" hidden>
+          <label for="upload-candidate-id">Publication or candidate identifier</label>
+          <input id="upload-candidate-id" maxlength="200" placeholder="Candidate identifier">
+          <input id="authorized-document" type="file" accept="application/pdf,.pdf" hidden>
+          <button class="button button-secondary" id="upload-document-button" type="button">Add authorized full text</button>
+          <p class="help">Only upload a PDF you are authorized to use. Its signature and parseability are validated.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="validation">
+        <div class="section-heading"><div><p class="eyebrow">Quality control</p><h2>Validation</h2></div></div>
+        <p class="empty-state" id="validation-empty">Validation checks will show provenance, units, associations, and extraction warnings.</p>
+        <div id="validation-list"></div>
+      </section>
+
+      <section class="download-panel" id="exports">
+        <div><p class="eyebrow">Complete deliverable</p><h2>Download review and source package</h2><p>Original publications, cited review, landscape, evidence passages, methods, and machine-readable provenance.</p></div>
+        <div class="button-row" id="export-actions"><span class="help">Downloads become available after a review.</span></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

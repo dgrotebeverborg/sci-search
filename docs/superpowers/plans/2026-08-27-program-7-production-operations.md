@@ -29,10 +29,10 @@
 **Interfaces:**
 - Produces `web`, `worker`, `migrate`, and administrative commands from one image.
 
-- [ ] Write a failing container smoke test that builds the image, runs as a non-root UID, imports the package, and exposes no source `.env.local` or data directory.
-- [ ] Implement a multi-stage build with pinned base digest, wheel installation, read-only application files, non-root runtime, and writable explicit temp directory.
-- [ ] Define private service networks, health checks, named volumes, resource limits, and development/test/production profiles.
-- [ ] Verify only Caddy publishes ports in production; commit.
+- [x] Write a failing container smoke test that builds the image, runs as a non-root UID, imports the package, and exposes no source `.env.local` or data directory.
+- [x] Implement a multi-stage build with pinned base digest, wheel installation, read-only application files, non-root runtime, and writable explicit temp directory.
+- [x] Define private service networks, health checks, named volumes, resource limits, and development/test/production overrides.
+- [x] Verify only Caddy publishes ports in production; commit.
 
 ### Task 2: TLS proxy and secure production configuration
 
@@ -43,10 +43,10 @@
 **Interfaces:**
 - Produces validated settings and HTTPS/security-header proxy configuration.
 
-- [ ] Write failing tests for every insecure production setting and a literal valid SURFconext-style configuration.
-- [ ] Implement typed settings with secret-file support and redacted representations.
-- [ ] Configure TLS, request limits, HSTS after TLS validation, CSP, frame denial, no-sniff, referrer policy, and trusted proxy headers.
-- [ ] Run production-startup smoke tests and commit.
+- [x] Write failing tests for every insecure production setting and a literal valid SURFconext-style configuration.
+- [x] Implement typed settings with secret-file support and redacted representations.
+- [x] Configure TLS, request limits, HSTS after TLS validation, CSP, frame denial, no-sniff, referrer policy, and trusted proxy headers.
+- [x] Run production-startup smoke tests and commit.
 
 ### Task 3: Structured logging, health, and metrics
 
@@ -58,10 +58,10 @@
 **Interfaces:**
 - Produces correlation context, JSON logs, `/health/live`, `/health/ready`, and bounded Prometheus metrics.
 
-- [ ] Write failing tests proving correlation IDs propagate and sensitive keys/document text are redacted.
-- [ ] Implement liveness without dependencies and readiness with bounded PostgreSQL, Redis, and S3 checks.
-- [ ] Add metrics for request latency, denials, queue age/depth, leases, stages, providers, storage, evidence, withholding, and model rejection.
-- [ ] Assert metric labels use bounded enums/route templates, not questions, document names, IDs, or error strings; commit.
+- [x] Write failing tests proving correlation IDs propagate and sensitive keys/document text are redacted.
+- [x] Implement liveness without dependencies and readiness with bounded PostgreSQL, Redis, and S3 checks.
+- [x] Add metrics for request latency, denials, queue age/depth, leases, stages, providers, storage, evidence, withholding, and model rejection.
+- [x] Assert metric labels use bounded enums/route templates, not questions, document names, IDs, or error strings; commit.
 
 ### Task 4: Backup and verified restore
 
@@ -73,11 +73,11 @@
 **Interfaces:**
 - Produces encrypted/versioned PostgreSQL and object-store backup manifests and isolated restore verification.
 
-- [ ] Seed a temporary stack with two projects sharing one blob and write expected row counts, grants, object hashes, and audit-chain endpoints.
-- [ ] Verify backup/restore system test fails before scripts exist.
-- [ ] Implement subprocess argument lists without shells, explicit destinations, checksums, schema/version manifest, encryption hook, and atomic completion marker.
-- [ ] Restore into new database/bucket names and compare counts, authorization grants, hashes, and representative reports.
-- [ ] Document schedule, retention, encryption-key custody, monitoring, and quarterly restore drill; commit.
+- [x] Seed a temporary stack with two projects sharing one blob and write expected row counts, grants, object hashes, and audit-chain endpoints.
+- [x] Verify backup/restore system test fails before scripts exist.
+- [x] Implement subprocess argument lists without shells, explicit destinations, checksums, schema/version manifest, encryption hook, and atomic completion marker.
+- [x] Restore into new database/bucket names and compare counts, authorization grants, hashes, and representative reports.
+- [x] Document schedule, retention, encryption-key custody, monitoring, and quarterly restore drill; commit.
 
 ### Task 5: Deployment, drain, migration, rollback, and incident runbooks
 
@@ -89,16 +89,16 @@
 **Interfaces:**
 - Produces a deterministic deployment state machine.
 
-- [ ] Write a failing test with recorded command executor asserting order: backup, drain, migrate, start, readiness, release workers.
-- [ ] Implement explicit confirmation for production, bounded drain timeout, migration lock, health verification, and rollback eligibility check.
-- [ ] Document compromised session revocation, provider outage, leaked secret rotation, failed migration, data restore, and user access removal.
-- [ ] Run test-stack deployment and rollback rehearsal; commit.
+- [x] Write a failing test with recorded command executor asserting order: backup, drain, migrate, start, readiness, release workers.
+- [x] Implement explicit confirmation for production, bounded drain timeout, migration lock, health verification, and rollback eligibility check.
+- [x] Document compromised session revocation, provider outage, leaked secret rotation, failed migration, data restore, and user access removal.
+- [x] Run test-stack deployment and rollback rehearsal; commit.
 
 ### Task 6: Program 7 verification
 
-- [ ] Build and scan the container image.
-- [ ] Start the production-like stack and verify only HTTPS is externally reachable.
-- [ ] Run two-user load smoke with ten simultaneous sessions and bounded jobs.
-- [ ] Terminate web and worker containers independently and verify recovery behavior.
-- [ ] Complete encrypted backup and isolated restore verification.
-- [ ] Run all engineering, migration, security, browser, and scientific gates.
+- [x] Build and scan the container image.
+- [x] Start the production-like stack and verify only HTTPS is externally reachable.
+- [x] Run two-user load smoke with ten simultaneous sessions and bounded jobs.
+- [x] Terminate web and worker containers independently and verify recovery behavior.
+- [x] Complete encrypted backup and isolated restore verification.
+- [x] Run all engineering, migration, security, browser, and scientific gates.

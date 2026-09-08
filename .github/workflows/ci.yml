@@ -37,8 +37,23 @@ jobs:
         with:
           version: "0.8.17"
           enable-cache: true
-      - run: uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - name: Select a stable Python release
+        uses: actions/setup-python@v7
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: false
+      - run: uv sync --frozen --extra dev --python "${{ steps.python.outputs.python-path }}"
+      - name: Install browser test dependencies
+        run: uv run python -m playwright install --with-deps chromium
+      - name: Start isolated integration services
+        run: docker compose --project-name sci-search-ci -f compose.integration.yml up --detach --wait --wait-timeout 120
+      - name: Mandatory security isolation suite
+        run: uv run python -m pytest -q -m security
       - run: uv run python -m pytest -q --junitxml=test-results-${{ matrix.python }}.xml
+      - name: Stop isolated integration services
+        if: always()
+        run: docker compose --project-name sci-search-ci -f compose.integration.yml down --volumes --remove-orphans
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -55,7 +70,14 @@ jobs:
           version: "0.8.17"
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.11
+      - name: Install browser test dependencies
+        run: uv run python -m playwright install --with-deps chromium
+      - name: Start isolated integration services
+        run: docker compose --project-name sci-search-ci -f compose.integration.yml up --detach --wait --wait-timeout 120
       - run: uv run python -m pytest --cov=sci_search --cov-report=term-missing --cov-report=xml -q
+      - name: Stop isolated integration services
+        if: always()
+        run: docker compose --project-name sci-search-ci -f compose.integration.yml down --volumes --remove-orphans
       - run: uv run python -m build
       - name: Install and smoke-test wheel
         run: |

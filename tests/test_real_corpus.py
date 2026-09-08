@@ -4,6 +4,8 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from sci_search.evaluation import evaluate_results
 from sci_search.pipeline import build_evidence_store
 
@@ -11,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "corpora" / "iron_air_real"
 
 
+@pytest.mark.retained_corpus
 class RealCorpusVerticalSliceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

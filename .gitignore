@@ -11,9 +11,9 @@ test-results-*.xml
 dist/
 build/
 *.egg-info/
-corpora/*/papers/
+corpora/*/papers
 data/benchmark_results/
-data/benchmark_runs/
-data/research_runs/
-data/scientific_memory/
-data/validation_replays/
+data/benchmark_runs
+data/research_runs
+data/scientific_memory
+data/validation_replays

@@ -1,0 +1,74 @@
+"""Same-origin researcher frontend routes and static assets."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+from sci_search.api.dependencies import AuthenticatedPrincipal, require_principal
+from sci_search.application.sessions import InvalidSession
+
+_FRONTEND_ROOT = Path(__file__).resolve().parents[1] / "frontend"
+STATIC_DIRECTORY = _FRONTEND_ROOT / "static"
+_templates = Jinja2Templates(directory=_FRONTEND_ROOT / "templates")
+router = APIRouter(include_in_schema=False)
+Principal = Annotated[AuthenticatedPrincipal, Depends(require_principal)]
+
+
+@router.get("/")
+def root(request: Request) -> RedirectResponse:
+    settings = request.app.state.api_settings
+    token = request.cookies.get(settings.session_cookie_name, "")
+    if not token:
+        return RedirectResponse("/auth/login", status_code=303)
+    try:
+        request.app.state.api_services.sessions.authenticate(token)
+    except InvalidSession:
+        return RedirectResponse("/auth/login", status_code=303)
+    return RedirectResponse("/app", status_code=303)
+
+
+@router.get("/auth/login", response_class=HTMLResponse)
+def login(request: Request) -> HTMLResponse:
+    return _templates.TemplateResponse(
+        request,
+        "login.html",
+        {"development_auth_enabled": request.app.state.api_settings.development_auth_enabled},
+    )
+
+
+@router.post("/auth/development")
+def development_login(
+    request: Request,
+    user_id: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+) -> RedirectResponse:
+    settings = request.app.state.api_settings
+    if not settings.development_auth_enabled or settings.environment == "production":
+        return RedirectResponse("/auth/login", status_code=303)
+    issued = request.app.state.api_services.sessions.create(user_id or settings.development_user_id)
+    response = RedirectResponse("/app", status_code=303)
+    response.set_cookie(
+        settings.session_cookie_name,
+        issued.token,
+        secure=False,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.get("/app", response_class=HTMLResponse)
+def researcher_app(request: Request, principal: Principal) -> HTMLResponse:
+    return _templates.TemplateResponse(
+        request,
+        "app.html",
+        {
+            "user_id": principal.user_id,
+            "workspace_preview": request.app.state.api_settings.workspace_preview,
+        },
+    )

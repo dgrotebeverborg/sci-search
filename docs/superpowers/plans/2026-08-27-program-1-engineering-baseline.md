@@ -81,7 +81,7 @@ Run: `python -m pytest -q`
 
 Expected: all existing tests and new contract tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/contracts tests/__init__.py
@@ -192,7 +192,7 @@ pyright
 python -m pytest --cov=sci_search --cov-report=term-missing -q
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add pyproject.toml uv.lock tests/contracts/test_package_metadata.py
@@ -249,7 +249,7 @@ python -m build
 pip-audit
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github scripts/check_no_secrets.py tests/contracts/test_no_secrets.py
@@ -290,7 +290,7 @@ Run: `python -m build && python -m pytest tests/contracts -q`
 
 Expected: PASS with the readme and license included in package metadata.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add LICENSE CONTRIBUTING.md SECURITY.md README.md docs/ARCHITECTURE.md pyproject.toml
@@ -299,11 +299,11 @@ git commit -m "docs: define project governance and architecture"
 
 ### Task 5: Program 1 verification
 
-- [ ] Run `ruff format --check .` and verify exit 0.
-- [ ] Run `ruff check .` and verify exit 0.
-- [ ] Run `pyright` and verify exit 0 at the documented baseline.
-- [ ] Run `python -m pytest --cov=sci_search --cov-report=term-missing -q` and verify the threshold.
-- [ ] Run `python -m build` and install the wheel in a clean temporary environment.
-- [ ] Run `pip-audit` and resolve or explicitly fail on known vulnerabilities.
-- [ ] Confirm scheduled workflows cannot expose secrets to untrusted pull requests.
-- [ ] Confirm existing CLI output and artifact contract tests pass unchanged.
+- [x] Run `ruff format --check .` and verify exit 0.
+- [x] Run `ruff check .` and verify exit 0.
+- [x] Run `pyright` and verify exit 0 at the documented baseline.
+- [x] Run `python -m pytest --cov=sci_search --cov-report=term-missing -q` and verify the threshold.
+- [x] Run `python -m build` and install the wheel in a clean temporary environment.
+- [x] Run `pip-audit` and resolve or explicitly fail on known vulnerabilities.
+- [x] Confirm scheduled workflows cannot expose secrets to untrusted pull requests.
+- [x] Confirm existing CLI output and artifact contract tests pass unchanged.

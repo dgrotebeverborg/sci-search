@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Sci-Search</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-page">
+  <main class="login-card" id="main-content">
+    <p class="eyebrow">Scientific evidence search</p>
+    <h1>Sci-Search</h1>
+    <p>Build a traceable literature review from full scientific texts.</p>
+    {% if development_auth_enabled %}
+    <form method="post" action="/auth/development">
+      <button class="button button-primary" type="submit">Continue with development account</button>
+    </form>
+    {% else %}
+    <a class="button button-primary" href="/auth/oidc/start">Sign in through your institution</a>
+    {% endif %}
+  </main>
+</body>
+</html>

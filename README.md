@@ -7,31 +7,18 @@ available in [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/
 
 The project includes a three-document synthetic smoke fixture, a ten-document real open-access iron-air pilot, and a second ten-document open-access behavioural-ecology corpus. The iron-air specialist exposes only manually reviewed result records. Generic mode always builds an extractive evidence baseline. When Mistral is configured, it adds structured cross-paper synthesis only after every assertion, entity, and numerical result has passed local citation and exact-quote validation; otherwise the baseline remains the visible answer.
 
-## What you can test now
+## Choose a runtime
 
-- Ask a new question in **Search scientific literature · live** mode and let Sci-Search build a fresh evidence corpus.
-- Review an AI-generated **Check my understanding** brief before searching: interpreted question, objective, scope, comparison dimensions, assumptions, exclusions, and any material ambiguity remain attached to the run as provenance.
-- Watch planning, discovery, screening, open-full-text acquisition and evidence analysis progress asynchronously.
-- Inspect the exact search strategies and a candidate inclusion/exclusion ledger.
-- Inspect bounded reference/cited-by expansion and the citation relation that introduced a candidate.
-- Override candidate inclusion, exclude unsuitable studies, or add a locally authorized full text; the evidence report is rebuilt after every decision.
-- Download one acquired publication, any checkbox selection, or the complete active evidence corpus as a ZIP with source/licence provenance.
-- Choose **Quick scan** (up to 10), **Research review** (adaptive 25–50, the default), or **Deep review** (adaptive 25–100). Research and Deep modes reassess question coverage after each batch and stop on adequate coverage, evidence saturation, candidate exhaustion, or the recorded safety limit.
-- Inspect a validated structured synthesis of evidence types, convergence, quality flags, and numerical-comparability warnings.
-- Reuse publications and cached full texts from cumulative scientific memory on later questions.
-- Persist automatically checked silver evidence with document fingerprints, extraction/schema/validator versions, individual validation checks, and an append-only review history.
-- Treat acquisition and scientific inclusion as separate stages: parsed full texts receive an auditable question-specific decision (`included`, `background`, `uncertain`, or `excluded`) before analysis or packaging, while researcher overrides are retained explicitly.
-- Validate that every downloaded artifact can actually be parsed before it consumes the full-text target. Scanned, malformed, or otherwise unreadable files are retained as auditable `unreadable` outcomes, reported as possible OCR/replacement needs, and skipped while acquisition continues to seek a usable replacement.
-- Mark an expanded evidence record as researcher-verified, uncertain, or rejected; rejected extractions are excluded from later answers while the original extraction and decision remain auditable.
-- Use optional Mistral structured analysis for claims, agreements, contradictions, methods, assumptions, limitations, gaps, entities, and contextual measurements.
-- Switch between the iron-air and goat-foraging evidence corpora.
-- Ask arbitrary questions about the selected local corpus.
-- Start with a cited summary and progressively inspect findings, provenance, and full text.
-- Continue with suggested follow-up questions in the same research session.
-- Get an explicit insufficient-evidence answer for unsupported questions instead of a plausible invention.
-- Export the same investigation as JSON, Markdown, or a self-contained HTML report.
-- Download a prominent complete research package: every acquired full text in its retained original format, a cited PDF/HTML/Markdown literature review, the research landscape, references, exact evidence passages, and machine-readable provenance.
-- Read that literature review directly as the primary answer, organized into scope and approach, synthesis, contradictions and method differences, limitations and uncertainty, knowledge gaps, and references; evidence records and full texts remain available underneath for verification.
+- **Local research:** use `research-online` for synchronous discovery and analysis, or `investigate` to create a cited report from an existing corpus. Examples below produce durable files without a web deployment.
+- **Local workspace preview:** use `serve --unsafe-development` on loopback to sign in with a temporary development account and create or switch projects. State is lost when the server stops; research execution is disabled.
+- **Production web research:** deploy the FastAPI service with PostgreSQL, Redis, S3-compatible storage, Dramatiq workers, and OIDC authentication. The project interface supports live reviews, source-linked evidence, validation, and downloads through project-scoped APIs. Follow the [deployment runbook](docs/runbooks/DEPLOYMENT.md) and [production Compose configuration](compose.yml).
+
+Install the locked development environment before running the local examples:
+
+```bash
+uv sync --frozen --extra dev --python 3.11
+source .venv/bin/activate
+```
 
 ## Online scientific search
 
@@ -41,23 +28,13 @@ During migration from sci-graph, if Sci-Search has no Mistral key of its own, it
 
 Mistral output is requested through schema-enforced JSON. Valid structure alone is not accepted: all assertions must cite known evidence IDs and exact source quotes, while numerical and condition text must occur in those quotes. Invalid individual records are rejected; if no grounded answer or claim survives, the complete model result is discarded in favor of the deterministic extractive answer. API keys are not persisted in runs or scientific memory.
 
-Every acquired full text also receives a question-specific study card before synthesis. The card records its inclusion decision, required-dimension coverage, inferred evidence nature, and selected methods/results/limitations passages with exact source offsets. Only uncertain studies may be sent for optional quote-validated Mistral adjudication; deterministic exclusions are not automatically promoted. The matrix is visible as a collapsed researcher review queue and is included in the cited review and complete research package.
+Every acquired full text also receives a question-specific study card before synthesis. The card records its inclusion decision, required-dimension coverage, inferred evidence nature, and selected methods/results/limitations passages with exact source offsets. Only uncertain studies may be sent for optional quote-validated Mistral adjudication; deterministic exclusions are not automatically promoted. The matrix is included in the cited review and complete research package.
 
-The header’s **Validate quality** workspace opens a blind-by-default ten-question cross-domain benchmark tied to immutable current-code replays. Researchers can inspect acquired full texts, confirm publication relevance, assertion support, extraction accuracy, units, provenance, context, and conclusion coverage, and record missed publications. Silver seed labels remain distinct from researcher-confirmed annotations. The live scorecard enforces minimum sample sizes, 100% provenance, and zero unsupported assertions as release gates. **Export audit** produces a complete review ZIP; the machine-readable scorecard can also be exported with `python3 scripts/validation_scorecard.py`. The protocol is documented in `docs/RESEARCHER_VALIDATION_GUIDE.md`.
+The [researcher validation protocol](docs/RESEARCHER_VALIDATION_GUIDE.md) describes the cross-domain benchmark and source-grounding checks. Silver seed labels remain distinct from researcher-confirmed annotations. Export its machine-readable scorecard with `python3 scripts/validation_scorecard.py --output /tmp/validation-scorecard.json`.
 
-Run the interface:
+The synchronous local research pipeline submits query variants to OpenAlex, Europe PMC and Crossref, deduplicates records, screens candidates, and acquires available open full texts. Its review modes record coverage checks and stopping reasons, and persist the resulting corpus and candidate ledger under `data/research_runs/<run-id>/`. These local files and the SQLite scientific memory belong to the CLI workflow; the production web service uses PostgreSQL and object storage.
 
-```bash
-python3 -m sci_search.cli \
-  --corpus corpora/iron_air_real \
-  serve \
-  --additional-corpus corpora/goat_foraging \
-  --host 127.0.0.1 --port 8000
-```
-
-Select **Search scientific literature · live**. A default Research review submits transparent query variants to OpenAlex, Europe PMC and Crossref, deduplicates the records, screens them against the question concepts, and acquires an initial set of up to 25 open full texts. If important coverage is still missing, Sci-Search performs targeted gap searches and continues in ten-paper batches up to a 50-paper safety limit. It stops earlier when coverage is adequate or consecutive batches add no new evidence-contributing publications. Quick scan is capped at 10; Deep review can continue to 100. The selected mode, every coverage check, and the exact stopping reason are retained in the run and cited review. Full-text acquisition is restricted to trusted Europe PMC and OpenAlex content endpoints. The resulting corpus and complete candidate ledger are persisted under `data/research_runs/<run-id>/`.
-
-Run the same pipeline from the command line with a smaller explicit budget:
+Run local online research with a small explicit budget:
 
 ```bash
 python3 -m sci_search.cli \
@@ -71,13 +48,13 @@ python3 -m sci_search.cli \
 
 The durable run records provider, query, timestamp, raw/unique/selected counts, relevance and concept-coverage scores, inclusion/exclusion reasons, acquisition source/errors, generated corpus manifest and final passage-grounded investigation. API keys are never written into these artifacts.
 
-Completed runs are accumulated in `data/scientific_memory/`: a SQLite provenance graph plus a content-addressed document cache. Later searches consult this memory before external acquisition, deduplicate publications, reuse available full text, and cache only successfully validated model analysis. Asking more questions therefore grows reusable coverage, but does not automatically make conclusions true or complete; new answers still depend on retrieval coverage and validation.
+Completed local CLI runs are accumulated in `data/scientific_memory/`: a SQLite provenance graph plus a content-addressed document cache. Later searches consult this memory before external acquisition, deduplicate publications, reuse available full text, and cache only successfully validated model analysis. Asking more questions therefore grows reusable coverage, but does not automatically make conclusions true or complete; new answers still depend on retrieval coverage and validation.
 
 Generic extractive records pass deterministic source-grounding checks before they receive `silver_source_verified` status: their offsets must reproduce the stored passage, the selected statement and numerical mentions must occur verbatim, and publication, source-document, extraction-method, document-hash, schema, and validator provenance must be present. This status verifies the extraction's connection to its source; it is explicitly not expert confirmation of the scientific interpretation. Researcher decisions are stored separately as revisions and survive later questions. A changed content/schema fingerprint returns a previously reviewed record to `needs_review` rather than silently carrying approval across versions.
 
-Online mode does not bypass paywalls. It currently analyzes available open full text and records unavailable candidates. Suggested follow-ups query the frozen run corpus without spending credits or silently changing the evidence base; starting a new question in live mode creates a new run.
+Online research does not bypass paywalls. It analyzes available open full text and records unavailable candidates. Use `investigate` against a completed run’s corpus for further local questions without starting another online search.
 
-Unavailable and paywalled candidates remain visible. A researcher who lawfully has a copy may attach a local TXT, Markdown, JATS/XML, or PDF document from the screening ledger after explicitly confirming authorization. Sci-Search validates and hashes the file, records its origin as `researcher_supplied_authorized`, and never treats metadata or an abstract as a substitute for full-text evidence.
+Unavailable and paywalled candidates remain in the discovery ledger. The production project interface supports authorized PDF uploads through its evidence controls. Sci-Search validates and hashes the file, records its origin as `researcher_supplied_authorized`, and never treats metadata or an abstract as a substitute for full-text evidence.
 
 Downloads preserve the best acquired publication artifact rather than regenerating a report as a fake paper. Researcher-supplied files retain their original format; Europe PMC full texts remain JATS XML; PDF-only OpenAlex records remain PDF. When OpenAlex offers both structured GROBID XML and an open-access PDF, Sci-Search retains XML for section-aware analysis and the PDF as the researcher download. Both are cached across later runs. ZIP manifests distinguish the analysis document from the downloaded artifact and record its source.
 
@@ -120,25 +97,22 @@ Use `--format markdown` for a text report or `--format json` for the durable str
 
 ## Researcher web interface
 
-Run the local question-first interface:
+Start an explicit, temporary workspace preview:
 
 ```bash
 python3 -m sci_search.cli \
   --corpus corpora/iron_air_real \
-  serve \
-  --additional-corpus corpora/goat_foraging \
+  serve --unsafe-development \
   --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000`. Select a corpus, ask a question, then inspect the cited evidence and full texts. Iron-air round-trip-efficiency questions use the validated specialist comparison; other questions use the domain-profiled generic workflow.
+Open `http://127.0.0.1:8000` and choose **Continue with development account**. You can create and switch projects. The corpus argument supplies the initial project name; the preview does not load the corpus into a research service. A banner explains that changes are temporary, and **Start review** is disabled. Authenticated attempts to start a run through the preview API receive HTTP 503. Use the CLI examples for actual local research and report exports.
 
-The main view intentionally shows only the answer, findings, evidence, limitations, and follow-ups. Search strategy, screening controls, downloads, memory statistics, model provenance, and diagnostics are grouped under the collapsed **Research details** panel. Search-depth controls appear only in live-search mode.
+Without production configuration, `serve` requires `--unsafe-development`. That flag is restricted to loopback addresses and rejected in production. Production startup uses `SCI_SEARCH_ENVIRONMENT=production` and requires database, queue, object-storage, session, and institutional OIDC settings; provider credentials are also required for live discovery. Configure the settings and secret files in [compose.yml](compose.yml), then follow the [deployment runbook](docs/runbooks/DEPLOYMENT.md), including migrations, readiness checks, and worker startup. See the [API cutover guide](docs/operations/api-cutover.md) for current routes and the [retirement notice](docs/migration/LEGACY_RUNTIME_DEPRECATION.md) for retained CLI compatibility.
 
-Completed live runs prominently expose **Download research package** directly below the answer summary. The ZIP contains every included or relevant-background publication artifact, `literature-review.pdf` as its human-readable starting point, HTML and Markdown alternatives, a research-landscape export, the candidate/run ledger, the complete post-acquisition full-text screening ledger, and provenance manifests. Acquired documents classified as excluded or uncertain remain auditable but are not silently analyzed or placed in the default paper bundle. The report clearly distinguishes discovered metadata records, acquired full texts, included full texts, and publications actually cited in its conclusions. It includes an executive summary, scope, reproducible search strategies, selection counts, corpus overview, landscape, thematic findings, contextual measurements, contradictions and limitations, knowledge gaps, bibliography, excluded-record ledger, and an exact-passage appendix. It is explicitly labelled an AI-assisted evidence review rather than a systematic review until protocol, dual screening, and formal risk-of-bias requirements are completed.
+The old local server and its unversioned endpoints have been removed. Production research uses the project’s **Research**, **Evidence**, **Validation**, and **Downloads** sections. Retained research packages contain full-text artifacts, cited reviews, discovery and screening ledgers, and provenance. The grounding checks described above apply to the scientific outputs; the preview cannot generate them.
 
-For machine inspection, `GET /api/scientific-memory?limit=500` returns a bounded node/edge projection and total counts. The limit is clamped to 5,000; the SQLite database remains the complete durable memory.
-
-Try:
+Try these questions with the local `investigate` command against `corpora/goat_foraging`:
 
 ```text
 How does vegetation structure affect goat foraging behaviour?
@@ -203,10 +177,25 @@ python3 -m sci_search.cli \
   export --format graph --output /tmp/sci-search-graph.json
 ```
 
-Run tests:
+Run the full test suite with its browser and isolated service prerequisites:
 
 ```bash
+python3 -m playwright install --with-deps chromium
+docker compose --project-name sci-search-tests -f compose.integration.yml up --detach --wait
 python3 -m pytest -q
+docker compose --project-name sci-search-tests -f compose.integration.yml down --volumes --remove-orphans
 ```
+
+The integration stack uses dedicated test databases and loopback ports. Stop it after testing, including when a test fails.
+
+The default suite skips only tests explicitly marked `retained_corpus`. These scientific checks need locally retained full texts under `corpora/*/papers` or historical runs under `data/research_runs`, which are intentionally excluded from Git. They cover the iron-air and goat gold evaluations, real-corpus literature reviews, diverse and metamorphic benchmarks, and historical reliability audits. Benchmark manifests alone do not supply the source documents.
+
+After restoring the authorized local assets, run these checks explicitly:
+
+```bash
+python3 -m pytest -q --run-retained-corpus -m retained_corpus
+```
+
+Missing required manifests, papers, or historical run artifacts fail this command; opting in never silently skips unavailable data. Use `--run-retained-corpus` without the marker filter to include these checks in the full suite. Deterministic fixture-based scientific, benchmark-schema, and replay tests continue to run by default. Do not upload retained corpora or private research data to make CI pass.
 
 See [the first vertical-slice design](docs/design/first-vertical-slice.md) for the `sci-graph` audit, [the generic research workflow](docs/design/generic-research-workflow.md), and [online discovery architecture](docs/design/online-discovery.md) for current capabilities and boundaries.

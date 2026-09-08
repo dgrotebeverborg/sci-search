@@ -30,6 +30,7 @@ def main() -> int:
     selection.add_argument("--all", action="store_true")
     parser.add_argument("--max-full-texts", type=int, default=25)
     parser.add_argument("--per-query", type=int, default=100)
+    parser.add_argument("--max-acquisition-attempts", type=int)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -56,7 +57,11 @@ def main() -> int:
         per_query=args.per_query,
         max_selected=100,
         max_full_texts=args.max_full_texts,
-        max_acquisition_attempts=min(200, max(50, args.max_full_texts * 2)),
+        max_acquisition_attempts=(
+            args.max_acquisition_attempts
+            if args.max_acquisition_attempts is not None
+            else min(200, max(50, args.max_full_texts * 2))
+        ),
         citation_depth=1,
     )
     results = []

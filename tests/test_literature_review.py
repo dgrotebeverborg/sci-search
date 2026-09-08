@@ -4,6 +4,7 @@ import io
 import unittest
 from pathlib import Path
 
+import pytest
 from pypdf import PdfReader
 
 from sci_search.corpus import load_corpus
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class LiteratureReviewTests(unittest.TestCase):
+    @pytest.mark.retained_corpus
     def test_builds_cited_review_and_verifiable_appendix(self) -> None:
         documents = load_corpus(ROOT / "corpora" / "goat_foraging")
         investigation = (
@@ -86,6 +88,7 @@ class LiteratureReviewTests(unittest.TestCase):
         self.assertIn("Research landscape", pdf_text)
         self.assertIn("References", pdf_text)
 
+    @pytest.mark.retained_corpus
     def test_incomplete_scope_does_not_promote_topic_matches_to_review_findings(self) -> None:
         investigation = (
             GenericResearchEngine(load_corpus(ROOT / "corpora" / "goat_foraging"))

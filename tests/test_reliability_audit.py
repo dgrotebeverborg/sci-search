@@ -4,12 +4,15 @@ import json
 import unittest
 from pathlib import Path
 
+import pytest
+
 from sci_search.metamorphic_evaluation import evaluate_metamorphic_cases
 from sci_search.reliability_audit import _audit_run
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.retained_corpus
 class ReliabilityAuditTests(unittest.TestCase):
     def test_counterfactual_and_paraphrase_suite_passes(self) -> None:
         result = evaluate_metamorphic_cases(ROOT / "benchmarks" / "metamorphic_questions.json")

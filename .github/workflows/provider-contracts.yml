@@ -29,15 +29,26 @@ jobs:
           version: "0.8.17"
           enable-cache: true
       - run: uv sync --frozen --python 3.11
-      - name: Run bounded discovery and analysis contract
+      - name: Run locked, bounded live scientific cases
         run: >-
-          uv run sci-search --corpus corpora/iron_air_real research-online
-          --question "What round-trip efficiencies are reported for iron-air batteries?"
-          --per-query 2 --max-full-texts 1 --max-acquisition-attempts 3
+          uv run python scripts/run_researcher_benchmark.py
+          --benchmark benchmarks/researcher_questions_v1.json
+          --case energy-iron-air-rte-comparability
+          --case agriculture-biochar-yield-heterogeneity
+          --case boundary-wild-goat-population
+          --per-query 5 --max-full-texts 2 --max-acquisition-attempts 6
+          --output provider-contract-result.raw.json
+      - name: Validate lock and sanitize informational diagnostics
+        if: always()
+        run: >-
+          uv run python scripts/sanitize_scheduled_result.py
+          --protocol benchmarks/scheduled_scientific_protocol_v1.json
+          --questions benchmarks/researcher_questions_v1.json
+          --input provider-contract-result.raw.json
           --output provider-contract-result.json
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sanitized-provider-contract-diagnostics
           path: provider-contract-result.json
-          retention-days: 14
+          retention-days: 30
