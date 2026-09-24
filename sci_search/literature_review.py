@@ -8,6 +8,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from sci_search.domain.contradictions import SEVERITY_RULES_VERSION, assess_severity
 from sci_search.pdf_report import markdown_to_pdf
 from sci_search.research_landscape import build_research_landscape
 
@@ -226,6 +227,24 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         if isinstance(investigation.get("research_landscape"), dict)
         else build_research_landscape(investigation)
     )
+    answer_evidence_ids: set[str] = set()
+    if ai_complete:
+        answer_evidence_ids.update(
+            str(item) for item in (ai.get("answer") or {}).get("evidence_ids", [])
+        )
+        answer_evidence_ids.update(
+            str(evidence_id)
+            for item in ai.get("claims", [])
+            if isinstance(item, dict) and item.get("category") in {"claims", "agreements"}
+            for evidence_id in item.get("evidence_ids", [])
+        )
+    contradiction_groups = _assess_contradictions(
+        ai.get("contradiction_groups") if ai_complete else None,
+        evidence_by_id,
+        study_matrix,
+        answer_evidence_ids,
+        reference_number,
+    )
     return {
         "schema_version": "cited_literature_review_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -310,6 +329,8 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         "research_landscape": landscape,
         "findings": findings,
         "thematic_findings": categories,
+        "contradiction_groups": contradiction_groups,
+        "answer_contest": _answer_contest(contradiction_groups),
         "measurements": ai.get("measurements", []) if ai_complete else [],
         "quality": {
             "quality_flags": quality_flags,
@@ -536,6 +557,21 @@ def render_review_markdown(report: dict[str, Any]) -> str:
     else:
         lines += ["No grounded cross-paper findings survived validation.", ""]
     lines += ["## Contradictions, methods, and comparability", ""]
+    if report.get("contradiction_groups"):
+        lines += ["### Where studies disagree", ""]
+        for group in report["contradiction_groups"]:
+            lines.append(
+                f"- **{group['topic']}** — severity: {group['severity']}; "
+                f"cause: {_label(str(group['cause']))}."
+            )
+            for position in group["positions"]:
+                lines.append(
+                    "  - "
+                    + _cited(
+                        {"text": position["stance"], "citations": position.get("citations", [])}
+                    )
+                )
+        lines.append("")
     comparison_items = [
         *report["thematic_findings"].get("contradictions", []),
         *report["thematic_findings"].get("method_differences", []),
@@ -682,6 +718,93 @@ def render_review_pdf(report: dict[str, Any]) -> bytes:
     return markdown_to_pdf(
         render_review_markdown(report), title=str(report.get("title") or "Literature review")
     )
+
+
+_SEVERITY_RANK = {"high": 0, "moderate": 1, "low": 2}
+
+
+def _assess_contradictions(
+    raw: Any,
+    evidence_by_id: dict[str, dict[str, Any]],
+    study_matrix: dict[str, Any],
+    answer_evidence_ids: set[str],
+    reference_number: dict[str, int],
+) -> list[dict[str, Any]] | None:
+    if not isinstance(raw, list):
+        return None
+    natures = {
+        str(card.get("publication_id")): str(
+            (card.get("inferred_evidence_nature") or {}).get("label") or "unclassified"
+        )
+        for card in study_matrix.get("studies", [])
+        if isinstance(card, dict)
+    }
+    assessed: list[dict[str, Any]] = []
+    for group in raw:
+        if not isinstance(group, dict):
+            continue
+        positions = [item for item in group.get("positions", []) if isinstance(item, dict)]
+        evidence_ids = {str(e) for item in positions for e in item.get("evidence_ids", [])}
+        if len(positions) < 2 or not evidence_ids <= set(evidence_by_id):
+            continue
+        touches = bool(evidence_ids & answer_evidence_ids)
+        try:
+            severity, basis = assess_severity(
+                str(group.get("cause")),
+                [[str(p) for p in item.get("publication_ids", [])] for item in positions],
+                touches_answer=touches,
+                evidence_nature_by_publication=natures,
+            )
+        except (KeyError, ValueError):
+            continue
+        assessed.append(
+            {
+                **group,
+                "positions": [
+                    {
+                        **item,
+                        "citations": sorted(
+                            {
+                                reference_number[str(p)]
+                                for p in item.get("publication_ids", [])
+                                if str(p) in reference_number
+                            }
+                        ),
+                    }
+                    for item in positions
+                ],
+                "severity": severity.value,
+                "severity_basis": list(basis),
+                "severity_rules_version": SEVERITY_RULES_VERSION,
+                "touches_answer": touches,
+                "dimension_ids": sorted(
+                    {
+                        str(dimension)
+                        for e in evidence_ids
+                        for dimension in evidence_by_id[e].get("scope_dimension_ids") or []
+                    }
+                ),
+            }
+        )
+    assessed.sort(
+        key=lambda g: (
+            _SEVERITY_RANK[g["severity"]],
+            -sum(len(item.get("publication_ids", [])) for item in g["positions"]),
+            str(g.get("id")),
+        )
+    )
+    return assessed
+
+
+def _answer_contest(groups: list[dict[str, Any]] | None) -> dict[str, Any]:
+    contested = [g for g in groups or [] if g["severity"] == "high" and g["touches_answer"]]
+    return {
+        "contested": bool(contested),
+        "group_ids": [str(g.get("id")) for g in contested],
+        "qualifications": [
+            f"Studies disagree on {g.get('topic')}; see the contradiction group." for g in contested
+        ],
+    }
 
 
 def _cited(item: dict[str, Any]) -> str:
