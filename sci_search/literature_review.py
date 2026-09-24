@@ -804,7 +804,7 @@ def _answer_contest(groups: list[dict[str, Any]] | None) -> dict[str, Any]:
         "contested": bool(contested),
         "group_ids": [str(g.get("id")) for g in contested],
         "qualifications": [
-            f"Studies disagree on {g.get('topic')}; see the contradiction group." for g in contested
+            f"Studies disagree: {g.get('topic')} (see the contradiction group)." for g in contested
         ],
     }
 

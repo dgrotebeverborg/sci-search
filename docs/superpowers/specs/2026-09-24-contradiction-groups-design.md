@@ -184,7 +184,7 @@ Each applied step adds one basis string.
 
 Answer consequence: the review report gets `answer_contest = {contested, group_ids,
 qualifications}`. `contested` is true when any high-severity group satisfies rule 2; each such group
-adds the qualification "Studies disagree on <topic>; see the contradiction group.". The dashboard's
+adds the qualification `Studies disagree: <topic> (see the contradiction group).` The dashboard's
 answer block shows it. It is computed in the review builder, not written into `answer_adequacy`,
 because adequacy is computed before analysis and is an input to the analysis fingerprint. A
 contradiction never withholds an answer.
@@ -207,8 +207,12 @@ Dashboard (`dashboard.py`, `frontend/static/dashboard.js`, comparisons block):
 - Each group shows the topic, a severity label (text and color, never color alone), a cause label,
   and the positions side by side on wide screens and stacked on narrow screens. Each position shows
   its stance, quotes, and links to evidence passages and publications.
-- The cause explanation is shown with its quotes, or "No grounded explanation found" for
-  `unexplained`.
+- Each position shows its stance in bold, its quotes as small muted text, and the studies on that
+  side as `[n] Title (year)`, linked to the publication.
+- The cause explanation is one sentence ("Why they may differ: …") followed by its quotes, or "No
+  grounded explanation found" for `unexplained`.
+- Low-severity groups start collapsed to one line (topic, severity, cause, study count); high and
+  moderate groups start open.
 - An expandable detail shows `severity_basis`, the rules version, validation notes, and the label
   "Model-proposed, source-verified — not expert-confirmed".
 - The answer block shows the contested qualification with a link to the group.

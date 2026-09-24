@@ -91,7 +91,7 @@ def test_high_group_touching_answer_contests_it() -> None:
     assert contest["contested"] is True
     assert contest["group_ids"] == ["contradiction:high"]
     assert contest["qualifications"] == [
-        "Studies disagree on Topic contradiction:high; see the contradiction group."
+        "Studies disagree: Topic contradiction:high (see the contradiction group)."
     ]
 
 
