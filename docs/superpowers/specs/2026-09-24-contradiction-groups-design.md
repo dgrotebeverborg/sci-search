@@ -1,6 +1,6 @@
 # Structured contradiction groups
 
-Date: 2026-09-24. Status: design approved in conversation; awaiting written-spec review.
+Date: 2026-09-24. Status: implemented; researcher quality check pending (docs/operations/contradiction-groups-quality-check.md).
 
 ## Product outcome
 

@@ -227,21 +227,23 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         if isinstance(investigation.get("research_landscape"), dict)
         else build_research_landscape(investigation)
     )
+    analysis: dict[str, Any] = ai if isinstance(ai, dict) else {}
+    matrix: dict[str, Any] = study_matrix if isinstance(study_matrix, dict) else {}
     answer_evidence_ids: set[str] = set()
     if ai_complete:
         answer_evidence_ids.update(
-            str(item) for item in (ai.get("answer") or {}).get("evidence_ids", [])
+            str(item) for item in (analysis.get("answer") or {}).get("evidence_ids", [])
         )
         answer_evidence_ids.update(
             str(evidence_id)
-            for item in ai.get("claims", [])
+            for item in analysis.get("claims", [])
             if isinstance(item, dict) and item.get("category") in {"claims", "agreements"}
             for evidence_id in item.get("evidence_ids", [])
         )
     contradiction_groups = _assess_contradictions(
-        ai.get("contradiction_groups") if ai_complete else None,
+        analysis.get("contradiction_groups") if ai_complete else None,
         evidence_by_id,
-        study_matrix,
+        matrix,
         answer_evidence_ids,
         reference_number,
     )
