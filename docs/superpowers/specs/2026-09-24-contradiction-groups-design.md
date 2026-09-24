@@ -54,7 +54,8 @@ contradictions.
 
 ## Domain model
 
-New module `sci_search/domain/contradictions.py` (standard library only, like `risk_of_bias.py`):
+New module `sci_search/domain/contradictions.py` (standard library only, like `risk_of_bias.py`)
+holds the enums, constants, group identity, and severity rules:
 
 ```python
 class ContradictionCause(StrEnum):
@@ -71,42 +72,38 @@ class Severity(StrEnum):
     HIGH = "high"
 
 
-@dataclass(frozen=True, slots=True)
-class GroundedQuote:
-    evidence_id: str
-    quote: str
+SEVERITY_RULES_VERSION = "contradiction_severity_v1"
+GROUP_STATUS = "model_proposed_source_verified"
 
-
-@dataclass(frozen=True, slots=True)
-class ContradictionPosition:
-    stance: str                            # at most 300 characters
-    evidence_ids: tuple[str, ...]
-    quotes: tuple[GroundedQuote, ...]
-    publication_ids: tuple[str, ...]       # derived from evidence records, never model output
-
-
-@dataclass(frozen=True, slots=True)
-class ContradictionGroup:
-    id: str
-    topic: str
-    positions: tuple[ContradictionPosition, ...]   # 2 or 3
-    cause: ContradictionCause
-    cause_explanation: GroundedAssertion | None    # None only when cause is UNEXPLAINED
-    severity: Severity
-    severity_basis: tuple[str, ...]
-    severity_rules_version: str
-    dimension_ids: tuple[str, ...]                 # derived from the study matrix
-    status: str = "model_proposed_source_verified"
-    validation_notes: tuple[str, ...] = ()
+def contradiction_group_id(topic: str, positions: Sequence[Iterable[str]]) -> str: ...
+def assess_severity(cause, position_publication_ids, *, touches_answer,
+                    evidence_nature_by_publication) -> tuple[Severity, tuple[str, ...]]: ...
 ```
 
-`GroundedAssertion` holds text, evidence IDs, and quotes, matching the validated assertion dict.
-Constructors validate invariants (2–3 positions, non-empty text, explanation present unless
-unexplained) and raise `ValueError`.
+Groups travel through the pipeline as JSON-compatible dicts, like every other validated analysis
+record. There is no dataclass layer that no consumer needs. A validated group has this shape:
 
-Group ID: `"contradiction:" + sha256(topic_normalized + "\x1f" + "|".join(sorted(
-",".join(sorted(position.evidence_ids)) for position in positions)))[:20]`. The ID does not depend
-on position or evidence order.
+```json
+{
+  "id": "contradiction:<20 hex>",
+  "topic": "...",
+  "cause": "different_conditions",
+  "positions": [
+    {"stance": "...", "evidence_ids": ["e1"], "quotes": [{"evidence_id": "e1", "quote": "..."}],
+     "publication_ids": ["p1"]}
+  ],
+  "cause_explanation": {"id": "...", "text": "...", "evidence_ids": [], "quotes": [], "qualification": ""},
+  "status": "model_proposed_source_verified",
+  "validation_notes": []
+}
+```
+
+The review builder adds `severity`, `severity_basis`, `severity_rules_version`, `touches_answer`,
+`dimension_ids` (from the evidence records' `scope_dimension_ids`), and per-position `citations`.
+
+Group ID: `"contradiction:" + sha256(casefolded_whitespace_normalized_topic + "\x1f" + "|".join(sorted(
+",".join(sorted(position_evidence_ids)) for each position)))[:20]`. The ID does not depend on
+position or evidence order.
 
 `status` is explicitly not expert confirmation. It corresponds to `silver_source_verified` for
 extractive records.
@@ -116,15 +113,18 @@ extractive records.
 In `mistral_analysis.py`:
 
 - Add the required field `contradiction_groups`: an array with at most 3 items. Each item has
-  `topic` (at most 200 characters), `positions` (2–3 items, each with `stance`, `evidence_ids`
-  (max 3), and `quotes` (max 3)), `cause` (a JSON-schema enum of the five causes), and an optional
+  `topic` (at most 200 characters), `positions` (2–3 items, each `$ref: #/$defs/assertion`,
+  whose `text` is the stance), `cause` (a JSON-schema enum of the five causes), and an optional
   `cause_explanation` (`$ref: #/$defs/assertion`).
 - Keep `contradictions` for compatibility. The prompt restricts it to isolated apparent
   contradictions that do not fit a group.
 - The prompt instructs the model to prefer a context cause when quotes show differing conditions,
   populations, methods, or outcome measures, and to use `unexplained` only when no such difference
   is quotable.
-- Bump `schema_version` to `scientific_analysis_v2`. Consumers treat a missing
+- A missing or non-list `contradiction_groups` in model output is treated as an empty list, so
+  the other validated categories are never lost over this field.
+- Bump `schema_version` to `scientific_analysis_v2` and the prompt contract to
+  `scientific_analysis_prompt_v3`. Consumers treat a missing
   `contradiction_groups` field (v1 payloads and saved dashboards) as "no groups known", not as
   "no contradictions".
 - `unavailable_analysis` returns `contradiction_groups: []`.
@@ -139,12 +139,15 @@ and before any group reaches a report, dashboard, or memory. Each group is check
 Any failure rejects the entire group, and the reason is appended to `rejected_records` with
 category `contradiction_groups`. Groups are never partially repaired, with one exception (rule 5).
 
-1. Each position passes the existing `_assertion` checks (using `stance` as text).
-2. At least two valid positions remain.
+1. The model supplied at least two positions, and every position passes the existing `_assertion`
+   checks. One invalid position rejects the group; positions are never silently dropped.
+2. Every cited evidence record has a `publication_id`.
 3. Positions are disjoint: no evidence ID and no publication ID appears in two positions. A study
    cannot disagree with itself, so intra-study variation is not presented as cross-study conflict.
 4. If the cause is not `unexplained`, `cause_explanation` must pass `_assertion` and must quote
-   evidence from at least two different positions.
+   evidence from at least two different positions. Explanation quotes must occur in the source
+   passage but, unlike result assertions, need not occur in the selected statement: the reason
+   for a disagreement is usually in methods or conditions text around the result.
 5. If rule 4 fails, the group is downgraded to `unexplained` with no explanation, and a note is
    added to `validation_notes`. The disagreement itself is grounded; only its explanation is not.
    This is the only permitted repair.
@@ -169,21 +172,22 @@ returns `(Severity, basis)`. `SEVERITY_RULES_VERSION = "contradiction_severity_v
 
 2. Answer impact (+1): any group evidence ID appears in `answer.evidence_ids` or in a validated
    `claims` or `agreements` assertion.
-3. Imbalance (−1): the weakest position consists of one publication whose evidence nature is
-   `simulation or model`, `review`, `systematic review`, `literature review`, or `unclassified`,
-   while another position has at least two publications with primary empirical evidence
-   (`laboratory experiment`, `field or observational study`, `field study`, `observational`).
-   The exact label sets are constants in the domain module and are covered by tests.
+3. Imbalance (−1): some position consists of one publication whose study-matrix evidence nature
+   is not primary empirical, while another position has at least two primary empirical
+   publications. Primary empirical labels are exactly `laboratory experiment` and
+   `field or observational study` (the labels `study_matrix._evidence_nature` produces). Every other
+   label, including `review`, `simulation or model`, `techno-economic model`, publication types, and
+   a missing study card, counts as not primary empirical.
 4. Clamp to low…high.
 
 Each applied step adds one basis string.
 
-Answer consequence: if any high-severity group satisfies rule 2, set `contested = true` on the
-run's `answer_adequacy` (from `coverage.assess_answer_adequacy`), after analysis completes. Adequacy
-is computed before analysis and is an input to the analysis fingerprint, so this flag is added
-afterwards and never feeds back into that fingerprint. Also add the qualification "Studies disagree
-on <topic>; see the contradiction group." with a link to the group ID. A contradiction never
-withholds an answer.
+Answer consequence: the review report gets `answer_contest = {contested, group_ids,
+qualifications}`. `contested` is true when any high-severity group satisfies rule 2; each such group
+adds the qualification "Studies disagree on <topic>; see the contradiction group.". The dashboard's
+answer block shows it. It is computed in the review builder, not written into `answer_adequacy`,
+because adequacy is computed before analysis and is an input to the analysis fingerprint. A
+contradiction never withholds an answer.
 
 ## Persistence
 
