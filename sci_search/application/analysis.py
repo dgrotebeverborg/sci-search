@@ -12,9 +12,9 @@ from sci_search.research.model_evidence import (
     select_model_evidence,
 )
 
-PROMPT_CONTRACT_VERSION = "scientific_analysis_prompt_v2"
+PROMPT_CONTRACT_VERSION = "scientific_analysis_prompt_v3"
 VALIDATOR_VERSION = "exact_source_grounding_v2"
-SCHEMA_VERSION = "scientific_analysis_v1"
+SCHEMA_VERSION = "scientific_analysis_v2"
 
 
 @dataclass(frozen=True, slots=True)

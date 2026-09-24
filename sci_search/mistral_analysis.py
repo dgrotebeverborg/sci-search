@@ -13,6 +13,11 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from sci_search.domain.contradictions import (
+    GROUP_STATUS,
+    ContradictionCause,
+    contradiction_group_id,
+)
 from sci_search.research.model_evidence import EvidencePacket, select_model_evidence
 
 JsonCompletion = Callable[[dict[str, Any], dict[str, str]], dict[str, Any]]
@@ -33,6 +38,7 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
         "knowledge_gaps",
         "entities",
         "measurements",
+        "contradiction_groups",
     ],
     "properties": {
         "answer": {"$ref": "#/$defs/assertion"},
@@ -48,10 +54,31 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
         "uncertainties": {"type": "array", "maxItems": 2, "items": {"$ref": "#/$defs/assertion"}},
         "assumptions": {"type": "array", "maxItems": 2, "items": {"$ref": "#/$defs/assertion"}},
         "knowledge_gaps": {"type": "array", "maxItems": 2, "items": {"$ref": "#/$defs/assertion"}},
+        "contradiction_groups": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {"$ref": "#/$defs/contradiction_group"},
+        },
         "entities": {"type": "array", "maxItems": 12, "items": {"$ref": "#/$defs/entity"}},
         "measurements": {"type": "array", "maxItems": 12, "items": {"$ref": "#/$defs/measurement"}},
     },
     "$defs": {
+        "contradiction_group": {
+            "type": "object",
+            "required": ["topic", "positions", "cause"],
+            "additionalProperties": False,
+            "properties": {
+                "topic": {"type": "string", "maxLength": 200},
+                "positions": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 3,
+                    "items": {"$ref": "#/$defs/assertion"},
+                },
+                "cause": {"type": "string", "enum": [item.value for item in ContradictionCause]},
+                "cause_explanation": {"$ref": "#/$defs/assertion"},
+            },
+        },
         "assertion": {
             "type": "object",
             "required": ["text", "evidence_ids", "quotes"],
@@ -214,7 +241,7 @@ class MistralAnalyzer:
                 "status": "complete",
                 "provider": "mistral",
                 "model": self.model,
-                "schema_version": "scientific_analysis_v1",
+                "schema_version": "scientific_analysis_v2",
                 "method": "mistral_structured_evidence_analysis_v1",
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "usage": {
@@ -320,6 +347,11 @@ def validate_analysis(payload: Any, evidence: list[dict[str, Any]]) -> dict[str,
             if category in {"claims", "agreements"}:
                 answer_candidates.append(item)
         result[category] = validated
+    groups, group_rejections = validate_contradiction_groups(
+        payload.get("contradiction_groups"), by_id
+    )
+    result["contradiction_groups"] = groups
+    rejected.extend(group_rejections)
     result["claims"] = all_claims
     if result["answer"] is None:
         if not answer_candidates:
@@ -349,7 +381,7 @@ def unavailable_analysis(reason: str) -> dict[str, Any]:
         "status": "unavailable",
         "provider": None,
         "model": None,
-        "schema_version": "scientific_analysis_v1",
+        "schema_version": "scientific_analysis_v2",
         "method": "deterministic_extractive_fallback",
         "reason": reason,
         "answer": None,
@@ -361,6 +393,7 @@ def unavailable_analysis(reason: str) -> dict[str, Any]:
         "uncertainties": [],
         "assumptions": [],
         "knowledge_gaps": [],
+        "contradiction_groups": [],
         "entities": [],
         "measurements": [],
         "validation": {
@@ -404,7 +437,13 @@ def _validate_answer_responsiveness(question: str, analysis: dict[str, Any]) -> 
             raise ValueError("model answer does not compare multiple contextualized results")
 
 
-def _assertion(value: Any, evidence: dict[str, dict[str, Any]], category: str) -> dict[str, Any]:
+def _assertion(
+    value: Any,
+    evidence: dict[str, dict[str, Any]],
+    category: str,
+    *,
+    require_statement: bool = True,
+) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{category} assertion must be an object")
     text = " ".join(str(value.get("text") or "").split())
@@ -426,7 +465,7 @@ def _assertion(value: Any, evidence: dict[str, dict[str, Any]], category: str) -
         selected_statement = " ".join(str(source.get("statement") or passage).split())
         if evidence_id not in ids or len(source_quote) < 12 or source_quote not in passage:
             raise ValueError(f"{category} quote is not present in its source passage")
-        if source_quote not in selected_statement:
+        if require_statement and source_quote not in selected_statement:
             raise ValueError(f"{category} quote is outside the selected result statement")
         quoted_ids.add(evidence_id)
         validated_quotes.append({"evidence_id": evidence_id, "quote": source_quote})
@@ -442,6 +481,96 @@ def _assertion(value: Any, evidence: dict[str, dict[str, Any]], category: str) -
         "evidence_ids": list(ids),
         "quotes": validated_quotes,
         "qualification": " ".join(str(value.get("qualification") or "").split()),
+    }
+
+
+def validate_contradiction_groups(
+    values: Any, evidence: dict[str, dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    groups: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(values[:3] if isinstance(values, list) else []):
+        try:
+            group = _contradiction_group(item, evidence)
+        except ValueError as exc:
+            rejected.append(
+                {"category": "contradiction_groups", "index": index, "reason": str(exc)}
+            )
+            continue
+        if group["id"] not in seen:
+            seen.add(group["id"])
+            groups.append(group)
+    return groups, rejected
+
+
+def _contradiction_group(value: Any, evidence: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("contradiction group must be an object")
+    topic = " ".join(str(value.get("topic") or "").split())
+    if not topic:
+        raise ValueError("contradiction group requires a topic")
+    try:
+        cause = ContradictionCause(str(value.get("cause") or ""))
+    except ValueError:
+        raise ValueError("contradiction group has an unknown cause") from None
+    raw_positions = value.get("positions")
+    if not isinstance(raw_positions, list) or len(raw_positions) < 2:
+        raise ValueError("contradiction group requires at least two positions")
+    positions: list[dict[str, Any]] = []
+    seen_evidence: set[str] = set()
+    seen_publications: set[str] = set()
+    for raw in raw_positions[:3]:
+        position = _assertion(raw, evidence, "contradiction position")
+        publications = [
+            str(evidence[item].get("publication_id") or "") for item in position["evidence_ids"]
+        ]
+        if not all(publications):
+            raise ValueError("contradiction position evidence lacks a publication")
+        publication_ids = sorted(set(publications))
+        if seen_evidence & set(position["evidence_ids"]) or seen_publications & set(
+            publication_ids
+        ):
+            raise ValueError("contradiction positions must not share evidence or publications")
+        seen_evidence.update(position["evidence_ids"])
+        seen_publications.update(publication_ids)
+        positions.append(
+            {
+                "stance": position["text"],
+                "evidence_ids": position["evidence_ids"],
+                "quotes": position["quotes"],
+                "publication_ids": publication_ids,
+            }
+        )
+    explanation = None
+    notes: list[str] = []
+    if cause is not ContradictionCause.UNEXPLAINED:
+        try:
+            explanation = _assertion(
+                value.get("cause_explanation"),
+                evidence,
+                "contradiction explanation",
+                require_statement=False,
+            )
+            quoted = {
+                index
+                for index, position in enumerate(positions)
+                if set(position["evidence_ids"]) & set(explanation["evidence_ids"])
+            }
+            if len(quoted) < 2:
+                raise ValueError("cause explanation must quote at least two positions")
+        except ValueError as exc:
+            explanation = None
+            cause = ContradictionCause.UNEXPLAINED
+            notes.append(f"cause downgraded to unexplained: {exc}")
+    return {
+        "id": contradiction_group_id(topic, [item["evidence_ids"] for item in positions]),
+        "topic": topic,
+        "cause": cause.value,
+        "positions": positions,
+        "cause_explanation": explanation,
+        "status": GROUP_STATUS,
+        "validation_notes": notes,
     }
 
 
@@ -622,6 +751,12 @@ def _system_prompt() -> str:
         "cover the complete scope, state that the overall answer is not supported and describe only the bounded evidence. "
         "For temporal questions, separate observed change to date from future model projections, state the periods and scenarios, "
         "and never combine them into one empirical trend. Distinguish whole-region results from regional or elevation-zone results. "
+        "Group genuine cross-study disagreements in contradiction_groups: each group has a topic, two or three positions "
+        "citing different publications (one publication may appear in only one position), and a cause. Prefer "
+        "different_conditions, different_population, different_method, or different_outcome_measure when the passages show "
+        "such a difference, and support that cause with a cause_explanation quoting at least two positions; the explanation's "
+        "quotes may come from anywhere in the passage. Use unexplained only when no such difference is quotable. Use "
+        "contradictions only for apparent contradictions that do not fit a group. "
         "Extract entities only when their label appears in the exact quote. Extract measurements with metric, numeric value, unit, "
         "original_text, evidence_id, exact quote, and context (evidence_nature, method, scale, conditions, assumptions). Do not invent "
         "values, conditions, publications, or confidence scores. Obey every maxItems and maxLength in the schema: return at most three "

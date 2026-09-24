@@ -71,7 +71,7 @@ def test_provider_success_records_reproducibility_contract() -> None:
     assert result.model == "mistral-contract-test"
     assert result.packet_policy == "diverse_model_evidence_v1"
     assert result.prompt_contract
-    assert result.schema_version == "scientific_analysis_v1"
+    assert result.schema_version == "scientific_analysis_v2"
     assert result.validator_version
     assert result.usage["total_tokens"] == 120
     assert result.analysis["answer"]["evidence_ids"] == ["e1"]
