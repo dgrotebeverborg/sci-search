@@ -489,7 +489,7 @@ def validate_contradiction_groups(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     groups: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    seen: dict[str, str] = {}
     for index, item in enumerate(values[:3] if isinstance(values, list) else []):
         try:
             group = _contradiction_group(item, evidence)
@@ -498,9 +498,19 @@ def validate_contradiction_groups(
                 {"category": "contradiction_groups", "index": index, "reason": str(exc)}
             )
             continue
-        if group["id"] not in seen:
-            seen.add(group["id"])
-            groups.append(group)
+        # A rephrased topic over the same positions is the same disagreement.
+        membership = contradiction_group_id("", [p["evidence_ids"] for p in group["positions"]])
+        if membership in seen:
+            rejected.append(
+                {
+                    "category": "contradiction_groups",
+                    "index": index,
+                    "reason": f"duplicate of {seen[membership]}",
+                }
+            )
+            continue
+        seen[membership] = group["id"]
+        groups.append(group)
     return groups, rejected
 
 

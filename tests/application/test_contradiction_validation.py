@@ -196,3 +196,12 @@ def test_schema_and_fallback_declare_groups() -> None:
         "unexplained",
     }
     assert unavailable_analysis("x")["contradiction_groups"] == []
+
+
+def test_rephrased_duplicate_with_same_positions_is_rejected() -> None:
+    groups, rejected = validate_contradiction_groups(
+        [_group(), _group(topic="Effect of salinity on germination")], _evidence()
+    )
+    assert [group["topic"] for group in groups] == ["Salinity effect on germination"]
+    assert rejected[0]["category"] == "contradiction_groups"
+    assert rejected[0]["reason"] == f"duplicate of {groups[0]['id']}"
