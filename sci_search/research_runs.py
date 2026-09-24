@@ -1380,7 +1380,7 @@ class ResearchRunManager:
                 {
                     "question": question,
                     "model": model,
-                    "analysis_contract": "scientific_analysis_v3_comparison_responsiveness",
+                    "analysis_contract": "scientific_analysis_v5_contradiction_groups",
                     "evidence": [
                         (item.get("id"), item.get("passage"))
                         for item in evidence

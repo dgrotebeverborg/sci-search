@@ -1,4 +1,6 @@
-"""A stubbed Mistral contradiction group must survive the real research pipeline end to end."""
+"""A stubbed Mistral contradiction group must survive the real research pipeline end to end.
+
+Dashboard rendering of the same groups is covered by the dashboard tests."""
 
 from __future__ import annotations
 
@@ -6,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sci_search.dashboard import build_dashboard
 from sci_search.discovery import PublicationCandidate, SearchQuery
 from sci_search.fulltext_acquisition import AcquisitionOutcome
 from sci_search.mistral_analysis import MistralAnalyzer
@@ -97,7 +98,7 @@ def complete_json(body: dict[str, Any], headers: dict[str, str]) -> dict[str, An
     return {"choices": [{"message": {"content": json.dumps(payload)}}], "usage": {}}
 
 
-def test_stubbed_group_reaches_review_dashboard_and_memory(tmp_path: Path) -> None:
+def test_stubbed_group_reaches_review_and_memory(tmp_path: Path) -> None:
     memory = ScientificMemory(tmp_path / "memory")
     manager = ResearchRunManager(
         tmp_path / "runs",
@@ -131,12 +132,6 @@ def test_stubbed_group_reaches_review_dashboard_and_memory(tmp_path: Path) -> No
     assert reviewed["id"] == group["id"]
     assert reviewed["severity"] == "high"
     assert reviewed["touches_answer"] is True
-
-    blocks = {
-        block["id"]: block
-        for block in build_dashboard(result, run_id=run["run_id"], revision=1)["blocks"]
-    }
-    assert blocks["comparisons"]["data"]["contradiction_groups"][0]["id"] == group["id"]
 
     snapshot = memory.graph_snapshot(limit=5000)
     assert group["id"] in {
