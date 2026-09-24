@@ -591,6 +591,23 @@ class ScientificMemory:
                     {"quote_validated": True},
                 )
                 self._edge(connection, f"run:{run_id}", "EXTRACTED_MEASUREMENT", measurement_id, {})
+            for group in ai.get("contradiction_groups", []) if isinstance(ai, dict) else []:
+                if not isinstance(group, dict) or not group.get("id"):
+                    continue
+                group_id = str(group["id"])
+                self._node(connection, group_id, "ContradictionGroup", group_id, group)
+                for index, position in enumerate(group.get("positions", [])):
+                    if not isinstance(position, dict):
+                        continue
+                    for evidence_id in position.get("evidence_ids", []):
+                        self._edge(
+                            connection,
+                            group_id,
+                            "POSITION_SUPPORTED_BY",
+                            str(evidence_id),
+                            {"position": index},
+                        )
+                self._edge(connection, f"run:{run_id}", "PRODUCED_CONTRADICTION", group_id, {})
             connection.commit()
         return {
             "publications_added": added_publications,

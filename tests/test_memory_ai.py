@@ -145,6 +145,55 @@ class ScientificMemoryTests(unittest.TestCase):
             self.assertTrue(cached["cache_hit"])
             self.assertEqual(memory.stats()["analyses"], 1)
 
+    def test_validated_contradiction_groups_become_graph_nodes(self) -> None:
+        corpus = ROOT / "fixtures" / "iron_air_pilot"
+        report = (
+            GenericResearchEngine(load_corpus(corpus))
+            .investigate("What round-trip efficiency is reported?")
+            .to_dict()
+        )
+        first = report["evidence"][0]
+        other = next(
+            item for item in report["evidence"] if item["publication_id"] != first["publication_id"]
+        )
+        group = {
+            "id": "contradiction:test",
+            "topic": "Round-trip efficiency",
+            "cause": "unexplained",
+            "positions": [
+                {
+                    "stance": "A",
+                    "evidence_ids": [first["id"]],
+                    "quotes": [],
+                    "publication_ids": [first["publication_id"]],
+                },
+                {
+                    "stance": "B",
+                    "evidence_ids": [other["id"]],
+                    "quotes": [],
+                    "publication_ids": [other["publication_id"]],
+                },
+            ],
+            "cause_explanation": None,
+            "status": "model_proposed_source_verified",
+            "validation_notes": [],
+        }
+        report["ai_analysis"] = {"claims": [], "contradiction_groups": [group, "not-a-group"]}
+        report["research_run"] = {"candidates": [], "review_decisions": {}}
+        with tempfile.TemporaryDirectory() as temporary:
+            memory = ScientificMemory(Path(temporary) / "memory")
+            memory.ingest_run("run-c", "Question", corpus, report)
+            snapshot = memory.graph_snapshot(limit=5000)
+        nodes = [n for n in snapshot["nodes"] if n["type"] == "ContradictionGroup"]
+        self.assertEqual([n["id"] for n in nodes], ["contradiction:test"])
+        edges = {
+            (e["source"], e["relation"], e["target"]): e["properties"] for e in snapshot["edges"]
+        }
+        self.assertIn(("run:run-c", "PRODUCED_CONTRADICTION", "contradiction:test"), edges)
+        self.assertEqual(
+            edges[("contradiction:test", "POSITION_SUPPORTED_BY", other["id"])], {"position": 1}
+        )
+
     def test_silver_evidence_lifecycle_is_persistent_and_auditable(self) -> None:
         corpus = ROOT / "fixtures" / "iron_air_pilot"
         documents = load_corpus(corpus)
