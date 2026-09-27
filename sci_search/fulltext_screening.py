@@ -231,7 +231,7 @@ def screen_acquired_documents(
             researcher_decision=overrides.get(candidate.id),
         )
         decisions.append(decision.to_dict())
-        if decision.decision in {"included", "background"}:
+        if decision.decision == "included":
             active.append((candidate, outcome))
     return active, decisions
 

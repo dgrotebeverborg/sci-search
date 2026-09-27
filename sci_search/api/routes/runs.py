@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -12,7 +13,7 @@ from sci_search.api.dependencies import (
     require_principal,
     research_service,
 )
-from sci_search.api.schemas import RunCreate, RunResponse
+from sci_search.api.schemas import QuestionInterpretationCreate, RunCreate, RunResponse
 from sci_search.application.research_api import ResearchApiService, ResearchRunRecord
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/runs", tags=["research runs"])
@@ -34,6 +35,19 @@ def _response(run: ResearchRunRecord) -> RunResponse:
     )
 
 
+@router.post("/interpret")
+def interpret_question(
+    request: Request,
+    project_id: str,
+    body: QuestionInterpretationCreate,
+    principal: CsrfPrincipal,
+    service: ResearchService,
+) -> dict:
+    if request.app.state.api_settings.workspace_preview:
+        raise HTTPException(status_code=503, detail="Research is disabled in workspace preview.")
+    return service.interpret_question(principal.user_id, project_id, body.question)
+
+
 @router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
 def start_run(
     request: Request,
@@ -53,6 +67,7 @@ def start_run(
             principal.user_id,
             project_id,
             question=body.question,
+            question_brief=asdict(body.question_brief) if body.question_brief else None,
             review_depth=body.review_depth,
             idempotency_key=body.idempotency_key,
         )

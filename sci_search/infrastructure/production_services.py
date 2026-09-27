@@ -14,7 +14,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pypdf import PdfReader
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from sci_search.application.authorization import (
     Action,
@@ -211,6 +211,13 @@ class DatabaseResearchApiService(ResearchApiService):
         self._clock = clock
         self._maximum_upload_bytes = maximum_upload_bytes
 
+    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict:
+        from sci_search.question_interpretation import interpret_question
+
+        with self._database.transaction() as session:
+            self._require(session, Action.MANAGE_RUNS, user_id, project_id)
+        return interpret_question(question)
+
     def start_run(
         self,
         user_id: str,
@@ -219,6 +226,7 @@ class DatabaseResearchApiService(ResearchApiService):
         question: str,
         review_depth: str,
         idempotency_key: str,
+        question_brief: dict | None = None,
     ) -> ResearchRunRecord:
         from sci_search.infrastructure.jobs import SqlJobRepository
 
@@ -232,6 +240,7 @@ class DatabaseResearchApiService(ResearchApiService):
                 first_stage="research",
                 input_payload={
                     "question": question,
+                    "question_brief": question_brief,
                     "review_depth": review_depth,
                     "project_id": project_id,
                 },
@@ -274,6 +283,296 @@ class DatabaseResearchApiService(ResearchApiService):
             self._require(session, Action.READ, user_id, project_id)
             row, job = self._run_and_job(session, project_id, run_id)
             return self._run_record(row, job)
+
+    def list_runs(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        query: str = "",
+        cursor: str | None = None,
+        limit: int = 30,
+    ) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        with self._database.transaction() as session:
+            self._require(session, Action.READ, user_id, project_id)
+            statement = select(ResearchRunRow).where(ResearchRunRow.project_id == UUID(project_id))
+            if query:
+                statement = statement.where(
+                    ResearchRunRow.question.icontains(query, autoescape=True)
+                )
+            if not 1 <= limit <= 100:
+                raise ValueError("invalid pagination")
+            if cursor:
+                try:
+                    boundary = base64.urlsafe_b64decode(cursor.encode()).decode()
+                    timestamp, identifier = boundary.rsplit("|", 1)
+                    created_at = datetime.fromisoformat(timestamp)
+                    boundary_id = UUID(identifier)
+                except (ValueError, UnicodeError, binascii.Error) as error:
+                    raise ValueError("invalid pagination cursor") from error
+                statement = statement.where(
+                    or_(
+                        ResearchRunRow.created_at < created_at,
+                        (ResearchRunRow.created_at == created_at)
+                        & (ResearchRunRow.id < boundary_id),
+                    )
+                )
+            rows = list(
+                session.scalars(
+                    statement.order_by(
+                        ResearchRunRow.created_at.desc(), ResearchRunRow.id.desc()
+                    ).limit(limit + 1)
+                )
+            )
+            items = []
+            for row in rows[:limit]:
+                record = asdict(
+                    self._run_record(*self._run_and_job(session, project_id, str(row.id)))
+                )
+                record["created_at"] = record["created_at"].isoformat()
+                record["updated_at"] = record["updated_at"].isoformat()
+                record["run_id"] = str(row.id)
+                items.append(record)
+            return {
+                "items": items,
+                "next_cursor": base64.urlsafe_b64encode(
+                    f"{rows[limit - 1].created_at.isoformat()}|{rows[limit - 1].id}".encode()
+                ).decode()
+                if len(rows) > limit
+                else None,
+            }
+
+    def get_dashboard(
+        self, user_id: str, project_id: str, run_id: str, *, revision: int | None = None
+    ) -> dict[str, Any]:
+        from copy import deepcopy
+
+        from sci_search.infrastructure.dashboard_repository import DashboardRepository
+        from sci_search.infrastructure.feedback_repository import FeedbackRepository
+
+        with self._database.transaction() as session:
+            self._require(session, Action.READ, user_id, project_id)
+            repo = DashboardRepository(session)
+            try:
+                row = repo.get(project_id, run_id, revision)
+            except ResourceNotFound:
+                if revision not in (None, 1):
+                    raise
+                run, _job = self._run_and_job(session, project_id, run_id)
+                artifact = session.scalar(
+                    select(ArtifactRow)
+                    .where(
+                        ArtifactRow.project_id == UUID(project_id),
+                        ArtifactRow.run_id == UUID(run_id),
+                        ArtifactRow.kind == "research-run.json",
+                    )
+                    .order_by(ArtifactRow.created_at.desc())
+                    .limit(1)
+                )
+                if artifact is None:
+                    raise
+                import json
+
+                from sci_search.dashboard import build_dashboard
+
+                with self._blobs.open(artifact.blob_key) as stream:
+                    state = json.load(stream)
+                result = state.get("result")
+                if not isinstance(result, dict):
+                    raise ResourceNotFound from None
+                recovered = build_dashboard(result, run_id=run_id, revision=1)
+                recovered.update(
+                    project_id=project_id,
+                    question=run.question,
+                    artifacts=[],
+                    documents={},
+                    candidate_ids=[str(c["id"]) for c in state.get("candidates", [])],
+                    rebuild_available=False,
+                )
+                for item in session.scalars(
+                    select(ArtifactRow).where(
+                        ArtifactRow.project_id == UUID(project_id),
+                        ArtifactRow.run_id == UUID(run_id),
+                    )
+                ):
+                    filename, content_type = _artifact_metadata(item.kind, item.id)
+                    recovered["artifacts"].append(
+                        {
+                            "id": str(item.id),
+                            "filename": filename,
+                            "content_type": content_type,
+                            "url": f"/api/v1/projects/{project_id}/exports/{item.id}",
+                        }
+                    )
+                repo.publish(
+                    project_id, run_id, recovered, feedback_sequence=0, created_at=self._clock()
+                )
+                row = repo.get(project_id, run_id, 1)
+            snapshot = deepcopy(row.snapshot_json)
+            snapshot.pop("source_archive_key", None)
+            snapshot.pop("internal_run_id", None)
+            run = repo.lock_run(project_id, run_id)
+            sequence = repo.sequence(run_id)
+            status = "idle"
+            job_id = run.configuration_json.get("rebuild_job_id")
+            if job_id:
+                job = session.get(JobRow, UUID(str(job_id)))
+                if job and job.status != "completed":
+                    status = job.status
+            role = DatabaseProjectService(self._database, clock=self._clock).role_for_user(
+                user_id, project_id
+            )
+            snapshot.update(
+                project_id=project_id,
+                feedback_sequence=sequence,
+                applied_feedback_sequence=row.feedback_sequence,
+                current_revision=run.configuration_json.get("dashboard_revision", row.revision),
+                rebuild_status=status,
+                effective_decisions=FeedbackRepository(session).effective(
+                    run_id, sequence if revision is None else row.feedback_sequence
+                ),
+                role=role.value,
+            )
+            if revision is None:
+                source_records = next(
+                    (
+                        block.get("data", [])
+                        for block in snapshot.get("blocks", [])
+                        if block.get("id") == "evidence"
+                    ),
+                    [],
+                )
+                expected = {
+                    (
+                        str(item.get("id") or ""),
+                        str(item.get("publication_id") or ""),
+                        str(item.get("statement") or ""),
+                        str(item.get("passage") or ""),
+                    )
+                    for item in source_records
+                    if isinstance(item, dict) and item.get("id")
+                }
+                reviews = {}
+                for evidence in session.scalars(
+                    select(EvidenceRow).where(
+                        EvidenceRow.project_id == UUID(project_id),
+                        EvidenceRow.run_id == UUID(run_id),
+                    )
+                ):
+                    identity = (
+                        str(evidence.context_json.get("id") or ""),
+                        str(evidence.context_json.get("publication_id") or ""),
+                        evidence.statement,
+                        evidence.source_passage,
+                    )
+                    if identity not in expected:
+                        continue
+                    reviewed = self._evidence_record(session, evidence)
+                    reviews[identity[0]] = {
+                        "id": reviewed.id,
+                        "version": reviewed.version,
+                        "review_decision": reviewed.review_decision,
+                        "review_note": reviewed.review_note,
+                    }
+                snapshot["evidence_reviews"] = reviews
+            return snapshot
+
+    def list_revisions(self, user_id: str, project_id: str, run_id: str) -> dict[str, Any]:
+        from sci_search.infrastructure.tables import DashboardRevisionRow
+
+        with self._database.transaction() as session:
+            self._require(session, Action.READ, user_id, project_id)
+            self._run_and_job(session, project_id, run_id)
+            rows = session.scalars(
+                select(DashboardRevisionRow)
+                .where(
+                    DashboardRevisionRow.project_id == UUID(project_id),
+                    DashboardRevisionRow.run_id == UUID(run_id),
+                )
+                .order_by(DashboardRevisionRow.revision.desc())
+            )
+            return {
+                "items": [
+                    {
+                        "revision": row.revision,
+                        "feedback_sequence": row.feedback_sequence,
+                        "created_at": row.created_at.isoformat(),
+                    }
+                    for row in rows
+                ]
+            }
+
+    def record_article_feedback(
+        self,
+        user_id: str,
+        project_id: str,
+        run_id: str,
+        publication_id: str,
+        *,
+        decision: str,
+        reason: str,
+        expected_sequence: int,
+        idempotency_key: str,
+        reviewed_revision: int | None = None,
+    ) -> dict[str, Any]:
+        from sci_search.infrastructure.dashboard_repository import DashboardRepository
+        from sci_search.infrastructure.feedback_repository import FeedbackRepository
+        from sci_search.infrastructure.jobs import SqlJobRepository
+
+        with self._database.transaction() as session:
+            self._require(session, Action.REVIEW, user_id, project_id)
+            repo = DashboardRepository(session)
+            run = repo.lock_run(project_id, run_id)
+            snapshot = repo.get(project_id, run_id).snapshot_json
+            if snapshot.get("rebuild_available") is False:
+                raise ValueError("This older run has no retained source ledger for rebuilding.")
+            if publication_id not in snapshot.get("candidate_ids", []):
+                raise ResourceNotFound
+            event = FeedbackRepository(session).append(
+                project_id,
+                run_id,
+                user_id,
+                publication_id,
+                decision=decision,
+                reason=reason,
+                expected_sequence=expected_sequence,
+                idempotency_key=idempotency_key,
+                created_at=self._clock(),
+                reviewed_revision=reviewed_revision,
+            )
+            job = SqlJobRepository(session).create(
+                project_id,
+                created_by_user_id=user_id,
+                idempotency_key=f"rebuild:{run_id}:{event.sequence}",
+                first_stage="dashboard_rebuild",
+                input_payload={
+                    "project_id": project_id,
+                    "run_id": run_id,
+                    "feedback_sequence": event.sequence,
+                },
+                created_at=self._clock(),
+            )
+            if event.sequence == repo.sequence(run_id):
+                run.configuration_json = {**run.configuration_json, "rebuild_job_id": job.id}
+            sequence = event.sequence
+        self._queue.enqueue(job.id, job.current_stage)
+        return {"feedback_sequence": sequence, "rebuild_status": job.status.value}
+
+    def retry_rebuild(self, user_id: str, project_id: str, run_id: str) -> dict[str, Any]:
+        from sci_search.infrastructure.dashboard_repository import DashboardRepository
+        from sci_search.infrastructure.jobs import SqlJobRepository
+
+        with self._database.transaction() as session:
+            self._require(session, Action.REVIEW, user_id, project_id)
+            run = DashboardRepository(session).lock_run(project_id, run_id)
+            job_id = str(run.configuration_json.get("rebuild_job_id") or "")
+            if not job_id:
+                raise ResourceNotFound
+            job = SqlJobRepository(session).retry_failed(job_id, now=self._clock())
+        self._queue.enqueue(job.id, job.current_stage)
+        return {"rebuild_status": job.status.value}
 
     def cancel_run(self, user_id: str, project_id: str, run_id: str) -> ResearchRunRecord:
         from sci_search.infrastructure.jobs import SqlJobRepository
@@ -407,6 +706,41 @@ class DatabaseResearchApiService(ResearchApiService):
     ) -> EvidenceRecord:
         with self._database.transaction() as session:
             self._require(session, Action.REVIEW, user_id, project_id)
+            candidate = session.scalar(
+                select(EvidenceRow).where(
+                    EvidenceRow.project_id == UUID(project_id), EvidenceRow.id == UUID(evidence_id)
+                )
+            )
+            if candidate is None:
+                raise ResourceNotFound
+            if candidate.run_id is not None:
+                from sci_search.infrastructure.dashboard_repository import DashboardRepository
+
+                dashboards = DashboardRepository(session)
+                dashboards.lock_run(project_id, str(candidate.run_id))
+                try:
+                    snapshot = dashboards.get(project_id, str(candidate.run_id)).snapshot_json
+                except ResourceNotFound:
+                    snapshot = None
+                if snapshot is not None:
+                    source_records = next(
+                        (
+                            block.get("data", [])
+                            for block in snapshot.get("blocks", [])
+                            if block.get("id") == "evidence"
+                        ),
+                        [],
+                    )
+                    if not any(
+                        isinstance(item, dict)
+                        and item.get("id") == candidate.context_json.get("id")
+                        and item.get("publication_id")
+                        == candidate.context_json.get("publication_id")
+                        and item.get("statement") == candidate.statement
+                        and item.get("passage") == candidate.source_passage
+                        for item in source_records
+                    ):
+                        raise ResourceVersionConflict
             accepted = SqlResearchRepository(session).try_review(
                 project_id,
                 evidence_id,
@@ -425,8 +759,6 @@ class DatabaseResearchApiService(ResearchApiService):
                 )
             )
             if row is None:
-                from sci_search.application.authorization import ResourceNotFound
-
                 raise ResourceNotFound
             return self._evidence_record(session, row)
 

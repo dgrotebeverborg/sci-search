@@ -11,6 +11,7 @@ import dramatiq
 from botocore.config import Config
 from dramatiq.brokers.redis import RedisBroker
 
+from sci_search.infrastructure.dashboard_rebuild import ProductionDashboardRebuildStage
 from sci_search.infrastructure.database import Database
 from sci_search.infrastructure.queue import RedisJobQueue
 from sci_search.infrastructure.research_execution import ProductionResearchStage
@@ -38,7 +39,10 @@ queue = RedisJobQueue(broker)
 worker = Worker(
     database,
     queue,
-    {"research": ProductionResearchStage(database, blobs)},
+    {
+        "research": ProductionResearchStage(database, blobs),
+        "dashboard_rebuild": ProductionDashboardRebuildStage(database, blobs),
+    },
     worker_id=f"{socket.gethostname()}:{os.getpid()}",
 )
 execute_job = register_worker_actor(broker, worker)

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+import zipfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from io import BytesIO
@@ -26,7 +27,9 @@ from sci_search.worker import StageInvocation, StageWork
 
 
 class RunManager(Protocol):
-    def run_sync(self, question: str, *, limits: ResearchLimits) -> dict[str, Any]: ...
+    def run_sync(
+        self, question: str, *, limits: ResearchLimits, question_brief: dict | None = None
+    ) -> dict[str, Any]: ...
 
     def download_literature_review(self, run_id: str, output_format: str = "html") -> Any: ...
 
@@ -62,7 +65,18 @@ class ProductionResearchStage:
         with tempfile.TemporaryDirectory(prefix="sci-search-research-") as temporary_name:
             root = Path(temporary_name)
             manager = self._manager_factory(root)
-            state = manager.run_sync(question, limits=_limits(review_depth))
+            memory = None
+            if isinstance(manager, ResearchRunManager):
+                from sci_search.infrastructure.sql_memory import memory_for_project
+
+                memory = memory_for_project(root, project_id, run_id, self._database, self._blobs)
+                manager.memory = memory
+            brief = inputs.get("question_brief")
+            state = manager.run_sync(
+                question,
+                limits=_limits(review_depth),
+                **({"question_brief": brief} if isinstance(brief, dict) else {}),
+            )
             invocation.cancellation.raise_if_requested()
             if state.get("status") != "complete" or not isinstance(state.get("result"), dict):
                 raise RuntimeError("scientific research pipeline did not complete")
@@ -82,6 +96,11 @@ class ProductionResearchStage:
                 manager,
                 internal_run_id,
             )
+            revision = self.publish_dashboard(
+                project_id, run_id, state, root, internal_run_id, artifacts, feedback_sequence=0
+            )
+            if memory is not None and revision is not None:
+                self.publish_memory(memory, run_id, revision)
         return StageWork(
             output={**counts, "artifact_ids": artifacts},
             next_stage="complete",
@@ -91,6 +110,25 @@ class ProductionResearchStage:
             implementation_version="production-research-v1",
             complete=True,
         )
+
+    def publish_memory(self, memory: Any, run_id: str, revision: int) -> None:
+        """A failed projection remains retryable without hiding a saved dashboard."""
+        from sci_search.infrastructure.memory_tables import MemoryCheckpointRow
+
+        try:
+            memory.publish_pending(revision=revision, published_run_id=run_id)
+        except Exception as error:
+            with self._database.transaction() as session:
+                session.merge(
+                    MemoryCheckpointRow(
+                        project_id=UUID(memory.context.project_id),
+                        run_id=run_id,
+                        revision=revision,
+                        projection_version=memory.schema_version,
+                        status="pending",
+                        error=type(error).__name__,
+                    )
+                )
 
     def _publish_corpus(
         self,
@@ -214,6 +252,7 @@ class ProductionResearchStage:
         state: dict[str, Any],
         manager: RunManager,
         internal_run_id: str,
+        feedback_sequence: int = 0,
     ) -> list[str]:
         payloads = [
             (
@@ -230,7 +269,7 @@ class ProductionResearchStage:
                 ("complete-research-package.zip", str(package.content_type), bytes(package.body)),
             ]
         )
-        fingerprint = hashlib.sha256(question.encode()).hexdigest()
+        fingerprint = hashlib.sha256(f"{question}:{feedback_sequence}".encode()).hexdigest()
         artifact_ids: list[str] = []
         for kind, content_type, body in payloads:
             expected_digest = hashlib.sha256(body).hexdigest()
@@ -265,8 +304,115 @@ class ProductionResearchStage:
                 artifact_ids.append(str(existing))
         return artifact_ids
 
+    def publish_dashboard(
+        self,
+        project_id: str,
+        run_id: str,
+        state: dict[str, Any],
+        root: Path,
+        internal_run_id: str,
+        artifacts: list[str],
+        *,
+        feedback_sequence: int,
+    ) -> int | None:
+        from sci_search.dashboard import build_dashboard
+        from sci_search.infrastructure.dashboard_repository import DashboardRepository
 
-def _manager(root: Path) -> ResearchRunManager:
+        archive = BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as target:
+            for path in sorted((root / internal_run_id).rglob("*")):
+                if path.is_file() and not path.is_symlink():
+                    target.write(path, str(path.relative_to(root)))
+        body = archive.getvalue()
+        digest = hashlib.sha256(body).hexdigest()
+        with self._database.transaction() as session:
+            lock_blob_key(session, content_addressed_key(digest))
+            blob = self._blobs.put(
+                BytesIO(body),
+                max(1, len(body)),
+                content_type="application/zip",
+                expected_sha256=digest,
+            )
+            snapshot = build_dashboard(state["result"], run_id=run_id, revision=1)
+            snapshot.update(
+                candidate_ids=[str(c["id"]) for c in state.get("candidates", [])],
+                source_archive_key=blob.key,
+                internal_run_id=internal_run_id,
+                artifacts=[],
+                documents={},
+            )
+            manifest = json.loads((root / internal_run_id / "corpus" / "manifest.json").read_text())
+            from sci_search.infrastructure.tables import (
+                PublicationDocumentRow,
+                PublicationRow,
+                RunDocumentRow,
+            )
+
+            for record in manifest.get("documents", []):
+                canonical = str(record.get("doi") or record.get("id") or "").strip().casefold()
+                document_id = session.scalar(
+                    select(PublicationDocumentRow.document_id)
+                    .join(
+                        PublicationRow, PublicationRow.id == PublicationDocumentRow.publication_id
+                    )
+                    .join(
+                        RunDocumentRow,
+                        RunDocumentRow.document_id == PublicationDocumentRow.document_id,
+                    )
+                    .where(
+                        PublicationRow.canonical_key == canonical,
+                        RunDocumentRow.run_id == UUID(run_id),
+                    )
+                    .limit(1)
+                )
+                if document_id:
+                    snapshot["documents"][str(record["id"])] = {
+                        "url": f"/api/v1/projects/{project_id}/documents/{document_id}",
+                        "title": str(record.get("title") or record["id"]),
+                    }
+            for identifier in artifacts:
+                row = session.get(ArtifactRow, UUID(identifier))
+                if row:
+                    from sci_search.infrastructure.production_services import _artifact_metadata
+
+                    filename, content_type = _artifact_metadata(row.kind, row.id)
+                    snapshot["artifacts"].append(
+                        {
+                            "id": identifier,
+                            "filename": filename,
+                            "content_type": content_type,
+                            "url": f"/api/v1/projects/{project_id}/exports/{identifier}",
+                        }
+                    )
+            # Archive remains an artifact so storage GC tracks its durable reference.
+            existing = session.scalar(
+                select(ArtifactRow.id).where(
+                    ArtifactRow.run_id == UUID(run_id),
+                    ArtifactRow.kind == "retained-source-archive",
+                    ArtifactRow.input_fingerprint == digest,
+                )
+            )
+            if existing is None:
+                SqlResearchRepository(session).add_artifact(
+                    project_id,
+                    run_id=run_id,
+                    kind="retained-source-archive",
+                    blob_key=blob.key,
+                    input_fingerprint=digest,
+                    generator_version="dashboard-v1",
+                    created_at=_run_timestamp(),
+                )
+            revision = DashboardRepository(session).publish(
+                project_id,
+                run_id,
+                snapshot,
+                feedback_sequence=feedback_sequence,
+                created_at=_run_timestamp(),
+            )
+        return revision
+
+
+def _manager(root: Path, *, memory: Any = None) -> ResearchRunManager:
     api_key = os.environ.get("OPENALEX_API_KEY", "").strip()
     mistral_key = os.environ.get("MISTRAL_API_KEY", "").strip()
     providers: tuple[Any, ...]
@@ -276,6 +422,7 @@ def _manager(root: Path) -> ResearchRunManager:
         providers = (EuropePmcProvider(), CrossrefProvider())
     return ResearchRunManager(
         root,
+        memory=memory,
         providers=providers,
         openalex_api_key=api_key or "not-configured-provider-disabled",
         analyzer=MistralAnalyzer(mistral_key) if mistral_key else None,

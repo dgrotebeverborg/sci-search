@@ -912,6 +912,14 @@ class OnlineDiscoveryTests(unittest.TestCase):
                 state["run_id"], "publication:relevant", "exclude", "wrong population"
             )
             self.assertFalse(excluded["result"]["evidence"])
+            empty_package = manager.download_research_package(state["run_id"])
+            with zipfile.ZipFile(io.BytesIO(empty_package.body)) as archive:
+                self.assertEqual(
+                    json.loads(archive.read("data/publications-manifest.json"))[
+                        "publication_count"
+                    ],
+                    0,
+                )
             with self.assertRaises(KeyError):
                 manager.download_publication(state["run_id"], "publication:relevant")
             supplied = (

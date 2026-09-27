@@ -1,8 +1,22 @@
 import {request, setStatus} from './api.js';
-import {currentProject} from './projects.js';
+import {currentProject, onProjectChange} from './projects.js';
+import {openDashboard, refreshHistory, clearDashboard} from './history.js';
+import {loadEvidence} from './evidence.js';
+import {loadExports} from './exports.js';
+import {loadValidation} from './validation.js';
 
 let activeRun = null;
 let pollTimer = null;
+let questionBrief = null;
+let interpretationVersion = 0;
+
+function clearBrief() {
+  interpretationVersion += 1;
+  questionBrief = null;
+  document.getElementById("question-brief").hidden = true;
+}
+
+const projectRuns = new Map();
 
 export function currentRun() { return activeRun; }
 
@@ -14,8 +28,26 @@ export function configureRunPermissions(project) {
   document.getElementById('review-depth').disabled = !allowed;
 }
 
-function renderRun(run) {
+function renderRun(run, loadDashboard = true) {
+  const previousStatus = activeRun?.status;
+  const previousId = activeRun?.id;
   activeRun = run;
+  projectRuns.set(run.project_id, run);
+  if (run.id !== previousId || run.status !== previousStatus) {
+    if (run.status !== 'completed') {
+      loadEvidence(null);
+      loadExports(null);
+      loadValidation(null);
+    }
+  }
+  if (loadDashboard && run.status === 'completed' && (previousStatus !== 'completed' || previousId !== run.id)) {
+    const project = currentProject();
+    loadEvidence(project);
+    loadExports(project);
+    loadValidation(project);
+    openDashboard(project.id, run.id);
+    refreshHistory();
+  }
   document.getElementById('run-panel').hidden = false;
   document.getElementById('run-question').textContent = run.question;
   document.getElementById('run-status').textContent = run.status.replaceAll('_', ' ');
@@ -38,33 +70,104 @@ async function pollRun(delay = 1500) {
     try {
       const project = currentProject();
       if (!project) return;
-      renderRun(await request(`/api/v1/projects/${project.id}/runs/${activeRun.id}`));
+      const runId = activeRun.id;
+      const run = await request(`/api/v1/projects/${project.id}/runs/${runId}`);
+      if (currentProject()?.id !== project.id || activeRun?.id !== runId) return;
+      renderRun(run);
       pollRun(Math.min(delay * 1.5, 10000));
     } catch (error) { setStatus(error.message, 'error'); }
   }, delay);
 }
 
-export async function startRun(question, reviewDepth) {
+export function selectRun(run, {loadDashboard = false} = {}) {
+  clearTimeout(pollTimer);
+  renderRun(run, loadDashboard);
+  pollRun();
+}
+
+export async function startRun(question, reviewDepth, brief = null) {
   const project = currentProject();
   if (!project) throw new Error('Create or select a project first');
+  document.body.classList.remove('compose-open');
+  clearDashboard();
+  loadEvidence(null);
+  loadExports(null);
+  loadValidation(null);
   const run = await request(`/api/v1/projects/${project.id}/runs`, {
     method: 'POST',
-    body: {question, review_depth: reviewDepth, idempotency_key: crypto.randomUUID()},
+    body: {question, question_brief: brief, review_depth: reviewDepth, idempotency_key: crypto.randomUUID()},
   });
+  projectRuns.set(project.id, run);
+  if (currentProject()?.id !== project.id) return;
   renderRun(run);
-  setStatus('Review started. You can leave this page and return later.');
+  refreshHistory();
+  setStatus(document.getElementById('local-research-notice')
+    ? 'Review started. Your search is saved; real research can take several minutes.'
+    : 'Review started. Keep this tab open to follow progress.');
   pollRun();
 }
 
 export function initializeRuns() {
+  document.getElementById('new-search').onclick = () => {
+    document.body.classList.add('compose-open');
+    document.getElementById('research').scrollIntoView({block: 'start'});
+    document.getElementById('research-question').focus();
+  };
+  window.addEventListener('workspace-logout', () => { clearBrief(); clearTimeout(pollTimer); activeRun = null; });
+  onProjectChange((project) => {
+    clearBrief();
+    clearTimeout(pollTimer);
+    activeRun = null;
+    document.getElementById('run-panel').hidden = true;
+    const run = projectRuns.get(project?.id);
+    if (run) { renderRun(run); pollRun(); }
+  });
+  document.getElementById('research-question').addEventListener('input', clearBrief);
   document.getElementById('question-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
-      await startRun(
-        document.getElementById('research-question').value.trim(),
-        document.getElementById('review-depth').value,
-      );
+      const project = currentProject();
+      if (!project) throw new Error('Create or select a project first');
+      clearBrief();
+      const version = interpretationVersion;
+      setStatus('Interpreting your question…');
+      const brief = await request(`/api/v1/projects/${project.id}/runs/interpret`, {
+        method: 'POST', body: {question: document.getElementById('research-question').value.trim()},
+      });
+      if (version !== interpretationVersion || currentProject()?.id !== project.id) return;
+      questionBrief = brief;
+      document.getElementById('brief-question').textContent = brief.interpreted_question;
+      document.getElementById('brief-objective').textContent = brief.objective;
+      document.getElementById('brief-method').textContent = brief.provider
+        ? 'AI interpretation — check the scope and assumptions before approving.'
+        : 'Automatic research brief — AI interpretation is unavailable; check the scope before approving.';
+      const details = document.getElementById('brief-details');
+      details.replaceChildren();
+      for (const [label, values] of [
+        ['Evidence scope', brief.evidence_scope], ['Assumptions', brief.assumptions],
+        ['Exclusions', brief.exclusions], ['Clarification', brief.clarification_question ? [brief.clarification_question] : []],
+      ]) {
+        if (!values?.length) continue;
+        const heading = document.createElement('h3'); heading.textContent = label;
+        const list = document.createElement('ul');
+        for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); }
+        details.append(heading, list);
+      }
+      document.getElementById('approve-question').disabled = false;
+      document.getElementById('question-brief').hidden = false;
+      setStatus('Review the interpretation below. Research starts only when you approve.');
     } catch (error) { setStatus(error.message, 'error'); }
+  });
+  document.getElementById('approve-question').addEventListener('click', async () => {
+    if (!questionBrief) return;
+    const button = document.getElementById('approve-question');
+    button.disabled = true;
+    const brief = questionBrief;
+    try {
+      await startRun(brief.original_question, document.getElementById('review-depth').value, brief);
+      if (questionBrief === brief) clearBrief();
+    } catch (error) { setStatus(error.message, 'error'); }
+    finally { button.disabled = false; }
   });
   document.getElementById('cancel-run').addEventListener('click', async () => {
     const project = currentProject();

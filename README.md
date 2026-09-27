@@ -70,6 +70,43 @@ python3 -m sci_search.cli \
 
 The current eight-paper goat-foraging pilot bibliography is retained as a quality gate. In explicit **high-recall** mode, the frozen broad-question benchmark improved from 12.5% to 87.5% discovery recall and selected 75% of the bibliography, meeting its predefined 75% discovery target. The quick-pilot mode is faster but is not suitable when coverage matters. This small benchmark is not proof of systematic-review completeness in other domains.
 
+## Saved scientific dashboards
+
+Every submitted question appears in the left sidebar of its project. Select a question to reopen its
+complete dashboard: answer and adequacy, cited literature review, findings, comparisons, research
+landscape, studies, limitations, methods, evidence passages, validation, references, and downloads.
+Fresh and reopened results use the same renderer. A saved dashboard opens without another provider
+search or model call. Stable links preserve project, question, and optional revision selection.
+
+Article **Include**, **Background**, **Exclude**, and **Reset** controls save a contextual decision and
+schedule a rebuild from retained sources. Background papers provide context rather than direct
+support for conclusions. The previous complete dashboard remains visible while updating; a failed
+rebuild can be retried. Older revisions and their downloads remain available. Finding-level
+**Accept evidence / Reject evidence** is a separate review of an extracted claim, not article relevance.
+The landscape distinguishes all discovered publications from the included evidence population.
+
+The web runner now uses project-scoped scientific memory to reuse acquired full texts and validated
+analysis. Feedback is retained with its question and actor. Optional feedback-aware acquisition ranking
+is disabled by default until researcher-confirmed evaluation passes; storing more votes alone is not
+proof of better scientific answers. See [memory rollout and evaluation](docs/operations/research-memory-rollout.md).
+
+To recover an older local run into an explicitly selected project, first inspect a dry run (stop the
+local server during import so there is one catalog writer):
+
+```bash
+python scripts/import_saved_dashboards.py --source /path/to/old/run \
+  --local-root data/local_research_runs --project-id PROJECT_ID --dry-run
+```
+
+Remove `--dry-run` to import. Original files are preserved and repeat imports are idempotent. A missing
+result becomes an incomplete history entry. Production can reopen retained legacy result artifacts;
+article rebuilding is unavailable when the original source ledger was not retained.
+
+Back up the complete local research root, including `workspace.sqlite3`, objects, source run folders,
+and project memory. Production requires migrations through `0009_memory` plus a coordinated database
+and object-store backup. The plain `--unsafe-development` preview remains intentionally temporary;
+use `--local-research` for persistence.
+
 ## Current real-corpus result
 
 For the guiding RTE question, the pilot finds four reviewed contextual records spanning 40% to 82.9%:
@@ -107,6 +144,19 @@ python3 -m sci_search.cli \
 ```
 
 Open `http://127.0.0.1:8000` and choose **Continue with development account**. You can create and switch projects. The corpus argument supplies the initial project name; the preview does not load the corpus into a research service. A banner explains that changes are temporary, and **Start review** is disabled. Authenticated attempts to start a run through the preview API receive HTTP 503. Use the CLI examples for actual local research and report exports.
+
+For a persistent laptop research workspace with real online research and a development login:
+
+```bash
+python3 -m sci_search.cli --corpus demo/my_research serve \
+  --unsafe-development --local-research --host 127.0.0.1 --port 8010
+```
+
+Open `http://127.0.0.1:8010` (set `SCI_SEARCH_ALLOWED_ORIGINS` to that URL when using a non-default port).
+Questions run through the real literature pipeline, one at a time. Keep the tab open to follow progress;
+evidence and downloads appear when research finishes. Questions, projects, dashboard revisions, reports, acquired sources, and article feedback are retained under
+`data/local_research_runs`. Login sessions are renewed when you return; the workspace survives server restarts. Cancellation suppresses
+publication after the current research step finishes. This mode is loopback-only and cannot run in production.
 
 Without production configuration, `serve` requires `--unsafe-development`. That flag is restricted to loopback addresses and rejected in production. Production startup uses `SCI_SEARCH_ENVIRONMENT=production` and requires database, queue, object-storage, session, and institutional OIDC settings; provider credentials are also required for live discovery. Configure the settings and secret files in [compose.yml](compose.yml), then follow the [deployment runbook](docs/runbooks/DEPLOYMENT.md), including migrations, readiness checks, and worker startup. See the [API cutover guide](docs/operations/api-cutover.md) for current routes and the [retirement notice](docs/migration/LEGACY_RUNTIME_DEPRECATION.md) for retained CLI compatibility.
 

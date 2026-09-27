@@ -320,3 +320,25 @@ def test_editor_can_upload_parseable_authorized_pdf(research_api: tuple) -> None
     assert response.status_code == 201
     assert response.json()["filename"] == "paper.pdf"
     assert response.json()["content_type"] == "application/pdf"
+
+
+@pytest.mark.parametrize("role", list(ProjectRole))
+def test_interpretation_requires_run_permission_without_creating_run(
+    research_api, role, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(
+        "sci_search.question_interpretation.interpret_question",
+        lambda question: calls.append(question) or {"interpreted_question": question},
+    )
+    client, headers = _client_as(research_api, role.value)
+    base = f"/api/v1/projects/project-{role.value}/runs"
+    before = client.get(base).json()
+    response = client.post(
+        base + "/interpret", headers=headers, json={"question": "Energy prices?"}
+    )
+    allowed = role in {ProjectRole.OWNER, ProjectRole.EDITOR}
+    assert response.status_code == (200 if allowed else 404)
+    assert calls == (["Energy prices?"] if allowed else [])
+    assert client.get(base).json() == before
+    assert client.post(base + "/interpret", json={"question": "Energy prices?"}).status_code == 403

@@ -238,7 +238,7 @@ class ResearchRunManager:
         return DownloadPayload(filename, content_type, body)
 
     def download_publications(
-        self, run_id: str, publication_ids: list[str] | None = None
+        self, run_id: str, publication_ids: list[str] | None = None, *, allow_empty: bool = False
     ) -> DownloadPayload:
         state = self.get(run_id)
         if state.get("status") == "complete" and not state.get("full_text_screening"):
@@ -255,7 +255,7 @@ class ResearchRunManager:
             if missing:
                 raise KeyError(f"publication is not in the active evidence corpus: {missing[0]}")
             records = [item for item in records if str(item.get("id")) in requested]
-        if not records:
+        if not records and not allow_empty:
             raise ValueError("no acquired publications are available to download")
         buffer = io.BytesIO()
         bundle_records: list[dict[str, Any]] = []
@@ -367,7 +367,7 @@ class ResearchRunManager:
         if not state.get("full_text_screening"):
             self._rebuild_evidence(run_id)
             state = self.get(run_id)
-        publications = self.download_publications(run_id)
+        publications = self.download_publications(run_id, allow_empty=True)
         run_directory = self._run_directory(run_id)
         investigation = json.loads(
             (run_directory / "investigation.json").read_text(encoding="utf-8")
@@ -426,7 +426,7 @@ class ResearchRunManager:
                     b"SCI-SEARCH RESEARCH PACKAGE\n\n"
                     b"Start with literature-review.pdf. It contains the cited synthesis, methods, selection flow, "
                     b"research landscape, limitations, references, and exact evidence passages.\n\n"
-                    b"The publications/ directory contains every included or relevant-background full-text artifact in its "
+                    b"The publications/ directory contains every included full-text artifact in its "
                     b"best retained original format. This may be publisher PDF, JATS/XML, plain text, or an authorized "
                     b"researcher-supplied file. data/publications-manifest.json records the source and format of each file. "
                     b"data/full-text-screening.json retains all post-acquisition inclusion and exclusion decisions.\n\n"
@@ -921,6 +921,11 @@ class ResearchRunManager:
         screened = screen_candidates(merged, plan, limit=limits.max_selected)
         selected = [candidate for candidate in screened if candidate.screening_status == "selected"]
         selected = _prioritize_acquisition_candidates(selected, plan)
+        rank_with_feedback = getattr(self.memory, "rank_for_acquisition", None)
+        if rank_with_feedback is not None:
+            selected = list(rank_with_feedback(plan, tuple(selected)))
+            selected_by_id = {item.id: item for item in selected}
+            screened = tuple(selected_by_id.get(item.id, item) for item in screened)
         candidate_payload = dataclass_to_dict(screened)
         self._update(
             run_id,
@@ -1375,14 +1380,30 @@ class ResearchRunManager:
             if self.analyzer is not None
             else os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
         )
+        feedback_reader = getattr(self.memory, "feedback_events", None)
         fingerprint = hashlib.sha256(
             json.dumps(
                 {
                     "question": question,
                     "model": model,
                     "analysis_contract": "scientific_analysis_v5_contradiction_groups",
+                    "adequacy": adequacy,
+                    "feedback": (feedback_reader() if feedback_reader is not None else []),
                     "evidence": [
-                        (item.get("id"), item.get("passage"))
+                        tuple(
+                            item.get(field)
+                            for field in (
+                                "id",
+                                "passage",
+                                "statement",
+                                "document_sha256",
+                                "evidence_fingerprint",
+                                "schema_version",
+                                "validator_version",
+                                "validation_status",
+                                "review_state",
+                            )
+                        )
                         for item in evidence
                         if isinstance(item, dict)
                     ],

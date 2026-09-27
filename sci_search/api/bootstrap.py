@@ -44,14 +44,16 @@ from sci_search.infrastructure.settings import ProductionSettings
 _DEVELOPMENT_USER = "development-researcher"
 
 
-def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> FastAPI:
+def build_api_application(
+    corpus: Path, *, unsafe_development: bool = False, local_research_root: Path | None = None
+) -> FastAPI:
     """Build either the explicit workspace preview or the configured production application."""
 
     environment = os.environ.get("SCI_SEARCH_ENVIRONMENT", "development").strip().lower()
     if environment not in {"development", "test", "production"}:
         raise ValueError("SCI_SEARCH_ENVIRONMENT must be development, test, or production")
     if environment == "production":
-        if unsafe_development:
+        if unsafe_development or local_research_root is not None:
             raise ValueError("development authentication is forbidden in production")
         return _build_production_application(ProductionSettings.from_environment())
     if not unsafe_development:
@@ -74,38 +76,44 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         "http://127.0.0.1:8000/auth/callback",
     )
     now = datetime.now(UTC)
-    projects = InMemoryProjectRepository()
-    workspace = Workspace(str(uuid4()), "Personal workspace", _DEVELOPMENT_USER, True, now)
-    project = Project(
-        str(uuid4()),
-        workspace.id,
-        corpus.name.replace("_", " ").title(),
-        _DEVELOPMENT_USER,
-        True,
-        now,
-    )
-    projects.add_workspace(workspace)
-    projects.add_membership(
-        Membership(
+    if local_research_root is not None:
+        from sci_search.infrastructure.local_workspace import LocalProjectRepository
+
+        projects = LocalProjectRepository(local_research_root)
+    else:
+        projects = InMemoryProjectRepository()
+    if projects.personal_workspace_for(_DEVELOPMENT_USER) is None:
+        workspace = Workspace(str(uuid4()), "Personal workspace", _DEVELOPMENT_USER, True, now)
+        project = Project(
             str(uuid4()),
+            workspace.id,
+            corpus.name.replace("_", " ").title(),
             _DEVELOPMENT_USER,
-            ProjectRole.OWNER,
             True,
             now,
-            workspace_id=workspace.id,
         )
-    )
-    projects.add_project(project)
-    projects.add_membership(
-        Membership(
-            str(uuid4()),
-            _DEVELOPMENT_USER,
-            ProjectRole.OWNER,
-            True,
-            now,
-            project_id=project.id,
+        projects.add_workspace(workspace)
+        projects.add_membership(
+            Membership(
+                str(uuid4()),
+                _DEVELOPMENT_USER,
+                ProjectRole.OWNER,
+                True,
+                now,
+                workspace_id=workspace.id,
+            )
         )
-    )
+        projects.add_project(project)
+        projects.add_membership(
+            Membership(
+                str(uuid4()),
+                _DEVELOPMENT_USER,
+                ProjectRole.OWNER,
+                True,
+                now,
+                project_id=project.id,
+            )
+        )
 
     def identifiers() -> str:
         return str(uuid4())
@@ -121,6 +129,15 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         clock=lambda: datetime.now(UTC),
         id_source=identifiers,
     )
+    if local_research_root is not None:
+        from sci_search.infrastructure.local_research import LocalResearchService
+
+        research_service = LocalResearchService(
+            projects,
+            root=local_research_root,
+            clock=lambda: datetime.now(UTC),
+            id_source=identifiers,
+        )
     sessions = SessionService(
         InMemorySessionRepository(),
         clock=lambda: datetime.now(UTC),
@@ -132,12 +149,14 @@ def build_api_application(corpus: Path, *, unsafe_development: bool = False) -> 
         session_secret=secret,
         development_auth_enabled=unsafe_development,
         development_user_id=_DEVELOPMENT_USER,
-        workspace_preview=True,
+        workspace_preview=local_research_root is None,
+        local_research_enabled=local_research_root is not None,
     )
 
     app = create_app(
         settings,
         ApiServices(sessions=sessions, projects=project_service, research=research_service),
+        shutdown=getattr(research_service, "close", None),
     )
     return app
 

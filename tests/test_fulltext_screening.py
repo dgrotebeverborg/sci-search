@@ -113,3 +113,15 @@ class FullTextScreeningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_background_is_retained_as_context_but_not_active_evidence():
+    from sci_search.study_matrix import active_from_screening
+
+    item = candidate("context", "Background study")
+    assert (
+        active_from_screening(
+            [(item, object())], [{"publication_id": "context", "decision": "background"}]
+        )
+        == []
+    )

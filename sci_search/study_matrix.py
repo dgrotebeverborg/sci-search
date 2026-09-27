@@ -408,9 +408,7 @@ def active_from_screening(
     screening: list[dict[str, Any]],
 ) -> list[tuple[PublicationCandidate, Any]]:
     active_ids = {
-        str(item.get("publication_id"))
-        for item in screening
-        if item.get("decision") in {"included", "background"}
+        str(item.get("publication_id")) for item in screening if item.get("decision") == "included"
     }
     return [item for item in acquired if item[0].id in active_ids]
 

@@ -1,0 +1,175 @@
+{
+  "schema_version": "research_dashboard_v1",
+  "layout_version": 1,
+  "run_id": "synthetic-run",
+  "revision": 1,
+  "question": "Synthetic: does intervention A change outcome B?",
+  "blocks": [
+    {
+      "id": "scope",
+      "status": "empty",
+      "data": {
+        "question_brief": null,
+        "research_scope": null,
+        "plan": null
+      },
+      "explanation": "No scope was retained for this revision."
+    },
+    {
+      "id": "answer",
+      "status": "ready",
+      "data": {
+        "answer_adequacy": {
+          "status": "insufficient_evidence",
+          "can_answer_overall_question": false
+        },
+        "synthesis": {},
+        "executive_summary": {
+          "text": "The available evidence does not resolve the overall question.",
+          "evidence_ids": [
+            "synthetic-e1"
+          ]
+        }
+      },
+      "explanation": ""
+    },
+    {
+      "id": "literature_review",
+      "status": "ready",
+      "data": {
+        "executive_summary": {
+          "text": "The available evidence does not resolve the overall question.",
+          "evidence_ids": [
+            "synthetic-e1"
+          ]
+        },
+        "references": [
+          {
+            "number": 1,
+            "publication_id": "synthetic-p1",
+            "title": "Synthetic study"
+          }
+        ]
+      },
+      "explanation": ""
+    },
+    {
+      "id": "findings",
+      "status": "empty",
+      "data": {
+        "claims": null,
+        "thematic_findings": null,
+        "measurements": null
+      },
+      "explanation": "No findings was retained for this revision."
+    },
+    {
+      "id": "comparisons",
+      "status": "empty",
+      "data": {
+        "comparison_groups": null,
+        "comparability": null,
+        "measurements": null
+      },
+      "explanation": "No comparisons was retained for this revision."
+    },
+    {
+      "id": "landscape",
+      "status": "unavailable",
+      "data": {},
+      "explanation": "No landscape was retained for this revision."
+    },
+    {
+      "id": "studies",
+      "status": "ready",
+      "data": {
+        "studies": [
+          {
+            "id": "synthetic-p1",
+            "title": "Synthetic study",
+            "year": 2025,
+            "publication_id": "synthetic-p1",
+            "screening": {},
+            "full_text_available": false
+          }
+        ]
+      },
+      "explanation": ""
+    },
+    {
+      "id": "gaps",
+      "status": "empty",
+      "data": {
+        "limitations": null,
+        "quality_flags": null,
+        "follow_up_questions": null
+      },
+      "explanation": "No gaps was retained for this revision."
+    },
+    {
+      "id": "methods",
+      "status": "ready",
+      "data": {
+        "methodology": null,
+        "selection_flow": null,
+        "research_run": {
+          "candidates": [
+            {
+              "id": "synthetic-p1",
+              "title": "Synthetic study",
+              "year": 2025
+            }
+          ]
+        }
+      },
+      "explanation": ""
+    },
+    {
+      "id": "evidence",
+      "status": "ready",
+      "data": [
+        {
+          "id": "synthetic-e1",
+          "publication_id": "synthetic-p1",
+          "passage": "In this synthetic study, the measured outcome was 4 units.",
+          "start_offset": 20,
+          "end_offset": 78
+        }
+      ],
+      "explanation": ""
+    },
+    {
+      "id": "validation",
+      "status": "ready",
+      "data": {
+        "summary": null,
+        "records": [
+          {
+            "evidence_id": "synthetic-e1",
+            "validation": null,
+            "review_state": null
+          }
+        ]
+      },
+      "explanation": ""
+    },
+    {
+      "id": "references",
+      "status": "ready",
+      "data": [
+        {
+          "number": 1,
+          "publication_id": "synthetic-p1",
+          "title": "Synthetic study"
+        }
+      ],
+      "explanation": ""
+    },
+    {
+      "id": "downloads",
+      "status": "empty",
+      "data": [],
+      "explanation": "No downloads was retained for this revision."
+    }
+  ]
+}

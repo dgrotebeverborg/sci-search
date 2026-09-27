@@ -1,0 +1,11 @@
+{
+  "dataset_status": "synthetic plumbing fixtures; researcher-confirmed held-out evaluation pending",
+  "feedback": [
+    {"id":"f1","run_id":"prior-energy","user_id":"synthetic-reviewer","publication_id":"paper-good","question":"iron air battery efficiency","decision":"include","created_at":"2026-01-01"},
+    {"id":"f2","run_id":"prior-energy","user_id":"synthetic-reviewer","publication_id":"paper-poor","question":"iron air battery efficiency","decision":"exclude","created_at":"2026-01-01"}
+  ],
+  "questions": [
+    {"id":"related-energy","question":"iron air battery efficiency measurements","related":true,"candidates":[{"id":"paper-poor","base_score":0.7,"relevance":0,"cached":true},{"id":"paper-good","base_score":0.6,"relevance":2,"cached":true},{"id":"paper-other","base_score":0.5,"relevance":1,"cached":false}]},
+    {"id":"unrelated-ecology","question":"whale migration population","related":false,"candidates":[{"id":"paper-poor","base_score":0.6,"relevance":1,"cached":true},{"id":"paper-good","base_score":0.5,"relevance":0,"cached":true}]}
+  ]
+}

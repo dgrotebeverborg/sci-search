@@ -34,6 +34,7 @@ from sci_search.api.errors import (
 from sci_search.api.frontend import STATIC_DIRECTORY
 from sci_search.api.frontend import router as frontend_router
 from sci_search.api.routes.audit import router as audit_router
+from sci_search.api.routes.dashboards import router as dashboards_router
 from sci_search.api.routes.documents import router as documents_router
 from sci_search.api.routes.exports import router as exports_router
 from sci_search.api.routes.operations import OperationalChecks, create_operations_router
@@ -70,6 +71,7 @@ class ApiSettings:
     development_auth_enabled: bool = False
     development_user_id: str = "development-researcher"
     workspace_preview: bool = False
+    local_research_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.max_request_body_bytes <= 0:
@@ -85,6 +87,8 @@ class ApiSettings:
         callback = urlparse(self.oidc_callback_url)
         if callback.scheme != "https" or not callback.netloc:
             raise ValueError("production OIDC callback must use HTTPS")
+        if self.local_research_enabled:
+            raise ValueError("local research is forbidden in production")
         if self.workspace_preview:
             raise ValueError("workspace preview is forbidden in production")
         if self.development_auth_enabled:
@@ -227,6 +231,7 @@ def create_app(
     app.include_router(workspaces_router)
     app.include_router(projects_router)
     app.include_router(runs_router)
+    app.include_router(dashboards_router)
     app.include_router(documents_router)
     app.include_router(reviews_router)
     app.include_router(exports_router)

@@ -1,15 +1,21 @@
+let loadVersion = 0;
 import {request, setStatus} from './api.js';
 
 export async function loadExports(project) {
+  const version = ++loadVersion;
   const target = document.getElementById('export-actions');
   target.replaceChildren();
-  if (!project) return;
+  if (!project) {
+    target.textContent = 'Downloads become available after this review.';
+    return;
+  }
   let exports = [];
   try {
     exports = (await request(`/api/v1/projects/${project.id}/exports`)).items;
   } catch (error) {
     setStatus(error.message, 'error');
   }
+  if (version !== loadVersion) return;
   if (!exports.length) {
     const note = document.createElement('span');
     note.className = 'help';

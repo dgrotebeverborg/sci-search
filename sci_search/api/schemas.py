@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from sci_search.application.projects import ProjectRole
 from sci_search.domain.risk_of_bias import RiskJudgment
+from sci_search.question_interpretation import QuestionBrief
 
 
 class ApiSchema(BaseModel):
@@ -85,7 +86,12 @@ class MembershipListResponse(ApiSchema):
     items: list[MembershipResponse]
 
 
+class QuestionInterpretationCreate(ApiSchema):
+    question: str = Field(min_length=3, max_length=5000)
+
+
 class RunCreate(ApiSchema):
+    question_brief: QuestionBrief | None = None
     question: str = Field(min_length=3, max_length=5000)
     review_depth: Literal["focused", "deep"] = "focused"
     idempotency_key: str = Field(min_length=1, max_length=200)

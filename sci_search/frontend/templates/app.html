@@ -37,6 +37,14 @@
           <button disabled class="button button-primary" type="submit">Create project</button>
         </form>
       </details>
+      <details class="history-panel" open>
+        <summary>Saved scientific dashboards</summary>
+        <label for="history-search">Find a search</label>
+        <input id="history-search" type="search" placeholder="Search your questions">
+        <p class="help" id="history-empty">Saved research will appear here.</p>
+        <ol id="research-history"></ol>
+        <button id="history-more" class="button button-quiet" type="button" hidden>Load more searches</button>
+      </details>
       <div class="nav-links" aria-label="Project sections">
         <a href="#research">Research</a>
         <a href="#evidence">Evidence</a>
@@ -46,6 +54,14 @@
     </nav>
 
     <main id="main-content" tabindex="-1">
+      {% if local_research_enabled %}
+      <aside id="local-research-notice" class="preview-notice" role="note">
+        <strong>Local research demo · Real results</strong>
+        <p>Ask a question to search scientific literature and build a source-linked report.
+        Your searches and scientific dashboards are saved in this local workspace. Reopen them from the left panel.
+        Reviews can take several minutes. Cancellation takes effect after the current research step.</p>
+      </aside>
+      {% endif %}
       {% if workspace_preview %}
       <aside id="workspace-preview-notice" class="preview-notice" role="note">
         <strong>Temporary workspace preview</strong>
@@ -61,7 +77,7 @@
           <label for="research-question">Research question</label>
           <div class="question-row">
             <textarea disabled id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
-            <button disabled class="button button-primary" type="submit">Start review</button>
+            <button disabled class="button button-primary" type="submit">Review question</button>
           </div>
           <div class="review-setting">
             <label for="review-depth">Review depth</label>
@@ -71,6 +87,16 @@
             </select>
           </div>
         </form>
+        <section id="question-brief" class="panel" hidden aria-labelledby="brief-heading">
+          <p class="eyebrow">Before we search</p>
+          <h2 id="brief-heading">Is this what you mean?</h2>
+          <p id="brief-method"></p>
+          <h3 id="brief-question"></h3>
+          <p id="brief-objective"></p>
+          <div id="brief-details"></div>
+          <p>Edit your research question above and review it again to correct the interpretation or answer a clarification.</p>
+          <button class="button button-primary" id="approve-question" type="button">Approve and start review</button>
+        </section>
         <div class="status" id="global-status" aria-live="polite"></div>
       </section>
 
@@ -86,6 +112,24 @@
         </div>
       </section>
 
+      <section id="dashboard-panel" hidden>
+        <header class="dashboard-header">
+          <div class="dashboard-topline"><p class="eyebrow">Your research / Saved dashboard</p>
+          <button id="new-search" class="button button-secondary" type="button">+ New search</button></div>
+          <h1 id="dashboard-question"></h1>
+          <div class="dashboard-meta"><span class="saved-indicator">Saved to your workspace</span>
+          <details class="revision-menu"><summary>Version history</summary>
+          <p id="dashboard-version" class="help"></p>
+          <label for="dashboard-revisions">Dashboard revision</label>
+          <select id="dashboard-revisions"></select>
+          <button id="current-dashboard" class="button button-quiet" type="button" hidden>Open current revision</button>
+          </details></div>
+          <p id="dashboard-status" role="status" aria-live="polite"></p>
+          <button id="retry-dashboard" class="button button-secondary" type="button" hidden>Retry dashboard update</button>
+          <nav id="dashboard-navigation" aria-label="Dashboard sections"></nav>
+        </header>
+        <div id="dashboard-blocks"></div>
+      </section>
       <section class="panel" id="evidence">
         <div class="section-heading"><div><p class="eyebrow">Source traceability</p><h2>Evidence</h2></div></div>
         <p class="empty-state" id="evidence-empty">Evidence will appear here when a review has produced source-linked findings.</p>

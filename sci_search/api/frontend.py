@@ -5,18 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from sci_search.api.dependencies import AuthenticatedPrincipal, require_principal
 from sci_search.application.sessions import InvalidSession
 
 _FRONTEND_ROOT = Path(__file__).resolve().parents[1] / "frontend"
 STATIC_DIRECTORY = _FRONTEND_ROOT / "static"
 _templates = Jinja2Templates(directory=_FRONTEND_ROOT / "templates")
 router = APIRouter(include_in_schema=False)
-Principal = Annotated[AuthenticatedPrincipal, Depends(require_principal)]
 
 
 @router.get("/")
@@ -63,12 +61,12 @@ def development_login(
 
 
 @router.get("/app", response_class=HTMLResponse)
-def researcher_app(request: Request, principal: Principal) -> HTMLResponse:
+def researcher_app(request: Request) -> HTMLResponse:
     return _templates.TemplateResponse(
         request,
         "app.html",
         {
-            "user_id": principal.user_id,
             "workspace_preview": request.app.state.api_settings.workspace_preview,
+            "local_research_enabled": request.app.state.api_settings.local_research_enabled,
         },
     )

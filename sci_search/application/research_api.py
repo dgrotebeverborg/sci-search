@@ -108,6 +108,40 @@ class ExportRecord:
 
 
 class ResearchApiService(Protocol):
+    def list_runs(
+        self,
+        user_id: str,
+        project_id: str,
+        *,
+        query: str = "",
+        cursor: str | None = None,
+        limit: int = 30,
+    ) -> dict: ...
+
+    def get_dashboard(
+        self, user_id: str, project_id: str, run_id: str, *, revision: int | None = None
+    ) -> dict: ...
+
+    def list_revisions(self, user_id: str, project_id: str, run_id: str) -> dict: ...
+
+    def record_article_feedback(
+        self,
+        user_id: str,
+        project_id: str,
+        run_id: str,
+        publication_id: str,
+        *,
+        decision: str,
+        reason: str,
+        expected_sequence: int,
+        idempotency_key: str,
+        reviewed_revision: int | None = None,
+    ) -> dict: ...
+
+    def retry_rebuild(self, user_id: str, project_id: str, run_id: str) -> dict: ...
+
+    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict: ...
+
     def start_run(
         self,
         user_id: str,
@@ -116,6 +150,7 @@ class ResearchApiService(Protocol):
         question: str,
         review_depth: str,
         idempotency_key: str,
+        question_brief: dict | None = None,
     ) -> ResearchRunRecord: ...
 
     def get_run(self, user_id: str, project_id: str, run_id: str) -> ResearchRunRecord: ...
@@ -219,6 +254,12 @@ class InMemoryResearchApiService:
         self._risk_of_bias: dict[tuple[str, str], RiskOfBiasRecord] = {}
         self._risk_of_bias_revisions: dict[str, RiskOfBiasRecord] = {}
 
+    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict:
+        from sci_search.question_interpretation import interpret_question
+
+        self._require(Action.MANAGE_RUNS, user_id, project_id)
+        return interpret_question(question)
+
     def start_run(
         self,
         user_id: str,
@@ -227,6 +268,7 @@ class InMemoryResearchApiService:
         question: str,
         review_depth: str,
         idempotency_key: str,
+        question_brief: dict | None = None,
     ) -> ResearchRunRecord:
         self._require(Action.MANAGE_RUNS, user_id, project_id)
         existing_id = self._run_idempotency.get((project_id, idempotency_key))
@@ -240,6 +282,59 @@ class InMemoryResearchApiService:
         self._run_idempotency[(project_id, idempotency_key)] = run.id
         self._audit(project_id, "research_run.created", "research_run")
         return run
+
+    def list_runs(self, user_id, project_id, *, query="", cursor=None, limit=30):
+        from dataclasses import asdict
+
+        self._require(Action.READ, user_id, project_id)
+        rows = sorted(
+            (
+                r
+                for (p, _), r in self._runs.items()
+                if p == project_id and query.casefold() in r.question.casefold()
+            ),
+            key=lambda r: (r.created_at, r.id),
+            reverse=True,
+        )
+        if cursor:
+            matching = next((i for i, r in enumerate(rows) if r.id == cursor), None)
+            if matching is None:
+                raise ValueError("invalid history cursor")
+            rows = rows[matching + 1 :]
+        return {
+            "items": [asdict(r) for r in rows[:limit]],
+            "next_cursor": rows[limit - 1].id if len(rows) > limit else None,
+        }
+
+    def get_dashboard(self, user_id, project_id, run_id, *, revision=None) -> dict:
+        self.get_run(user_id, project_id, run_id)
+        raise ResourceNotFound
+
+    def list_revisions(self, user_id, project_id, run_id):
+        self.get_run(user_id, project_id, run_id)
+        return {"items": []}
+
+    def record_article_feedback(
+        self,
+        user_id,
+        project_id,
+        run_id,
+        publication_id,
+        *,
+        decision,
+        reason,
+        expected_sequence,
+        idempotency_key,
+        reviewed_revision=None,
+    ) -> dict:
+        self._require(Action.REVIEW, user_id, project_id)
+        self.get_run(user_id, project_id, run_id)
+        raise ValueError("article feedback requires a saved dashboard")
+
+    def retry_rebuild(self, user_id, project_id, run_id) -> dict:
+        self._require(Action.REVIEW, user_id, project_id)
+        self.get_run(user_id, project_id, run_id)
+        raise ValueError("dashboard rebuilding requires a persistent research service")
 
     def get_run(self, user_id: str, project_id: str, run_id: str) -> ResearchRunRecord:
         self._require(Action.READ, user_id, project_id)

@@ -31,6 +31,7 @@ DEVELOPMENT_USER = "development-researcher"
 
 @pytest.fixture
 def live_browser_url(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(128)
