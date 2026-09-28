@@ -18,6 +18,7 @@ from sci_search.domain.contradictions import (
     ContradictionCause,
     contradiction_group_id,
 )
+from sci_search.model_provider import PROFILES, ProviderProfile
 from sci_search.research.model_evidence import EvidencePacket, select_model_evidence
 
 JsonCompletion = Callable[[dict[str, Any], dict[str, str]], dict[str, Any]]
@@ -176,21 +177,31 @@ ANALYSIS_SCHEMA: dict[str, Any] = {
 }
 
 
-class MistralAnalyzer:
-    endpoint = "https://api.mistral.ai/v1/chat/completions"
-
+class ModelAnalyzer:
     def __init__(
         self,
         api_key: str,
         *,
+        provider: ProviderProfile | None = None,
         model: str | None = None,
         complete_json: JsonCompletion | None = None,
     ) -> None:
+        self.provider = provider or PROFILES["mistral"]
         if not api_key.strip():
-            raise ValueError("Mistral API key is required")
+            raise ValueError(f"{self.provider.display_name} API key is required")
         self.api_key = api_key
-        self.model = model or os.environ.get("MISTRAL_MODEL") or "mistral-small-latest"
-        self.complete_json = complete_json or self._complete_json
+        self.model = (
+            model or os.environ.get(self.provider.model_variable) or self.provider.default_model
+        )
+        transport = complete_json or self._complete_json
+        # Every call site goes through complete_json, so provider preparation cannot be skipped.
+        self.complete_json: JsonCompletion = lambda body, headers: transport(
+            self.provider.prepare(body), headers
+        )
+
+    @property
+    def endpoint(self) -> str:
+        return self.provider.endpoint
 
     def analyze(
         self, question: str, evidence: list[dict[str, Any]] | EvidencePacket
@@ -239,10 +250,10 @@ class MistralAnalyzer:
         validated.update(
             {
                 "status": "complete",
-                "provider": "mistral",
+                "provider": self.provider.name,
                 "model": self.model,
                 "schema_version": "scientific_analysis_v2",
-                "method": "mistral_structured_evidence_analysis_v1",
+                "method": f"{self.provider.name}_structured_evidence_analysis_v1",
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "usage": {
                     key: usage.get(key)
@@ -268,7 +279,7 @@ class MistralAnalyzer:
                 with urlopen(request, timeout=120) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 if not isinstance(payload, dict):
-                    raise ValueError("Mistral response was not a JSON object")
+                    raise ValueError(f"{self.provider.display_name} response was not a JSON object")
                 return payload
             except HTTPError as exc:
                 if exc.code not in {429, 500, 502, 503, 504} or attempt == 2:
@@ -277,7 +288,10 @@ class MistralAnalyzer:
                 if attempt == 2:
                     raise
             time.sleep(2**attempt)
-        raise RuntimeError("Mistral request exhausted retries")
+        raise RuntimeError(f"{self.provider.display_name} request exhausted retries")
+
+
+MistralAnalyzer = ModelAnalyzer
 
 
 def analyze_if_configured(
@@ -288,18 +302,20 @@ def analyze_if_configured(
 ) -> dict[str, Any]:
     selected = analyzer
     if selected is None:
-        key = os.environ.get("MISTRAL_API_KEY", "").strip()
-        if not key:
+        from sci_search.model_provider import configured_analyzer, selected_profile
+
+        selected = configured_analyzer()
+        if selected is None:
             from sci_search.application.analysis import fallback_analysis
 
             packet = select_model_evidence(evidence, adequacy or {})
             return fallback_analysis(
                 packet,
-                "MISTRAL_API_KEY is not configured; deterministic extractive analysis was used",
+                f"{selected_profile().key_variable} is not configured; "
+                "deterministic extractive analysis was used",
                 provider=None,
                 model=None,
             ).as_dict()
-        selected = MistralAnalyzer(key)
     from sci_search.application.analysis import MistralAnalysisProvider, analyze_evidence
 
     return analyze_evidence(question, evidence, adequacy or {}, MistralAnalysisProvider(selected))

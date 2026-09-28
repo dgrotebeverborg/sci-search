@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import copy
+import json
 
 import pytest
 
-from sci_search.mistral_analysis import ANALYSIS_SCHEMA
-from sci_search.model_provider import PROFILES, openai_strict_schema, selected_profile
+from sci_search.application.analysis import MistralAnalysisProvider, analyze_evidence
+from sci_search.mistral_analysis import (
+    ANALYSIS_SCHEMA,
+    MistralAnalyzer,
+    ModelAnalyzer,
+    analyze_if_configured,
+)
+from sci_search.model_provider import (
+    PROFILES,
+    configured_analyzer,
+    openai_strict_schema,
+    selected_profile,
+)
 
 
 def _schema() -> dict:
@@ -98,3 +110,141 @@ def test_invalid_provider_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "claude")
     with pytest.raises(ValueError, match="must be one of: mistral, openai"):
         selected_profile()
+
+
+STATEMENT = "Measured efficiency was 70% at laboratory scale."
+OTHER = "Measured efficiency was 45% in the field trial."
+
+
+def _evidence() -> list[dict]:
+    return [
+        {
+            "id": "e1",
+            "publication_id": "p1",
+            "statement": STATEMENT,
+            "passage": STATEMENT,
+            "evidence_type": "laboratory_experiment",
+        },
+        {
+            "id": "e2",
+            "publication_id": "p2",
+            "statement": OTHER,
+            "passage": OTHER,
+            "evidence_type": "field_study",
+        },
+    ]
+
+
+def _payload() -> dict:
+    assertion = {
+        "text": "Laboratory efficiency was reported as 70%.",
+        "evidence_ids": ["e1"],
+        "quotes": [{"evidence_id": "e1", "quote": STATEMENT}],
+        "qualification": None,
+    }
+    return {
+        "answer": assertion,
+        "claims": [assertion],
+        "agreements": [],
+        "contradictions": [],
+        "method_differences": [],
+        "limitations": [],
+        "uncertainties": [],
+        "assumptions": [],
+        "knowledge_gaps": [],
+        "entities": [],
+        "measurements": [],
+        "contradiction_groups": [
+            {
+                "topic": "Efficiency level",
+                "positions": [
+                    {
+                        "text": "High",
+                        "evidence_ids": ["e1"],
+                        "quotes": [{"evidence_id": "e1", "quote": STATEMENT}],
+                        "qualification": None,
+                    },
+                    {
+                        "text": "Low",
+                        "evidence_ids": ["e2"],
+                        "quotes": [{"evidence_id": "e2", "quote": OTHER}],
+                        "qualification": None,
+                    },
+                ],
+                "cause": "different_conditions",
+                "cause_explanation": None,
+            }
+        ],
+    }
+
+
+class _Recorder:
+    def __init__(self) -> None:
+        self.bodies: list[dict] = []
+
+    def __call__(self, body: dict, headers: dict) -> dict:
+        self.bodies.append(body)
+        return {"choices": [{"message": {"content": json.dumps(_payload())}}], "usage": {}}
+
+
+def test_openai_analyzer_sends_converted_schema_and_records_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    recorder = _Recorder()
+    analyzer = ModelAnalyzer("key", provider=PROFILES["openai"], complete_json=recorder)
+    result = analyze_evidence("Question", _evidence(), {}, MistralAnalysisProvider(analyzer))
+    [body] = recorder.bodies
+    assert body["model"] == "gpt-4.1-mini"
+    schema = body["response_format"]["json_schema"]["schema"]
+    assert schema["$defs"]["assertion"]["properties"]["qualification"]["anyOf"][1] == {
+        "type": "null"
+    }
+    assert result["status"] == "complete"
+    assert result["provider"] == "openai"
+    assert result["method"] == "openai_structured_evidence_analysis_v1"
+    assert result["claims"][0]["qualification"] == ""
+    [group] = result["contradiction_groups"]
+    assert group["cause"] == "unexplained"
+    assert group["validation_notes"]
+
+
+def test_default_analyzer_keeps_the_mistral_body_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MISTRAL_MODEL", raising=False)
+    recorder = _Recorder()
+    analyzer = MistralAnalyzer("key", complete_json=recorder)
+    analyzer.analyze("Question", _evidence())
+    [body] = recorder.bodies
+    assert body["model"] == "mistral-small-latest"
+    assert body["response_format"]["json_schema"]["schema"] == ANALYSIS_SCHEMA
+    assert analyzer.endpoint == "https://api.mistral.ai/v1/chat/completions"
+    assert MistralAnalysisProvider(analyzer).provider_name == "mistral"
+
+
+def test_openai_model_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5-mini")
+    assert ModelAnalyzer("key", provider=PROFILES["openai"]).model == "gpt-5-mini"
+
+
+def test_configured_analyzer_uses_selected_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "openai")
+    monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert configured_analyzer() is None
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    analyzer = configured_analyzer()
+    assert analyzer is not None
+    assert analyzer.provider.name == "openai"
+    assert analyzer.api_key == "openai-key"
+
+
+def test_missing_openai_key_falls_back_with_openai_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    # No Mistral key either: before the change this must not reach the network.
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "openai")
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    result = analyze_if_configured("Question", _evidence())
+    assert result["status"] == "unavailable"
+    assert result["fallback_reason"] == (
+        "OPENAI_API_KEY is not configured; deterministic extractive analysis was used"
+    )

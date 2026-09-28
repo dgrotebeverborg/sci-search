@@ -62,10 +62,9 @@ class AnalysisProvider(Protocol):
 
 
 class MistralAnalysisProvider:
-    provider_name = "mistral"
-
     def __init__(self, analyzer: MistralAnalyzer) -> None:
         self.analyzer = analyzer
+        self.provider_name = analyzer.provider.name
         self.model_name = analyzer.model
 
     def analyze(self, question: str, packet: EvidencePacket) -> AnalysisResult:
