@@ -26,6 +26,13 @@ Create a local configuration from `.env.example` and set `OPENALEX_API_KEY`. To 
 
 During migration from sci-graph, if Sci-Search has no Mistral key of its own, it reads only `MISTRAL_API_KEY` from the sibling `sci-graph/.env.local`. It deliberately ignores all other variables in that file. A Sci-Search-local key or process environment value takes precedence.
 
+To use OpenAI instead of Mistral, set `SCI_SEARCH_ANALYSIS_PROVIDER=openai` and `OPENAI_API_KEY` in
+`.env.local` (`OPENAI_MODEL` defaults to `gpt-4.1-mini`). The same grounding validation applies to
+both providers. Sci-Search never falls back from one provider to the other: if the selected
+provider's key is missing or a request fails, the deterministic extractive answer is shown with the
+reason. `OPENAI_API_KEY` is never read from sci-graph. Stored results record the provider and model,
+and cached analyses are not shared between providers.
+
 Mistral output is requested through schema-enforced JSON. Valid structure alone is not accepted: all assertions must cite known evidence IDs and exact source quotes, while numerical and condition text must occur in those quotes. Invalid individual records are rejected; if no grounded answer or claim survives, the complete model result is discarded in favor of the deterministic extractive answer. API keys are not persisted in runs or scientific memory.
 
 Every acquired full text also receives a question-specific study card before synthesis. The card records its inclusion decision, required-dimension coverage, inferred evidence nature, and selected methods/results/limitations passages with exact source offsets. Only uncertain studies may be sent for optional quote-validated Mistral adjudication; deterministic exclusions are not automatically promoted. The matrix is included in the cited review and complete research package.

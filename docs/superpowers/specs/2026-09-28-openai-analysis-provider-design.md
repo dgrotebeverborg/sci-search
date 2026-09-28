@@ -1,6 +1,9 @@
 # OpenAI as a second analysis provider
 
-Date: 2026-09-28. Status: design approved in conversation; awaiting written-spec review.
+Date: 2026-09-28. Status: implemented; analysis and question interpretation live-checked with
+OpenAI gpt-4.1-mini on 2026-09-28. Full-text adjudication was not needed in the live runs;
+contradiction-group quality remains unassessed because neither run produced groups.
+See the [live-check record](../../operations/contradiction-groups-quality-check.md).
 
 ## Product outcome
 
