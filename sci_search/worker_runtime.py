@@ -20,7 +20,7 @@ from sci_search.infrastructure.settings import ProductionSettings
 from sci_search.worker import Worker, register_worker_actor
 
 settings = ProductionSettings.from_environment()
-for variable in ("OPENALEX_API_KEY", "MISTRAL_API_KEY"):
+for variable in ("OPENALEX_API_KEY", "MISTRAL_API_KEY", "OPENAI_API_KEY"):
     filename = os.environ.get(f"{variable}_FILE", "")
     if filename:
         os.environ[variable] = Path(filename).read_text(encoding="utf-8").strip()

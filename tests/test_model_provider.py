@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
 from sci_search.application.analysis import MistralAnalysisProvider, analyze_evidence
+from sci_search.infrastructure.observability import Metrics, ProviderOutcome
 from sci_search.mistral_analysis import (
     ANALYSIS_SCHEMA,
     MistralAnalyzer,
@@ -19,6 +21,7 @@ from sci_search.model_provider import (
     selected_profile,
 )
 from sci_search.question_interpretation import QUESTION_BRIEF_SCHEMA, interpret_question
+from sci_search.research_runs import ResearchRunManager
 from sci_search.study_matrix import ADJUDICATION_SCHEMA, adjudicate_uncertain_studies
 
 
@@ -331,3 +334,69 @@ def test_adjudication_without_selected_key_names_that_key(monkeypatch: pytest.Mo
     result = adjudicate_uncertain_studies("Question", _matrix())
     assert result["status"] == "unavailable"
     assert result["reason"] == "OPENAI_API_KEY is not configured"
+
+
+MISTRAL_FINGERPRINT = "e1d5ac9fee8186ed3ce15911f2f764c2596af64fea315cca204da2744bf59d1b"
+
+
+class _Memory:
+    def __init__(self) -> None:
+        self.keys: list[str] = []
+
+    def cached_analysis(self, key: str) -> dict:
+        self.keys.append(key)
+        return {"cached": True}
+
+
+def _fingerprint(tmp_path: Path, analyzer: ModelAnalyzer) -> str:
+    memory = _Memory()
+    manager = ResearchRunManager(
+        tmp_path, openalex_api_key="test", memory=memory, analyzer=analyzer
+    )
+    manager._analyze("Q", [], {})
+    return memory.keys[0]
+
+
+def test_mistral_fingerprint_is_unchanged(tmp_path: Path) -> None:
+    analyzer = MistralAnalyzer("k", model="mistral-small-latest", complete_json=lambda b, h: {})
+    assert _fingerprint(tmp_path, analyzer) == MISTRAL_FINGERPRINT
+
+
+def test_openai_fingerprint_differs_even_with_the_same_model_name(tmp_path: Path) -> None:
+    analyzer = ModelAnalyzer(
+        "k",
+        provider=PROFILES["openai"],
+        model="mistral-small-latest",
+        complete_json=lambda b, h: {},
+    )
+    assert _fingerprint(tmp_path, analyzer) != MISTRAL_FINGERPRINT
+
+
+def test_fingerprint_without_analyzer_uses_selected_profile_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    memory = _Memory()
+    manager = ResearchRunManager(tmp_path, openalex_api_key="test", memory=memory)
+    manager._analyze("Q", [], {})
+    openai = ModelAnalyzer("k", provider=PROFILES["openai"], complete_json=lambda b, h: {})
+    assert memory.keys[0] == _fingerprint(tmp_path, openai)
+
+
+def test_production_manager_uses_selected_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sci_search.infrastructure.research_execution import _manager
+
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OPENALEX_API_KEY", raising=False)
+    manager = _manager(tmp_path)
+    assert manager.analyzer is not None
+    assert manager.analyzer.provider.name == "openai"
+
+
+def test_metrics_accept_openai_provider() -> None:
+    Metrics().record_provider("openai", ProviderOutcome.SUCCEEDED)

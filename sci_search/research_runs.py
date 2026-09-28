@@ -39,6 +39,7 @@ from sci_search.literature_review import (
     render_review_pdf,
 )
 from sci_search.mistral_analysis import MistralAnalyzer, analyze_if_configured
+from sci_search.model_provider import selected_profile
 from sci_search.models import dataclass_to_dict
 from sci_search.question_planning import ResearchPlan, plan_question
 from sci_search.research.stages.acquisition import AcquisitionStage
@@ -1375,15 +1376,18 @@ class ResearchRunManager:
         evidence: list[dict[str, Any]],
         adequacy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        model = (
-            self.analyzer.model
-            if self.analyzer is not None
-            else os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
-        )
+        if self.analyzer is not None:
+            provider, model = self.analyzer.provider, self.analyzer.model
+        else:
+            provider = selected_profile()
+            model = os.environ.get(provider.model_variable) or provider.default_model
         feedback_reader = getattr(self.memory, "feedback_events", None)
+        # Mistral keys omit the provider so caches from before provider selection stay valid.
+        provider_entry = {} if provider.name == "mistral" else {"provider": provider.name}
         fingerprint = hashlib.sha256(
             json.dumps(
                 {
+                    **provider_entry,
                     "question": question,
                     "model": model,
                     "analysis_contract": "scientific_analysis_v5_contradiction_groups",

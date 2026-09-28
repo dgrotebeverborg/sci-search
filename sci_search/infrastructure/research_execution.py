@@ -20,7 +20,7 @@ from sci_search.application.blobs import BlobStore, content_addressed_key
 from sci_search.infrastructure.database import Database, lock_blob_key
 from sci_search.infrastructure.repositories import SqlResearchRepository
 from sci_search.infrastructure.tables import ArtifactRow, EvidenceRow
-from sci_search.mistral_analysis import MistralAnalyzer
+from sci_search.model_provider import configured_analyzer
 from sci_search.research_runs import REVIEW_PROFILES, ResearchLimits, ResearchRunManager
 from sci_search.scholarly_providers import CrossrefProvider, EuropePmcProvider, OpenAlexProvider
 from sci_search.worker import StageInvocation, StageWork
@@ -414,7 +414,6 @@ class ProductionResearchStage:
 
 def _manager(root: Path, *, memory: Any = None) -> ResearchRunManager:
     api_key = os.environ.get("OPENALEX_API_KEY", "").strip()
-    mistral_key = os.environ.get("MISTRAL_API_KEY", "").strip()
     providers: tuple[Any, ...]
     if api_key:
         providers = (OpenAlexProvider(api_key), EuropePmcProvider(), CrossrefProvider())
@@ -425,7 +424,7 @@ def _manager(root: Path, *, memory: Any = None) -> ResearchRunManager:
         memory=memory,
         providers=providers,
         openalex_api_key=api_key or "not-configured-provider-disabled",
-        analyzer=MistralAnalyzer(mistral_key) if mistral_key else None,
+        analyzer=configured_analyzer(),
     )
 
 
