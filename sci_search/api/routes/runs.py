@@ -32,7 +32,13 @@ def _response(run: ResearchRunRecord) -> RunResponse:
         created_at=run.created_at,
         updated_at=run.updated_at,
         version=run.version,
+        analysis_selection=run.analysis_selection,
     )
+
+
+@router.get("/models")
+def analysis_models(project_id: str, principal: Principal, service: ResearchService) -> dict:
+    return service.analysis_models(principal.user_id, project_id)
 
 
 @router.post("/interpret")
@@ -45,7 +51,14 @@ def interpret_question(
 ) -> dict:
     if request.app.state.api_settings.workspace_preview:
         raise HTTPException(status_code=503, detail="Research is disabled in workspace preview.")
-    return service.interpret_question(principal.user_id, project_id, body.question)
+    return service.interpret_question(
+        principal.user_id,
+        project_id,
+        body.question,
+        analysis_selection=body.analysis_selection.model_dump()
+        if body.analysis_selection
+        else None,
+    )
 
 
 @router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
@@ -67,6 +80,9 @@ def start_run(
             principal.user_id,
             project_id,
             question=body.question,
+            analysis_selection=body.analysis_selection.model_dump()
+            if body.analysis_selection
+            else None,
             question_brief=asdict(body.question_brief) if body.question_brief else None,
             review_depth=body.review_depth,
             idempotency_key=body.idempotency_key,

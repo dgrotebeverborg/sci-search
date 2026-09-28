@@ -54,6 +54,12 @@ class ProductionResearchStage:
         self._manager_factory = manager_factory or _manager
 
     def __call__(self, invocation: StageInvocation) -> StageWork:
+        from sci_search.model_provider import analysis_scope
+
+        with analysis_scope(invocation.input_payload.get("analysis_selection")):
+            return self._execute_selected(invocation)
+
+    def _execute_selected(self, invocation: StageInvocation) -> StageWork:
         inputs = invocation.input_payload
         question = str(inputs.get("question") or "").strip()
         project_id = str(inputs.get("project_id") or "")
@@ -81,6 +87,7 @@ class ProductionResearchStage:
             if state.get("status") != "complete" or not isinstance(state.get("result"), dict):
                 raise RuntimeError("scientific research pipeline did not complete")
             result = state["result"]
+            result["analysis_selection"] = inputs.get("analysis_selection")
             internal_run_id = str(state["run_id"])
             counts = self._publish_corpus(
                 project_id,
@@ -105,7 +112,7 @@ class ProductionResearchStage:
             output={**counts, "artifact_ids": artifacts},
             next_stage="complete",
             input_fingerprint=hashlib.sha256(
-                f"{project_id}\x1f{run_id}\x1f{question}\x1f{review_depth}".encode()
+                f"{project_id}\x1f{run_id}\x1f{question}\x1f{review_depth}\x1f{json.dumps(inputs.get('analysis_selection'), sort_keys=True)}".encode()
             ).hexdigest(),
             implementation_version="production-research-v1",
             complete=True,

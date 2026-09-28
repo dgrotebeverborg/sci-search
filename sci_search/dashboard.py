@@ -133,7 +133,17 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     )
     add("references", review.get("references") or [])
     add("downloads", source.get("artifacts") or [])
+    ai = source.get("ai_analysis") or {}
+    retained_model = (review.get("methodology") or {}).get("model") or {}
     return {
+        "analysis": {
+            "selection": source.get("analysis_selection"),
+            "provider": ai.get("provider") or retained_model.get("provider"),
+            "model": ai.get("model") or retained_model.get("name"),
+            "status": ai.get("status"),
+            "method": ai.get("method") or retained_model.get("method"),
+            "fallback_reason": ai.get("fallback_reason") or ai.get("reason"),
+        },
         "schema_version": "research_dashboard_v1",
         "layout_version": 1,
         "run_id": run_id,

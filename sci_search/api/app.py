@@ -54,6 +54,7 @@ from sci_search.infrastructure.observability import (
     Metrics,
     RequestMetricsMiddleware,
 )
+from sci_search.model_provider import InvalidAnalysisSelection
 
 Environment = Literal["development", "test", "production"]
 _DEFAULT_SECRETS = frozenset({"change-me", "secret", "development-secret", "sci-search"})
@@ -201,6 +202,11 @@ def create_app(
     app.state.api_services = services
     metrics = Metrics()
     app.state.metrics = metrics
+
+    async def invalid_analysis_selection(request: Request, error: InvalidAnalysisSelection):
+        return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    app.add_exception_handler(InvalidAnalysisSelection, invalid_analysis_selection)
     app.add_exception_handler(ResourceNotFound, resource_not_found_handler)
     app.add_exception_handler(ResourceVersionConflict, version_conflict_handler)
     app.add_exception_handler(InvalidDocument, invalid_document_handler)

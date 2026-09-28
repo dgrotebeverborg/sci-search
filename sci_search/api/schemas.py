@@ -86,11 +86,18 @@ class MembershipListResponse(ApiSchema):
     items: list[MembershipResponse]
 
 
+class AnalysisSelection(ApiSchema):
+    provider: Literal["mistral", "openai"]
+    model: str = Field(min_length=1, max_length=200)
+
+
 class QuestionInterpretationCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
     question: str = Field(min_length=3, max_length=5000)
 
 
 class RunCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
     question_brief: QuestionBrief | None = None
     question: str = Field(min_length=3, max_length=5000)
     review_depth: Literal["focused", "deep"] = "focused"
@@ -98,6 +105,7 @@ class RunCreate(ApiSchema):
 
 
 class RunResponse(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
     id: str
     project_id: str
     question: str

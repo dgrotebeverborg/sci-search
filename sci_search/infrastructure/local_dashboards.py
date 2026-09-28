@@ -319,6 +319,7 @@ class LocalDashboardOperations:
     def _prepare_revision(self, run, state, manager, work_root, revision, sequence):
         from sci_search.dashboard import build_dashboard
 
+        state["result"]["analysis_selection"] = run.analysis_selection
         investigation = dict(state["result"])
         investigation.setdefault("question", run.question)
         snapshot = build_dashboard(investigation, run_id=run.id, revision=revision)
@@ -480,6 +481,12 @@ class LocalDashboardOperations:
                 self._export_runs[identifier] = run_id
 
     def _rebuild(self, project_id, run_id):
+        from sci_search.model_provider import analysis_scope
+
+        with analysis_scope(self._runs[(project_id, run_id)].analysis_selection):
+            self._rebuild_selected(project_id, run_id)
+
+    def _rebuild_selected(self, project_id, run_id):
         from sci_search.infrastructure import local_research
 
         key = (project_id, run_id)

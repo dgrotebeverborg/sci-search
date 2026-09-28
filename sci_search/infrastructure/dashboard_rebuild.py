@@ -58,14 +58,20 @@ class ProductionDashboardRebuildStage(ProductionResearchStage):
                         raise ValueError("invalid retained archive path")
                 archive.extractall(root)
             internal = str(source["internal_run_id"])
-            manager = _manager(root)
+            from sci_search.model_provider import analysis_scope
+
+            selection = (source.get("analysis") or {}).get("selection")
+            with analysis_scope(selection):
+                manager = _manager(root)
             from sci_search.infrastructure.sql_memory import memory_for_project
 
             memory = memory_for_project(
                 root, project_id, run_id, self._database, self._blobs, user_id=actor
             )
             manager.memory = memory
-            state = rebuild_decisions(manager, internal, decisions)
+            with analysis_scope(selection):
+                state = rebuild_decisions(manager, internal, decisions)
+            state["result"]["analysis_selection"] = selection
             invocation.cancellation.raise_if_requested()
             self._publish_corpus(project_id, run_id, root / internal / "corpus", state["result"])
             artifacts = self._publish_artifacts(

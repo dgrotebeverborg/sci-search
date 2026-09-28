@@ -211,12 +211,29 @@ class DatabaseResearchApiService(ResearchApiService):
         self._clock = clock
         self._maximum_upload_bytes = maximum_upload_bytes
 
-    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict:
+    def analysis_models(self, user_id: str, project_id: str) -> dict:
+        from sci_search.model_provider import analysis_choices
+
+        with self._database.transaction() as session:
+            self._require(session, Action.READ, user_id, project_id)
+        return analysis_choices()
+
+    def interpret_question(
+        self,
+        user_id: str,
+        project_id: str,
+        question: str,
+        *,
+        analysis_selection: dict[str, str] | None = None,
+    ) -> dict:
         from sci_search.question_interpretation import interpret_question
 
         with self._database.transaction() as session:
             self._require(session, Action.MANAGE_RUNS, user_id, project_id)
-        return interpret_question(question)
+        from sci_search.model_provider import analysis_scope, resolve_selection
+
+        with analysis_scope(resolve_selection(analysis_selection)):
+            return interpret_question(question)
 
     def start_run(
         self,
@@ -227,11 +244,14 @@ class DatabaseResearchApiService(ResearchApiService):
         review_depth: str,
         idempotency_key: str,
         question_brief: dict | None = None,
+        analysis_selection: dict[str, str] | None = None,
     ) -> ResearchRunRecord:
         from sci_search.infrastructure.jobs import SqlJobRepository
+        from sci_search.model_provider import resolve_selection
 
         with self._database.transaction() as session:
             self._require(session, Action.MANAGE_RUNS, user_id, project_id)
+            selection = resolve_selection(analysis_selection)
             jobs = SqlJobRepository(session)
             job = jobs.create(
                 project_id,
@@ -241,6 +261,7 @@ class DatabaseResearchApiService(ResearchApiService):
                 input_payload={
                     "question": question,
                     "question_brief": question_brief,
+                    "analysis_selection": selection,
                     "review_depth": review_depth,
                     "project_id": project_id,
                 },
@@ -260,6 +281,7 @@ class DatabaseResearchApiService(ResearchApiService):
                     question=question,
                     configuration_json={
                         "review_depth": review_depth,
+                        "analysis_selection": selection,
                         "idempotency_key": idempotency_key,
                         "job_id": job.id,
                     },
@@ -931,6 +953,7 @@ class DatabaseResearchApiService(ResearchApiService):
             row.created_at,
             job.updated_at,
             job.version,
+            analysis_selection=row.configuration_json.get("analysis_selection"),
         )
 
     @staticmethod

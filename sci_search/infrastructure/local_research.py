@@ -216,6 +216,12 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
                 return
 
     def _execute(self, project_id, run_id):
+        from sci_search.model_provider import analysis_scope
+
+        with analysis_scope(self._runs[(project_id, run_id)].analysis_selection):
+            self._execute_selected(project_id, run_id)
+
+    def _execute_selected(self, project_id, run_id):
         from uuid import uuid4
 
         key = (project_id, run_id)

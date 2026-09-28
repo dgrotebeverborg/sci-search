@@ -261,6 +261,16 @@ export function renderDashboard(snapshot, context = {}) {
   root.dataset.dashboardRevision = snapshot.revision;
   document.getElementById('dashboard-question').textContent = snapshot.question;
   document.getElementById('dashboard-version').textContent = `Saved revision ${snapshot.revision}`;
+  const analysis = snapshot.analysis || {};
+  const retained = snapshot.blocks?.find(block => block.id === 'methods')?.data?.methodology?.model || {};
+  const provider = analysis.provider || retained.provider;
+  const model = analysis.model || retained.name;
+  const actual = provider && model ? `${provider === 'openai' ? 'OpenAI' : provider === 'mistral' ? 'Mistral' : provider} · ${model}` : null;
+  const method = analysis.method || retained.method;
+  const usedFallback = Boolean(analysis.fallback_reason || method === 'deterministic_extractive_fallback' || (analysis.status && !['complete', 'coverage_limited'].includes(analysis.status)) || (analysis.status === 'coverage_limited' && !actual));
+  const selected = analysis.selection;
+  const fallback = usedFallback ? `Extractive analysis${selected ? ` · selected: ${selected.provider === 'openai' ? 'OpenAI' : 'Mistral'} · ${selected.model}` : ''}${analysis.fallback_reason ? ` — ${analysis.fallback_reason}` : ''}` : null;
+  document.getElementById('dashboard-model').textContent = fallback || (actual ? `Analysis model: ${actual}` : 'Analysis model: not recorded for this saved result');
   document.getElementById('download-all')?.remove();
   const artifacts = snapshot.artifacts || snapshot.blocks?.find(block => block.id === 'downloads')?.data || [];
   const bundle = artifacts.find(item => item.url && (item.content_type === 'application/zip' || /\.zip$/i.test(item.filename || '')));

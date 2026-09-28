@@ -46,6 +46,7 @@ class ResearchRunRecord:
     created_at: datetime
     updated_at: datetime
     version: int = 1
+    analysis_selection: dict[str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +141,16 @@ class ResearchApiService(Protocol):
 
     def retry_rebuild(self, user_id: str, project_id: str, run_id: str) -> dict: ...
 
-    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict: ...
+    def analysis_models(self, user_id: str, project_id: str) -> dict: ...
+
+    def interpret_question(
+        self,
+        user_id: str,
+        project_id: str,
+        question: str,
+        *,
+        analysis_selection: dict[str, str] | None = None,
+    ) -> dict: ...
 
     def start_run(
         self,
@@ -151,6 +161,7 @@ class ResearchApiService(Protocol):
         review_depth: str,
         idempotency_key: str,
         question_brief: dict | None = None,
+        analysis_selection: dict[str, str] | None = None,
     ) -> ResearchRunRecord: ...
 
     def get_run(self, user_id: str, project_id: str, run_id: str) -> ResearchRunRecord: ...
@@ -254,11 +265,27 @@ class InMemoryResearchApiService:
         self._risk_of_bias: dict[tuple[str, str], RiskOfBiasRecord] = {}
         self._risk_of_bias_revisions: dict[str, RiskOfBiasRecord] = {}
 
-    def interpret_question(self, user_id: str, project_id: str, question: str) -> dict:
+    def analysis_models(self, user_id: str, project_id: str) -> dict:
+        from sci_search.model_provider import analysis_choices
+
+        self._require(Action.READ, user_id, project_id)
+        return analysis_choices()
+
+    def interpret_question(
+        self,
+        user_id: str,
+        project_id: str,
+        question: str,
+        *,
+        analysis_selection: dict[str, str] | None = None,
+    ) -> dict:
         from sci_search.question_interpretation import interpret_question
 
         self._require(Action.MANAGE_RUNS, user_id, project_id)
-        return interpret_question(question)
+        from sci_search.model_provider import analysis_scope, resolve_selection
+
+        with analysis_scope(resolve_selection(analysis_selection)):
+            return interpret_question(question)
 
     def start_run(
         self,
@@ -269,14 +296,25 @@ class InMemoryResearchApiService:
         review_depth: str,
         idempotency_key: str,
         question_brief: dict | None = None,
+        analysis_selection: dict[str, str] | None = None,
     ) -> ResearchRunRecord:
         self._require(Action.MANAGE_RUNS, user_id, project_id)
         existing_id = self._run_idempotency.get((project_id, idempotency_key))
         if existing_id is not None:
             return self._runs[(project_id, existing_id)]
+        from sci_search.model_provider import resolve_selection
+
+        selection = resolve_selection(analysis_selection)
         now = self._clock()
         run = ResearchRunRecord(
-            self._id_source(), project_id, question, review_depth, "queued", now, now
+            self._id_source(),
+            project_id,
+            question,
+            review_depth,
+            "queued",
+            now,
+            now,
+            analysis_selection=selection,
         )
         self._runs[(project_id, run.id)] = run
         self._run_idempotency[(project_id, idempotency_key)] = run.id

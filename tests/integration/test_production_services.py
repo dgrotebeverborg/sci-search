@@ -74,7 +74,10 @@ def test_database_session_and_project_services_survive_recomposition(database: D
     assert recomposed_projects.list_for_user(provisioned.user.id) == [created]
 
 
-def test_research_run_is_idempotent_durable_and_queued(database: Database) -> None:
+def test_research_run_is_idempotent_durable_and_queued(database: Database, monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_MODELS", '{"openai":["saved-model"]}')
+    selection = {"provider": "openai", "model": "saved-model"}
     with database.transaction() as session:
         provisioned = provision_user(
             ExternalIdentity("https://connect.surfconext.nl", "research-user"),
@@ -109,6 +112,7 @@ def test_research_run_is_idempotent_durable_and_queued(database: Database) -> No
         question="How does grazing affect shrub regeneration?",
         review_depth="research",
         idempotency_key="request-1",
+        analysis_selection=selection,
     )
     repeated = service.start_run(
         provisioned.user.id,
@@ -116,10 +120,20 @@ def test_research_run_is_idempotent_durable_and_queued(database: Database) -> No
         question="How does grazing affect shrub regeneration?",
         review_depth="research",
         idempotency_key="request-1",
+        analysis_selection=selection,
     )
 
     assert repeated.id == first.id
     assert first.status == "queued"
+    assert first.analysis_selection == selection
+    from uuid import UUID
+
+    from sci_search.infrastructure.tables import JobRow
+
+    with database.transaction() as session:
+        job = session.get(JobRow, UUID(queue.messages[0][0]))
+        assert job.input_json["analysis_selection"] == selection
+    monkeypatch.setenv("OPENAI_MODEL", "different-default")
     assert (
         DatabaseResearchApiService(
             database,

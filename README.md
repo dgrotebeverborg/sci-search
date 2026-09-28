@@ -33,6 +33,24 @@ provider's key is missing or a request fails, the deterministic extractive answe
 reason. `OPENAI_API_KEY` is never read from sci-graph. Stored results record the provider and model,
 and cached analyses are not shared between providers.
 
+In the web workspace, choose **Analysis model** below **Review depth** before reviewing a question.
+The menu offers each provider's configured model (`MISTRAL_MODEL` / `OPENAI_MODEL`); providers
+without a key are disabled. Administrators can add approved model IDs with
+`SCI_SEARCH_ANALYSIS_MODELS`, a JSON object mapping `mistral` and/or `openai` to lists of model IDs.
+Additional models must support this application's structured-output requests. Configure the same
+provider credentials on the web service and workers; `MISTRAL_API_KEY_FILE` and
+`OPENAI_API_KEY_FILE` are also supported. The browser never receives credentials.
+
+The selection applies to question interpretation and the research run, and is retained for retries
+and article-feedback rebuilds. Changing the model clears any previous question interpretation.
+The saved dashboard header shows the analysis model, or explicitly identifies extractive fallback.
+Older results without recorded model metadata say so rather than displaying today's default.
+When no provider has a key, the workspace still supports extractive research.
+Restart the web service and workers after upgrading; no database migration is needed. Existing
+saved results remain readable. Before upgrading a persistent local workspace, retain a backup of
+its research root: rolling back to code without per-run model selection also requires restoring
+that matching workspace backup, because older code cannot read the new run-record field.
+
 Mistral output is requested through schema-enforced JSON. Valid structure alone is not accepted: all assertions must cite known evidence IDs and exact source quotes, while numerical and condition text must occur in those quotes. Invalid individual records are rejected; if no grounded answer or claim survives, the complete model result is discarded in favor of the deterministic extractive answer. API keys are not persisted in runs or scientific memory.
 
 Every acquired full text also receives a question-specific study card before synthesis. The card records its inclusion decision, required-dimension coverage, inferred evidence nature, and selected methods/results/limitations passages with exact source offsets. Only uncertain studies may be sent for optional quote-validated Mistral adjudication; deterministic exclusions are not automatically promoted. The matrix is included in the cited review and complete research package.

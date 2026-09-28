@@ -15,6 +15,10 @@ def test_saved_dashboard_history_refresh_and_feedback(
         snapshots[name] = build_dashboard(
             {
                 "question": f"Question {name}",
+                "analysis_selection": {"provider": "openai", "model": "chosen-model"},
+                "ai_analysis": {"status": "complete", "provider": "openai", "model": "chosen-model"}
+                if name == "A"
+                else {"status": "fallback", "fallback_reason": "Provider unavailable"},
                 "evidence": [
                     {
                         "id": f"e{name}",
@@ -102,12 +106,18 @@ def test_saved_dashboard_history_refresh_and_feedback(
     with page.expect_download() as download:
         page.get_by_role("link", name="Download all", exact=True).click()
     assert download.value.suggested_filename == "research-package.zip"
+    expect(page.locator("#dashboard-model")).to_have_text("Analysis model: OpenAI · chosen-model")
+    expect(page.locator("#dashboard-model")).to_be_visible()
+    page.screenshot(path="/tmp/sci-search-model-dashboard.png", full_page=True)
     before = page.locator("[data-dashboard-block]").all_text_contents()
     page.reload()
     expect(page.locator("[data-dashboard-block]")).to_have_count(13)
     assert page.locator("[data-dashboard-block]").all_text_contents() == before
     page.get_by_role("link", name="Question B", exact=True).click()
     expect(page.locator("#dashboard-question")).to_have_text("Question B")
+    expect(page.locator("#dashboard-model")).to_contain_text(
+        "Extractive analysis · selected: OpenAI · chosen-model"
+    )
     expect(page.get_by_role("link", name="Download all", exact=True)).to_have_count(0)
     page.go_back()
     expect(page.locator("#dashboard-question")).to_have_text("Question A")

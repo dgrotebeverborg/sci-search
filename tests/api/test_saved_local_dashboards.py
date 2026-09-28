@@ -546,3 +546,79 @@ def test_dashboard_route_returns_contradiction_groups(monkeypatch, tmp_path):
         blocks = {b["id"]: b for b in client.get(f"{base}/{run_id}/dashboard").json()["blocks"]}
     assert blocks["comparisons"]["data"]["contradiction_groups"][0]["id"] == "contradiction:api"
     assert blocks["answer"]["data"]["answer_contest"]["contested"] is True
+
+
+def test_model_choice_survives_retry_restart_and_feedback(monkeypatch, tmp_path):
+    from sci_search.infrastructure import local_research
+    from sci_search.model_provider import configured_analyzer
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_MODELS", '{"openai":["chosen-model"]}')
+    choice = {"provider": "openai", "model": "chosen-model"}
+    calls = []
+
+    class SelectedManager(RetainedManager):
+        def run_sync(self, *args, **kwargs):
+            analyzer = configured_analyzer()
+            calls.append((analyzer.provider.name, analyzer.model))
+            if len(calls) == 1:
+                raise RuntimeError("test retry")
+            return super().run_sync(*args, **kwargs)
+
+        def _rebuild_evidence(self, run_id):
+            analyzer = configured_analyzer()
+            calls.append((analyzer.provider.name, analyzer.model))
+            return super()._rebuild_evidence(run_id)
+
+    app = application(monkeypatch, tmp_path)
+    monkeypatch.setattr(local_research, "_manager", SelectedManager)
+    with TestClient(app) as client:
+        headers = login(client)
+        project = client.get("/api/v1/projects").json()["items"][0]["id"]
+        base = f"/api/v1/projects/{project}/runs"
+        run = client.post(
+            base,
+            headers=headers,
+            json={
+                "question": "Question A",
+                "idempotency_key": "chosen",
+                "analysis_selection": choice,
+            },
+        ).json()
+        url = base + "/" + run["id"]
+        for _ in range(200):
+            if client.get(url).json()["status"] == "failed":
+                break
+            time.sleep(0.01)
+        assert client.get(url).json()["status"] == "failed"
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "mistral")
+    monkeypatch.setenv("OPENAI_MODEL", "changed-default")
+    # Existing runs keep their choice even if the new-run menu changes.
+    monkeypatch.delenv("SCI_SEARCH_ANALYSIS_MODELS")
+    app = application(monkeypatch, tmp_path)
+    monkeypatch.setattr(local_research, "_manager", SelectedManager)
+    with TestClient(app) as client:
+        headers = login(client)
+        assert client.get(url).json()["analysis_selection"] == choice
+        assert client.post(url + "/retry", headers=headers).status_code == 200
+        wait_completed(client, url)
+        assert client.get(url + "/dashboard").json()["analysis"]["selection"] == choice
+        response = client.post(
+            url + "/articles/paper-a/feedback",
+            headers=headers,
+            json={
+                "decision": "exclude",
+                "reason": "Wrong population",
+                "expected_sequence": 0,
+                "idempotency_key": "exclude-chosen",
+            },
+        )
+        assert response.status_code == 202
+        for _ in range(200):
+            snapshot = client.get(url + "/dashboard").json()
+            if snapshot["revision"] == 2:
+                break
+            time.sleep(0.01)
+        assert snapshot["revision"] == 2
+        assert snapshot["analysis"]["selection"] == choice
+    assert calls == [("openai", "chosen-model")] * 3

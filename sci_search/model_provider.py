@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -85,7 +89,12 @@ PROFILES: dict[str, ProviderProfile] = {
 
 
 def selected_profile() -> ProviderProfile:
-    value = os.environ.get(PROVIDER_VARIABLE, "").strip().lower() or "mistral"
+    selection = _selection.get()
+    value = (
+        selection["provider"]
+        if selection
+        else os.environ.get(PROVIDER_VARIABLE, "").strip().lower() or "mistral"
+    )
     if value not in PROFILES:
         raise ValueError(f"{PROVIDER_VARIABLE} must be one of: mistral, openai")
     return PROFILES[value]
@@ -96,5 +105,81 @@ def configured_analyzer() -> ModelAnalyzer | None:
     from sci_search.mistral_analysis import ModelAnalyzer
 
     profile = selected_profile()
-    key = os.environ.get(profile.key_variable, "").strip()
-    return ModelAnalyzer(key, provider=profile) if key else None
+    key = _provider_key(profile)
+    return ModelAnalyzer(key, provider=profile, model=configured_model(profile)) if key else None
+
+
+class InvalidAnalysisSelection(ValueError):
+    """A requested provider/model is not available to this installation."""
+
+
+# Context variables isolate synchronous requests and worker jobs without changing
+# process environment variables. Persisted selections are re-entered by each worker.
+
+_selection: ContextVar[dict[str, str] | None] = ContextVar("analysis_selection", default=None)
+
+
+@contextmanager
+def analysis_scope(selection: dict[str, str] | None):
+    token = _selection.set(dict(selection) if selection else None)
+    try:
+        yield
+    finally:
+        _selection.reset(token)
+
+
+def configured_model(profile: ProviderProfile) -> str:
+    selection = _selection.get()
+    if selection and selection["provider"] == profile.name:
+        return selection["model"]
+    return os.environ.get(profile.model_variable) or profile.default_model
+
+
+def analysis_choices() -> dict[str, Any]:
+    """Server-controlled model catalogue; never return credentials."""
+    extra = json.loads(os.environ.get("SCI_SEARCH_ANALYSIS_MODELS") or "{}")
+    if not isinstance(extra, dict) or any(key not in PROFILES for key in extra):
+        raise ValueError("SCI_SEARCH_ANALYSIS_MODELS must map providers to model-name lists")
+    items = []
+    for profile in PROFILES.values():
+        models = extra.get(profile.name, [])
+        if not isinstance(models, list) or any(
+            not isinstance(model, str) or not model.strip() or len(model) > 200 for model in models
+        ):
+            raise ValueError("SCI_SEARCH_ANALYSIS_MODELS must map providers to model-name lists")
+        default = os.environ.get(profile.model_variable) or profile.default_model
+        for model in dict.fromkeys([default, *(m.strip() for m in models)]):
+            items.append(
+                {
+                    "provider": profile.name,
+                    "model": model,
+                    "available": bool(_provider_key(profile)),
+                }
+            )
+    profile = selected_profile()
+    return {
+        "items": items,
+        "default": {"provider": profile.name, "model": configured_model(profile)},
+    }
+
+
+def resolve_selection(selection: dict[str, str] | None) -> dict[str, str]:
+    """Validate new explicit requests; snapshot defaults for legacy clients."""
+    catalog = analysis_choices()
+    if selection is None:
+        return catalog["default"]
+    if any(
+        item["available"]
+        and item["provider"] == selection.get("provider")
+        and item["model"] == selection.get("model")
+        for item in catalog["items"]
+    ):
+        return {"provider": selection["provider"], "model": selection["model"]}
+    raise InvalidAnalysisSelection("The selected analysis model is not configured or available.")
+
+
+def _provider_key(profile: ProviderProfile) -> str:
+    filename = os.environ.get(f"{profile.key_variable}_FILE", "").strip()
+    if filename:
+        return Path(filename).read_text(encoding="utf-8").strip()
+    return os.environ.get(profile.key_variable, "").strip()
