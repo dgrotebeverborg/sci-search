@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
 from sci_search.mistral_analysis import MistralAnalyzer
+from sci_search.model_provider import configured_analyzer
 from sci_search.question_planning import ResearchPlan, plan_question
 
 
@@ -74,9 +74,7 @@ def interpret_question(question: str, analyzer: MistralAnalyzer | None = None) -
     plan = plan_question(question)
     selected = analyzer
     if selected is None:
-        key = os.environ.get("MISTRAL_API_KEY", "").strip()
-        if key:
-            selected = MistralAnalyzer(key)
+        selected = configured_analyzer()
     if selected is not None:
         try:
             result = _model_interpretation(question, plan, selected)
@@ -163,8 +161,8 @@ def _model_interpretation(
         exclusions=_strings(payload.get("exclusions")),
         ambiguity=ambiguity,
         clarification_question=clarification,
-        method="mistral_structured_question_interpretation_v1",
-        provider="mistral",
+        method=f"{analyzer.provider.name}_structured_question_interpretation_v1",
+        provider=analyzer.provider.name,
         model=analyzer.model,
     )
 

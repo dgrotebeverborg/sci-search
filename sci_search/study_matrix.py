@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -13,6 +12,7 @@ from sci_search.corpus import _document_text, summarize_document_parse_error
 from sci_search.coverage import decompose_question
 from sci_search.discovery import PublicationCandidate
 from sci_search.mistral_analysis import MistralAnalyzer
+from sci_search.model_provider import configured_analyzer, selected_profile
 from sci_search.question_planning import ResearchPlan
 
 MATRIX_METHOD = "deterministic_question_specific_study_matrix_v1"
@@ -240,15 +240,14 @@ def adjudicate_uncertain_studies(
         return {"status": "not_needed", "method": ADJUDICATION_METHOD, "decisions": []}
     selected = analyzer
     if selected is None:
-        key = os.environ.get("MISTRAL_API_KEY", "").strip()
-        if not key:
+        selected = configured_analyzer()
+        if selected is None:
             return {
                 "status": "unavailable",
                 "method": ADJUDICATION_METHOD,
-                "reason": "MISTRAL_API_KEY is not configured",
+                "reason": f"{selected_profile().key_variable} is not configured",
                 "decisions": [],
             }
-        selected = MistralAnalyzer(key)
     compact = [
         {
             "publication_id": card["publication_id"],
@@ -301,9 +300,9 @@ def adjudicate_uncertain_studies(
         decisions, rejected = validate_adjudication(parsed, uncertain)
         return {
             "status": "complete",
-            "provider": "mistral",
+            "provider": selected.provider.name,
             "model": selected.model,
-            "method": ADJUDICATION_METHOD,
+            "method": f"{selected.provider.name}_quote_validated_fulltext_adjudication_v1",
             "decisions": decisions,
             "rejected_records": rejected,
         }

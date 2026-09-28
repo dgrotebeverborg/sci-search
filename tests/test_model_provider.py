@@ -18,6 +18,8 @@ from sci_search.model_provider import (
     openai_strict_schema,
     selected_profile,
 )
+from sci_search.question_interpretation import QUESTION_BRIEF_SCHEMA, interpret_question
+from sci_search.study_matrix import ADJUDICATION_SCHEMA, adjudicate_uncertain_studies
 
 
 def _schema() -> dict:
@@ -248,3 +250,84 @@ def test_missing_openai_key_falls_back_with_openai_reason(monkeypatch: pytest.Mo
     assert result["fallback_reason"] == (
         "OPENAI_API_KEY is not configured; deterministic extractive analysis was used"
     )
+
+
+def _reply(payload: dict):
+    bodies: list[dict] = []
+
+    def complete(body: dict, headers: dict) -> dict:
+        bodies.append(body)
+        return {"choices": [{"message": {"content": json.dumps(payload)}}]}
+
+    return complete, bodies
+
+
+def test_question_interpretation_records_openai_provider() -> None:
+    complete, bodies = _reply(
+        {
+            "interpreted_question": "How does salinity affect tomato germination?",
+            "objective": "Summarize salinity effects on germination.",
+            "evidence_scope": [],
+            "assumptions": [],
+            "exclusions": [],
+            "ambiguity": "clear",
+            "clarification_question": None,
+        }
+    )
+    analyzer = ModelAnalyzer(
+        "key", provider=PROFILES["openai"], model="gpt-4.1-mini", complete_json=complete
+    )
+    brief = interpret_question("How does salinity affect tomato seed germination?", analyzer)
+    assert brief["provider"] == "openai"
+    assert brief["method"] == "openai_structured_question_interpretation_v1"
+    assert brief["model"] == "gpt-4.1-mini"
+    [body] = bodies
+    assert body["response_format"]["json_schema"]["schema"] == openai_strict_schema(
+        QUESTION_BRIEF_SCHEMA
+    )
+
+
+def _matrix() -> dict:
+    return {
+        "studies": [
+            {
+                "publication_id": "p1",
+                "title": "Uncertain study",
+                "screening": {"decision": "uncertain"},
+                "dimension_coverage": [],
+                "selected_passages": [],
+            }
+        ]
+    }
+
+
+def test_adjudication_records_openai_provider() -> None:
+    complete, bodies = _reply({"decisions": []})
+    analyzer = ModelAnalyzer("key", provider=PROFILES["openai"], complete_json=complete)
+    result = adjudicate_uncertain_studies("Question", _matrix(), analyzer)
+    assert result["status"] == "complete"
+    assert result["provider"] == "openai"
+    assert result["method"] == "openai_quote_validated_fulltext_adjudication_v1"
+    [body] = bodies
+    assert body["response_format"]["json_schema"]["schema"] == openai_strict_schema(
+        ADJUDICATION_SCHEMA
+    )
+
+
+def test_mistral_adjudication_keeps_existing_method_name() -> None:
+    complete, _ = _reply({"decisions": []})
+    result = adjudicate_uncertain_studies(
+        "Question", _matrix(), MistralAnalyzer("key", complete_json=complete)
+    )
+    assert result["provider"] == "mistral"
+    assert result["method"] == "mistral_quote_validated_fulltext_adjudication_v1"
+
+
+def test_adjudication_without_selected_key_names_that_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # No Mistral key either: before the change this must not reach the network.
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "openai")
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    result = adjudicate_uncertain_studies("Question", _matrix())
+    assert result["status"] == "unavailable"
+    assert result["reason"] == "OPENAI_API_KEY is not configured"
