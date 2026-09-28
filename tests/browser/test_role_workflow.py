@@ -9,7 +9,7 @@ from pypdf import PdfWriter
 def _login_as(page, origin: str, user_id: str) -> None:
     response = page.request.post(f"{origin}/auth/development?user_id={user_id}")
     assert response.ok
-    page.goto(f"{origin}/app")
+    page.goto(f"{origin}/app?project={user_id}-project&run=browser-completed")
 
 
 def test_role_controls_and_cross_project_api_denial(

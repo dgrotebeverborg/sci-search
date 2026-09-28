@@ -1,6 +1,6 @@
 import {request, setStatus} from './api.js';
 import {currentProject, onProjectChange} from './projects.js';
-import {openDashboard, refreshHistory, clearDashboard} from './history.js';
+import {openDashboard, refreshHistory, clearDashboard, beginNewSearch} from './history.js';
 import {loadEvidence} from './evidence.js';
 import {loadExports} from './exports.js';
 import {loadValidation} from './validation.js';
@@ -24,9 +24,11 @@ async function loadModels(project) {
   const previous = select.value;
   select.replaceChildren(new Option('Loading models…', ''));
   configureRunPermissions(project);
-  if (!project) return;
+  if (!project) { select.replaceChildren(new Option('Select a project first', '')); return; }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const catalog = await request(`/api/v1/projects/${project.id}/runs/models`);
+    const catalog = await request(`/api/v1/projects/${project.id}/runs/models`, {signal: controller.signal});
     if (version !== modelLoadVersion || currentProject()?.id !== project.id) return;
     select.replaceChildren();
     const available = catalog.items.filter(item => item.available);
@@ -49,8 +51,8 @@ async function loadModels(project) {
   } catch (error) {
     if (version !== modelLoadVersion) return;
     select.replaceChildren(new Option('Models could not be loaded', ''));
-    setStatus(error.message, 'error');
-  }
+    setStatus(error.name === 'AbortError' ? 'Loading models timed out. Refresh the page to retry.' : error.message, 'error');
+  } finally { clearTimeout(timeout); }
 }
 
 function clearBrief() {
@@ -59,9 +61,17 @@ function clearBrief() {
   document.getElementById("question-brief").hidden = true;
 }
 
-const projectRuns = new Map();
 
 export function currentRun() { return activeRun; }
+
+export function clearRun() {
+  clearBrief();
+  clearTimeout(pollTimer);
+  activeRun = null;
+  document.getElementById('run-panel').hidden = true;
+  document.getElementById('research-question').value = '';
+  loadEvidence(null); loadValidation(null); loadExports(null);
+}
 
 export function configureRunPermissions(project) {
   const allowed = !document.getElementById('workspace-preview-notice') &&
@@ -76,7 +86,6 @@ function renderRun(run, loadDashboard = true) {
   const previousStatus = activeRun?.status;
   const previousId = activeRun?.id;
   activeRun = run;
-  projectRuns.set(run.project_id, run);
   if (run.id !== previousId || run.status !== previousStatus) {
     if (run.status !== 'completed') {
       loadEvidence(null);
@@ -84,14 +93,16 @@ function renderRun(run, loadDashboard = true) {
       loadValidation(null);
     }
   }
-  if (loadDashboard && run.status === 'completed' && (previousStatus !== 'completed' || previousId !== run.id)) {
+  if (run.status === 'completed' && (previousStatus !== 'completed' || previousId !== run.id)) {
     const project = currentProject();
     loadEvidence(project);
     loadExports(project);
     loadValidation(project);
-    openDashboard(project.id, run.id);
-    refreshHistory();
+    if (loadDashboard) { openDashboard(project.id, run.id); refreshHistory(); }
   }
+  document.getElementById('evidence').hidden = false;
+  document.getElementById('validation').hidden = run.status !== 'completed';
+  document.getElementById('exports').hidden = run.status !== 'completed';
   document.getElementById('run-panel').hidden = false;
   document.getElementById('run-question').textContent = run.question;
   document.getElementById('run-model').textContent = `Selected model: ${modelLabel(run.analysis_selection)}`;
@@ -142,7 +153,6 @@ export async function startRun(question, reviewDepth, brief = null) {
     method: 'POST',
     body: {question, question_brief: brief, review_depth: reviewDepth, analysis_selection: selectedModel(), idempotency_key: crypto.randomUUID()},
   });
-  projectRuns.set(project.id, run);
   if (currentProject()?.id !== project.id) return;
   renderRun(run);
   refreshHistory();
@@ -154,7 +164,9 @@ export async function startRun(question, reviewDepth, brief = null) {
 
 export function initializeRuns() {
   document.getElementById('new-search').onclick = () => {
-    document.body.classList.add('compose-open');
+    const project = currentProject();
+    if (!project) return;
+    beginNewSearch(project.id);
     document.getElementById('research').scrollIntoView({block: 'start'});
     document.getElementById('research-question').focus();
   };
@@ -165,8 +177,6 @@ export function initializeRuns() {
     clearTimeout(pollTimer);
     activeRun = null;
     document.getElementById('run-panel').hidden = true;
-    const run = projectRuns.get(project?.id);
-    if (run) { renderRun(run); pollRun(); }
   });
   document.getElementById('research-question').addEventListener('input', clearBrief);
   document.getElementById('analysis-model').addEventListener('change', clearBrief);

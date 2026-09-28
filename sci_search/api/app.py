@@ -31,7 +31,7 @@ from sci_search.api.errors import (
     resource_not_found_handler,
     version_conflict_handler,
 )
-from sci_search.api.frontend import STATIC_DIRECTORY
+from sci_search.api.frontend import STATIC_DIRECTORY, static_asset_prefix
 from sci_search.api.frontend import router as frontend_router
 from sci_search.api.routes.audit import router as audit_router
 from sci_search.api.routes.dashboards import router as dashboards_router
@@ -231,6 +231,12 @@ def create_app(
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type", settings.csrf_header_name],
+    )
+    app.state.frontend_static_prefix = static_asset_prefix()
+    app.mount(
+        app.state.frontend_static_prefix,
+        StaticFiles(directory=STATIC_DIRECTORY),
+        name="versioned-static",
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     app.include_router(frontend_router)

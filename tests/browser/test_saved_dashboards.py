@@ -135,6 +135,20 @@ def test_saved_dashboard_history_refresh_and_feedback(
             "idempotency_key": submissions[0]["idempotency_key"],
         }
     ]
+    page.get_by_role("button", name="+ New search").click()
+    expect(page.locator("#dashboard-panel")).to_be_hidden()
+    expect(page.get_by_label("Research question", exact=True)).to_be_visible()
+    for name in ("evidence", "validation", "exports"):
+        expect(page.locator("#" + name)).to_be_hidden()
+    assert "run=" not in page.url
+    page.go_back()
+    expect(page.locator("#dashboard-panel")).to_be_visible()
+    page.go_forward()
+    expect(page.locator("#dashboard-panel")).to_be_hidden()
+    expect(page.locator("#run-panel")).to_be_hidden()
+    page.reload()
+    expect(page.get_by_label("Research question", exact=True)).to_be_visible()
+    expect(page.locator("#dashboard-panel")).to_be_hidden()
     page.close()
 
 
@@ -530,7 +544,8 @@ def test_real_extractive_result_renders_complete_scientific_dashboard(
     page.get_by_role("link", name="Overview", exact=True).click()
     page.get_by_role("button", name="+ New search", exact=True).click()
     expect(page.locator("#research")).to_be_visible()
-    page.evaluate("document.body.classList.remove('compose-open')")
+    page.go_back()
+    expect(page.locator("#dashboard-panel")).to_be_visible()
     expect(
         page.locator("#dashboard-answer").get_by_text("executive_summary", exact=True)
     ).to_have_count(0)

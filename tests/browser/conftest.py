@@ -119,6 +119,9 @@ def live_browser_url(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyP
         "reviewer-project",
         "viewer-project",
     ):
+        research_service.seed_run(
+            project_id, "browser-completed", "Saved evidence review", status="completed"
+        )
         research_service.seed_evidence(
             project_id,
             "browser-evidence",

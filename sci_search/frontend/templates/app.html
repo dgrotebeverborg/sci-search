@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sci-Search · Research workspace</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="{{ static_prefix }}/app.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to research workspace</a>
@@ -137,7 +137,7 @@
         </header>
         <div id="dashboard-blocks"></div>
       </section>
-      <section class="panel" id="evidence">
+      <section class="panel" id="evidence" hidden>
         <div class="section-heading"><div><p class="eyebrow">Source traceability</p><h2>Evidence</h2></div></div>
         <p class="empty-state" id="evidence-empty">Evidence will appear here when a review has produced source-linked findings.</p>
         <div id="evidence-list"></div>
@@ -151,18 +151,18 @@
         </div>
       </section>
 
-      <section class="panel" id="validation">
+      <section class="panel" id="validation" hidden>
         <div class="section-heading"><div><p class="eyebrow">Quality control</p><h2>Validation</h2></div></div>
         <p class="empty-state" id="validation-empty">Validation checks will show provenance, units, associations, and extraction warnings.</p>
         <div id="validation-list"></div>
       </section>
 
-      <section class="download-panel" id="exports">
+      <section class="download-panel" id="exports" hidden>
         <div><p class="eyebrow">Complete deliverable</p><h2>Download review and source package</h2><p>Original publications, cited review, landscape, evidence passages, methods, and machine-readable provenance.</p></div>
         <div class="button-row" id="export-actions"><span class="help">Downloads become available after a review.</span></div>
       </section>
     </main>
   </div>
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="{{ static_prefix }}/app.js"></script>
 </body>
 </html>

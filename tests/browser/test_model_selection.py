@@ -68,7 +68,7 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
             run_id="run",
             revision=1,
         )
-        render = "async snapshot => { const {renderDashboard} = await import('/static/dashboard.js'); renderDashboard(snapshot); }"
+        render = "async snapshot => { const {renderDashboard} = await import(new URL('./dashboard.js', document.querySelector('script[type=module]').src).href); renderDashboard(snapshot); }"
         page.evaluate(render, snapshot)
         expect(page.locator("#dashboard-model")).to_contain_text(
             "Analysis model: OpenAI · chosen-model"
@@ -87,5 +87,31 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
         }
         page.evaluate(render, snapshot)
         expect(page.locator("#dashboard-model")).to_contain_text("Extractive analysis")
+    finally:
+        page.close()
+
+
+def test_model_chooser_ignores_pre_upgrade_cached_module(live_browser_url, chromium_browser):
+    page = chromium_browser.new_page()
+    try:
+        # Model the cached pre-upgrade module under its original, unversioned URL.
+        page.route(
+            "**/static/runs.js",
+            lambda route: route.fulfill(
+                content_type="text/javascript",
+                body="""
+            export function initializeRuns() {}
+            export function configureRunPermissions() {}
+            export function currentRun() { return null; }
+            export function selectRun() {}
+        """,
+            ),
+        )
+        page.goto(live_browser_url)
+        page.get_by_role("button", name="Continue with development account").click()
+        expect(page.get_by_label("Analysis model", exact=True)).to_be_enabled()
+        expect(page.get_by_label("Analysis model", exact=True)).not_to_contain_text(
+            "Loading models"
+        )
     finally:
         page.close()

@@ -1,7 +1,7 @@
 import {request, setStatus} from './api.js';
 import {currentProject, onProjectChange, loadProjects} from './projects.js';
 import {renderDashboard, element} from './dashboard.js';
-import {selectRun} from './runs.js';
+import {selectRun, clearRun} from './runs.js';
 
 let generation = 0, historyGeneration = 0, controller = null, timer = null;
 let selectedRun = null, selectedRevision = null, cursor = null;
@@ -16,11 +16,16 @@ function updateUrl(projectId, runId, revision, replace = false) {
   if (url.href !== window.location.href) window.history[replace ? 'replaceState' : 'pushState']({}, '', url);
 }
 export function clearDashboard() {
+  clearRun();
   document.body.classList.remove('dashboard-open', 'compose-open');
   generation++; controller?.abort(); clearTimeout(timer); selectedRun = null; selectedRevision = null;
   document.getElementById('dashboard-panel').hidden = true;
   document.getElementById('dashboard-blocks').replaceChildren();
-  for (const id of ['evidence', 'validation', 'exports']) document.getElementById(id).hidden = false;
+  for (const id of ['evidence', 'validation', 'exports']) document.getElementById(id).hidden = true;
+}
+export function beginNewSearch(projectId) {
+  clearDashboard();
+  updateUrl(projectId, null, null);
 }
 function statusMessage(snapshot, historical) {
   const status = snapshot.rebuild_status;

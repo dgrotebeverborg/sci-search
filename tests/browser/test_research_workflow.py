@@ -36,7 +36,7 @@ def test_research_controls_wait_for_javascript_initialization(
 ) -> None:
     page = chromium_browser.new_page()
     try:
-        page.route("**/static/app.js", lambda route: route.abort())
+        page.route("**/static/**/app.js", lambda route: route.abort())
         _login(page, live_browser_url)
         expect(page.get_by_role("button", name="Review question")).to_be_disabled()
         expect(page.get_by_label("Research question")).to_be_disabled()
@@ -44,7 +44,7 @@ def test_research_controls_wait_for_javascript_initialization(
         expect(page.get_by_role("button", name="Create project")).to_be_disabled()
         expect(page.get_by_role("button", name="Sign out")).to_be_disabled()
 
-        page.unroute("**/static/app.js")
+        page.unroute("**/static/**/app.js")
         page.reload()
         page.get_by_label("Research question").fill("What evidence is available?")
         page.get_by_role("button", name="Review question").click()
@@ -104,5 +104,30 @@ def test_completed_review_refreshes_results_without_switching_projects(
         page.get_by_role("button", name="Approve and start review").click()
         expect(page.locator("#run-status")).to_have_text("completed")
         expect(page.get_by_text("Fresh research finding", exact=True)).to_be_visible()
+    finally:
+        page.close()
+
+
+def test_start_screen_does_not_fetch_or_display_previous_project_results(
+    live_browser_url, chromium_browser
+):
+    page = chromium_browser.new_page()
+    results_requests = []
+    page.on(
+        "request",
+        lambda request: (
+            results_requests.append(request.url)
+            if "/api/" in request.url
+            and any(part in request.url for part in ("/evidence?", "/validation", "/exports"))
+            else None
+        ),
+    )
+    try:
+        _login(page, live_browser_url)
+        expect(page.get_by_role("button", name="Review question")).to_be_enabled()
+        for name in ("evidence", "validation", "exports"):
+            expect(page.locator("#" + name)).to_be_hidden()
+        expect(page.get_by_text("A source-linked scientific finding")).not_to_be_visible()
+        assert results_requests == []
     finally:
         page.close()

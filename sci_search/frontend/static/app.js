@@ -16,7 +16,7 @@ async function start() {
     await initializeAuth();
     onProjectChange((project) => {
       const run = currentRun();
-      const resultsProject = run && run.status !== 'completed' ? null : project;
+      const resultsProject = run?.status === 'completed' ? project : null;
       loadEvidence(resultsProject);
       loadValidation(resultsProject);
       loadExports(resultsProject);
