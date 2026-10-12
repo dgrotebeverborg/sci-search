@@ -17,7 +17,14 @@ def export(result, directory, *, bundle=False):
         required = set()
         if any(a["kind"] == "tabular" for a in result["analyses"]):
             required.update(
-                ("tabular.py", "packages.py", "preparation.py", "statistical_tables.py", "daily.py")
+                (
+                    "tabular.py",
+                    "packages.py",
+                    "preparation.py",
+                    "statistical_tables.py",
+                    "jsonstat.py",
+                    "daily.py",
+                )
             )
         if any(a["kind"] == "wildfire" for a in result["analyses"]):
             required.add("wildfire.py")
@@ -43,6 +50,7 @@ def export(result, directory, *, bundle=False):
                             "preparation.py",
                             "daily.py",
                             "statistical_tables.py",
+                            "jsonstat.py",
                         }
                         or file.name in required
                     )

@@ -15,6 +15,12 @@ except ImportError:  # Standalone, retained offline reproduction package.
 
 
 def prepare_table(body, selection=None):
+    if selection is not None and selection.get("reader") == "jsonstat2":
+        try:
+            from .jsonstat import prepare_jsonstat
+        except ImportError:
+            from jsonstat import prepare_jsonstat
+        return prepare_jsonstat(body, selection)
     if selection is not None and selection.get("reader") == "statistical_tsv":
         try:
             from .statistical_tables import prepare_statistics

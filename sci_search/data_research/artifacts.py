@@ -12,6 +12,7 @@ ENGINES = (
     "preparation.py",
     "spreadsheets.py",
     "statistical_tables.py",
+    "jsonstat.py",
     "daily.py",
     "wildfire.py",
     "python_rows.py",
