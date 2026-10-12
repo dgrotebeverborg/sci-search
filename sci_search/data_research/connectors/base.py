@@ -2,7 +2,9 @@
 """Shared connector types and checks. Connectors never request model-supplied URLs."""
 
 import hashlib
+import os
 import re
+import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -153,8 +155,20 @@ def catalogue(name, url, fetch, cache_dir, today: date | None = None):
     body, _, _ = fetch(url)
     digest = hashlib.sha256(body).hexdigest()
     try:
-        path.write_bytes(body)
-        digest_path.write_text(digest)
+        # Runs can share the cache: readers see a whole old file or a whole new one.
+        _replace_atomically(path, body)
+        _replace_atomically(digest_path, digest.encode())
     except OSError:
         pass  # an unwritable cache must not fail a successful fetch
     return body, digest
+
+
+def _replace_atomically(path, contents):
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(contents)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise

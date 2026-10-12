@@ -574,3 +574,50 @@ def test_research_runs_pass_the_shared_catalogue_cache(tmp_path, monkeypatch):
     )
     manager.run_sync(question, question_brief=brief, limits=ResearchLimits(max_full_texts=1))
     assert seen["cache_dir"] == cache
+
+
+def test_production_stage_shares_a_catalogue_cache_outside_the_run(monkeypatch):
+    import tempfile
+    from pathlib import Path
+
+    from sci_search.infrastructure import research_execution, sql_memory
+    from sci_search.research_runs import ResearchRunManager
+    from sci_search.worker import CancellationToken, StageInvocation
+
+    seen = {}
+
+    class Manager(ResearchRunManager):
+        def run_sync(self, question, *, limits, **kwargs):
+            seen.update(root=self.root, cache=self.connector_cache_dir)
+            return {"status": "complete", "run_id": "internal", "result": {}}
+
+    class Provider:
+        name = "fixture"
+
+        def search(self, *a, **k):
+            return ()
+
+    class Stage(research_execution.ProductionResearchStage):
+        def _publish_corpus(self, *args):
+            return {}
+
+        def _publish_artifacts(self, *args):
+            return []
+
+        def publish_dashboard(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(sql_memory, "memory_for_project", lambda *a, **k: None)
+    stage = Stage(
+        None,
+        None,
+        manager_factory=lambda root: Manager(root, providers=(Provider(),), openalex_api_key="x"),
+    )
+    stage(
+        StageInvocation(
+            {"question": "Question", "run_id": "run", "project_id": "project"},
+            CancellationToken(lambda: False),
+        )
+    )
+    assert seen["cache"] == Path(tempfile.gettempdir()) / "sci-search-connector-catalogues"
+    assert not seen["cache"].resolve().is_relative_to(seen["root"])

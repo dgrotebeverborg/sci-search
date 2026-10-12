@@ -75,6 +75,12 @@ class ProductionResearchStage:
             if isinstance(manager, ResearchRunManager):
                 from sci_search.infrastructure.sql_memory import memory_for_project
 
+                # Statistics catalogues are shared for the container's lifetime (tmpfs),
+                # outside the temporary run root, so packages never bundle them.
+                manager.connector_cache_dir = (
+                    Path(tempfile.gettempdir()) / "sci-search-connector-catalogues"
+                )
+
                 memory = memory_for_project(root, project_id, run_id, self._database, self._blobs)
                 manager.memory = memory
             brief = inputs.get("question_brief")

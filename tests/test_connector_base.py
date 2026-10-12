@@ -137,3 +137,29 @@ def test_unwritable_catalogue_cache_still_returns_the_fetched_body(tmp_path):
         "eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12)
     )
     assert body == b"<catalogue/>" and len(digest) == 64
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["eurostat-2026-10-12.bin"]
+
+
+def test_catalogue_cache_is_replaced_atomically(tmp_path, monkeypatch):
+    def fetch(url):
+        return b"<new/>", "application/xml", url
+
+    cached = tmp_path / "eurostat-2026-10-12.bin"
+    cached.write_bytes(b"<old/>")
+    (tmp_path / "eurostat-2026-10-12.sha256").write_text("stale")
+
+    def interrupted(source, target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(base.os, "replace", interrupted)
+    body, _ = base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12))
+    # A failed write never leaves a partial cache file or a stray temporary file behind.
+    assert body == b"<new/>" and cached.read_bytes() == b"<old/>"
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "eurostat-2026-10-12.bin",
+        "eurostat-2026-10-12.sha256",
+    ]
+    monkeypatch.undo()
+    base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12))
+    assert cached.read_bytes() == b"<new/>"
+    assert len(list(tmp_path.iterdir())) == 2
