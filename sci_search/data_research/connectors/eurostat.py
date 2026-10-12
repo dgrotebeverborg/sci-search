@@ -125,7 +125,8 @@ def _key(order, filters):
     return ".".join("+".join(filters.get(d, [])) for d in order)
 
 
-def _series_keys(dataset, order, filters, scope, fetch):
+def _series_rows(dataset, order, filters, scope, fetch):
+    """Published series keys matching filters, one {dimension: code} per series."""
     query = {"format": "TSV", "detail": "serieskeysonly"}
     if scope.get("start_year"):
         query["startPeriod"] = str(scope["start_year"])
@@ -133,15 +134,22 @@ def _series_keys(dataset, order, filters, scope, fetch):
         body, _, _ = fetch(f"{API}/data/{dataset}/{_key(order, filters)}/?{urlencode(query)}")
     except ValueError as exc:
         if "HTTP 404" in str(exc):  # Eurostat answers 404 when the key matches no series
-            return {}
+            return []
         raise
     lines = body.decode("utf-8-sig").splitlines()
     header = lines[0].split(",") if lines else []
-    observed = {d: set() for d in header}
-    for line in lines[1:]:
-        for d, code in zip(header, line.split(","), strict=False):
-            observed[d].add(code.strip())
-    return observed if len(lines) > 1 else {}
+    return [
+        {d: code.strip() for d, code in zip(header, line.split(","), strict=False)}
+        for line in lines[1:]
+    ]
+
+
+def _series_keys(dataset, order, filters, scope, fetch):
+    observed = {}
+    for row in _series_rows(dataset, order, filters, scope, fetch):
+        for d, code in row.items():
+            observed.setdefault(d, set()).add(code)
+    return observed
 
 
 def describe(candidate, scope, *, fetch):
@@ -209,7 +217,30 @@ def fetch(description, selection, scope, *, fetch, post):
         query["endPeriod"] = str(scope["end_year"])
     url = f"{API}/data/{description.candidate.dataset}/{_key(order, filters)}/?{urlencode(query)}"
     raw, _, final = fetch_scoped(url, scope, fetch, [])
-    preview = inspect_statistics(raw)
+    try:
+        preview = inspect_statistics(raw)
+    except ValueError as exc:
+        if "has no series" not in str(exc):
+            raise
+        # Each code is published, but not this combination: Eurostat answers with only a
+        # header. List combinations that exist for the selected series codes.
+        series = selection["series_dimensions"]
+        rows = _series_rows(
+            description.candidate.dataset,
+            order,
+            {d: filters[d] for d in series},
+            scope,
+            fetch,
+        )
+        published = []
+        for row in rows:
+            combination = {d: c for d, c in row.items() if d not in series}
+            if combination not in published:
+                published.append(combination)
+        raise base.SelectionError(
+            "No published series for this combination of codes; choose a published combination",
+            {"published_combinations": published[:30]},
+        ) from exc
     notes = []
     if description.extra.get("missing_geo"):
         notes.append("No data published for geo: " + ", ".join(description.extra["missing_geo"]))

@@ -262,3 +262,39 @@ def test_all_requested_countries_missing_is_rejected_naming_them():
 
     with pytest.raises(base.DatasetRejected, match="DE"):
         _described({**SCOPE, "countries": ["DEU"]}, fetch=only_germany)
+
+
+def test_a_key_combination_without_series_is_a_selection_error_with_published_combinations():
+    # Live nrg_ind_ured: codes observed one by one, but not together. Eurostat answers
+    # with a header-only table rather than HTTP 404.
+    import gzip
+
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    description = eurostat.describe(candidate, SCOPE, fetch=offline)
+    empty = gzip.compress(b"freq,unit,sex,age,geo\\TIME_PERIOD\t2000 \t2001 \r\n")
+    requested = []
+
+    def header_only(url):
+        requested.append(url)
+        if "/data/demo_mlexpec/" in url and "serieskeysonly" not in url:
+            return empty, "text/tab-separated-values", url
+        return offline(url)
+
+    selection = {
+        "filters": {
+            "freq": ["A"],
+            "unit": ["YR"],
+            "sex": ["F"],
+            "age": ["Y_LT1"],
+            "geo": ["NL", "DE", "EL"],
+        },
+        "series_dimensions": ["geo"],
+        "reason": "Requested",
+    }
+    with pytest.raises(base.SelectionError, match="No published series") as raised:
+        eurostat.fetch(description, selection, SCOPE, fetch=header_only, post=None)
+    combinations = raised.value.facts["published_combinations"]
+    assert combinations and len(combinations) <= 30
+    assert {"freq": "A", "unit": "YR", "sex": "F", "age": "Y_LT1"} in combinations
+    # The listing is narrowed to the selected series-dimension codes.
+    assert "/data/demo_mlexpec/....NL+DE+EL/" in requested[-1]
