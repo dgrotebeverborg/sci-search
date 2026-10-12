@@ -187,8 +187,11 @@ def test_a_malformed_dataset_choice_is_a_blocked_assessment(tmp_path, reply):
     result = run_stage(tmp_path, complete)
     assert result["analyses"] == []
     assert result["search"]["catalogues"]["eurostat"]
-    assert result["assessments"][-1]["failure_stage"] == "connector:choice"
-    assert result["assessments"][-1]["decision"] == "blocked"
+    choice = [a for a in result["assessments"] if a.get("failure_stage") == "connector:choice"]
+    assert choice and all(a["decision"] == "blocked" for a in choice)
+    # The reformulation round's choice is malformed too, and its outcome is recorded.
+    assert result["assessments"][-1]["failure_stage"] == "connector:search"
+    assert result["assessments"][-1]["reason"].endswith("reformulated choice was invalid")
 
 
 def test_unusable_choices_are_recorded_as_skipped(tmp_path):

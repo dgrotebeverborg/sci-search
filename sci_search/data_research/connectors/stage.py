@@ -2,9 +2,11 @@
 """Connector stage: search terms, dataset choice, code selection, analysis and recovery."""
 
 import copy
+import csv
 import hashlib
 import json
 import re
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -161,29 +163,40 @@ REFORMULATE_PROMPT = (
     "different short search terms for this measurement. Do not name datasets.\n"
 )
 MAX_REPAIRS = 2
-# Reader messages that say the data is unsuitable rather than unreadable. These go to the
-# next candidate, never to Python extraction, which would bypass the annual, unit and limit
-# checks. The first five are the ruled set; the rest name the same checks in other readers.
-REJECTIONS = (
-    "no aggregation was performed",
-    "exceeds the 5 MB",
-    "no documented unit",
-    "exceeds 60 entities",
-    "duplicate",
-    "unit does not match",
-    "unspecified unit",
-    "size limit",
-    "not in the chart",
+# Reader failures that mean the bytes could not be parsed or have an unexpected shape. Only
+# these go to Python extraction. Every other reader failure (frequency, unit, status flag,
+# size or entity limit, duplicate or unobserved code) is a content rejection, because Python
+# extraction would bypass those checks; an unknown message therefore fails closed.
+PARSE_FAILURES = (
+    "Invalid GZIP dataset",
+    "Not a statistical TSV table",
+    "Invalid statistical dimension names",
+    "Response is not a JSON-stat dataset",
+    "Inconsistent JSON-stat dimensions",
+    "JSON-stat category counts do not match sizes",
+    "JSON-stat value count does not match its dimensions",
+    "OWID CSV lacks entity, year or the selected indicator column",
+    "Unsupported CBS observation schema",
+    "CBS package is missing a required code table",
+    "CBS code table lacks identifiers or labels",
+)
+PARSE_ERRORS = (
+    json.JSONDecodeError,
+    UnicodeDecodeError,
+    zipfile.BadZipFile,
+    csv.Error,
+    KeyError,
+    TypeError,
 )
 
 
 def _reader_failure(exc):
-    """Classify a reader exception: a content rejection is never handed to Python recovery."""
-    if isinstance(exc, base.SelectionError | base.DatasetRejected) or any(
-        marker in str(exc) for marker in REJECTIONS
-    ):
+    """Classify a reader exception: only a parse or shape failure may reach Python recovery."""
+    if isinstance(exc, base.SelectionError | base.DatasetRejected):
         return base.DatasetRejected(str(exc))
-    return base.ReaderError(str(exc))
+    if isinstance(exc, PARSE_ERRORS) or any(str(exc).startswith(m) for m in PARSE_FAILURES):
+        return base.ReaderError(str(exc))
+    return base.DatasetRejected(str(exc))
 
 
 def _transient(exc):
@@ -312,7 +325,7 @@ def analyse_dataset(
         stage_name = "connector:normalize"
         try:
             table, preparation = prepare_table(fetched.raw, fetched.selection)
-        except (ValueError, KeyError, TypeError) as exc:
+        except (ValueError, KeyError, TypeError, zipfile.BadZipFile, csv.Error) as exc:
             failure = _reader_failure(exc)
             if isinstance(failure, base.DatasetRejected):
                 raise failure from exc
@@ -325,7 +338,7 @@ def analyse_dataset(
             # recover_python runs its own semantic review and raises unless it is accepted.
             analysis = recover_python(
                 question,
-                strategy,
+                {**strategy, "measurements": [measurement]},
                 fetched.raw,
                 source,
                 folder,
@@ -335,6 +348,10 @@ def analyse_dataset(
                 check_cancelled=check_cancelled,
                 progress=progress,
             )
+            if measurement in analysis.get("uncovered_measurements", []):
+                raise base.DatasetRejected(
+                    "Python extraction did not represent the measurement"
+                ) from exc
             stage_name = "execution"
             analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
             save(folder / "analysis.json", analysis)
@@ -410,6 +427,12 @@ def _search_all(connectors, terms, strategy, fetch, cache_dir, result, *, check_
                 sorted(set(terms)), strategy, fetch=fetch, cache_dir=cache_dir
             )
         except (ValueError, KeyError, TypeError, OSError) as exc:
+            if any(
+                a.get("title") == f"{name} catalogue"
+                and a.get("failure_stage") == "connector:search"
+                for a in result["assessments"]
+            ):
+                continue  # already recorded in an earlier round
             result["assessments"].append(
                 {
                     "title": f"{name} catalogue",
@@ -442,7 +465,7 @@ def _choose_and_analyse(
     skipped,
     recovery=(),
 ):
-    """Let the model choose among found candidates for measurements, then analyse each choice."""
+    """Let the model choose among found candidates, analyse each choice; return how many were tried."""
     candidates = [
         {"key": k, "title": c.title, "frequency": c.frequency} for k, (_, c) in found.items()
     ]
@@ -474,7 +497,8 @@ def _choose_and_analyse(
                 "reason": str(exc)[:500],
             }
         )
-        return
+        return 0
+    attempted = 0
     for item in items:
         problem = ""
         if item["candidate"] not in found:
@@ -493,6 +517,7 @@ def _choose_and_analyse(
         if item["measurement"] in result["covered"]:
             continue
         connector, candidate = found[item["candidate"]]
+        attempted += 1
         analysis, assessment = analyse_dataset(
             question,
             strategy,
@@ -513,6 +538,7 @@ def _choose_and_analyse(
         if analysis:
             result["analyses"].append(analysis)
             result["covered"].append(item["measurement"])
+    return attempted
 
 
 def _reformulate(question, measurement, previous, reasons, complete):
@@ -631,27 +657,32 @@ def run(
             else {}
         )
         fresh = {k: v for k, v in found_again.items() if k not in tried}
-        if not fresh:
-            result["assessments"].append(
-                {
-                    "title": "Connector search",
-                    "measurement": measurement,
-                    "decision": "blocked",
-                    "failure_stage": "connector:search",
-                    "reason": "No connector dataset found after reformulated search",
-                    "recovery": [entry],
-                }
+        reason = "No connector dataset found after reformulated search"
+        if fresh:
+            attempted = _choose_and_analyse(
+                question,
+                strategy,
+                directory,
+                fresh,
+                [measurement],
+                result,
+                skipped=result["search"]["reformulated_skipped_choices"],
+                recovery=[entry],
+                **steps,
             )
-            continue
-        _choose_and_analyse(
-            question,
-            strategy,
-            directory,
-            fresh,
-            [measurement],
-            result,
-            skipped=result["search"]["reformulated_skipped_choices"],
-            recovery=[entry],
-            **steps,
+            if attempted:
+                continue  # the analysed datasets carry their own assessments
+            reason += ": reformulated choice was invalid"
+        elif found_again:
+            reason += ": all reformulated datasets were already tried"
+        result["assessments"].append(
+            {
+                "title": "Connector search",
+                "measurement": measurement,
+                "decision": "blocked",
+                "failure_stage": "connector:search",
+                "reason": reason,
+                "recovery": [entry],
+            }
         )
     return result

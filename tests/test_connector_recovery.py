@@ -1,4 +1,7 @@
 # tests/test_connector_recovery.py
+import json
+import zipfile
+
 import pytest
 
 from sci_search.data_research.connectors import base, eurostat, stage
@@ -185,6 +188,16 @@ def test_reformulation_runs_once_and_skips_datasets_already_tried(tmp_path):
         "JSON-stat measure has no documented unit",
         "OWID selection exceeds 60 entities",
         "OWID CSV has a duplicate Netherlands 2020 row",
+        "Only annual frequency can be analysed",
+        "Select one statistical unit",
+        "Unsupported statistical observation or status: 12.3 x",
+        "CBS flagged numeric observation requires explicit interpretation",
+        "Normalized statistical table exceeds analysis limit; narrow filters",
+        "Statistical slice is empty or too large; narrow dimension filters",
+        "CBS period label does not match its annual code",
+        "CBS observation references an unknown dimension code",
+        "Every non-series dimension must be fixed to one observed code: age",
+        "a message no reader has used before",
     ],
 )
 def test_reader_rejections_never_go_to_python_recovery(tmp_path, monkeypatch, message):
@@ -230,7 +243,9 @@ def test_reader_failures_go_to_python_recovery(tmp_path, monkeypatch):
     monkeypatch.setattr(
         stage,
         "prepare_table",
-        lambda raw, selection: (_ for _ in ()).throw(ValueError("unknown layout")),
+        lambda raw, selection: (_ for _ in ()).throw(
+            ValueError("Response is not a JSON-stat dataset")
+        ),
     )
     complete, _ = model([GOOD])
     result = run(tmp_path, complete)
@@ -270,3 +285,105 @@ def test_a_garbled_response_is_recovered_and_executed(tmp_path, monkeypatch):
         "action": "python_recovery",
         "outcome": "recovered",
     }
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ValueError("Not a statistical TSV table"),
+        ValueError("Invalid GZIP dataset"),
+        ValueError("OWID CSV lacks entity, year or the selected indicator column"),
+        ValueError("Unsupported CBS observation schema"),
+        json.JSONDecodeError("Expecting value", "x", 0),
+        zipfile.BadZipFile("File is not a zip file"),
+        KeyError("dimension"),
+    ],
+)
+def test_parse_failures_are_reader_errors(exc):
+    assert isinstance(stage._reader_failure(exc), base.ReaderError)
+
+
+def test_a_bad_zip_reaches_python_recovery(tmp_path, monkeypatch):
+    called = []
+
+    def fake_recover(*args, **kwargs):
+        called.append(1)
+        raise ValueError("Python extraction stopped after 1 attempt(s)")
+
+    def bad_zip(raw, selection):
+        raise zipfile.BadZipFile("File is not a zip file")
+
+    monkeypatch.setattr(stage, "recover_python", fake_recover)
+    monkeypatch.setattr(stage, "prepare_table", bad_zip)
+    complete, _ = model([GOOD])
+    result = run(tmp_path, complete)
+    assert called and result["assessments"][0]["failure_stage"] == "connector:python"
+
+
+def test_python_recovery_must_represent_the_measurement(tmp_path, monkeypatch):
+    seen = {}
+
+    def fake_recover(question, strategy, data, source, folder, **kwargs):
+        seen["measurements"] = strategy["measurements"]
+        return {
+            "series": [],
+            "source": source,
+            "semantic_review": {"accepted": True},
+            "uncovered_measurements": list(strategy["measurements"]),
+        }
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("an unrepresented measurement must not be executed")
+
+    monkeypatch.setattr(stage, "recover_python", fake_recover)
+    monkeypatch.setattr(stage, "execute_analysis", forbidden)
+    monkeypatch.setattr(
+        stage,
+        "prepare_table",
+        lambda raw, selection: (_ for _ in ()).throw(ValueError("Not a statistical TSV table")),
+    )
+    complete, _ = model([GOOD])
+    result = run(tmp_path, complete)
+    assert seen["measurements"] == [STRATEGY["measurements"][0]]
+    assert result["covered"] == []
+    assessment = result["assessments"][0]
+    assert assessment["error_class"] == "DatasetRejected"
+    assert assessment["reason"] == "Python extraction did not represent the measurement"
+
+
+def test_reformulation_records_datasets_already_tried(tmp_path):
+    # The fixture catalogue matches only demo_mlexpec, which the first round already tried.
+    complete, _ = model([BAD, BAD, BAD])
+    result = run(tmp_path, complete)
+    assert result["assessments"][-1]["failure_stage"] == "connector:search"
+    assert result["assessments"][-1]["reason"] == (
+        "No connector dataset found after reformulated search: all reformulated datasets "
+        "were already tried"
+    )
+
+
+def test_reformulation_records_an_invalid_choice(tmp_path):
+    # The reformulation round finds new datasets, but the model picks one already tried.
+    complete, _ = model([BAD, BAD, BAD], terms=(["life expectancy"], ["health"]))
+    result = run(tmp_path, complete)
+    assert result["search"]["reformulated_skipped_choices"][0]["reason"] == "unknown candidate"
+    assert result["assessments"][-1]["failure_stage"] == "connector:search"
+    assert result["assessments"][-1]["reason"] == (
+        "No connector dataset found after reformulated search: reformulated choice was invalid"
+    )
+
+
+def test_catalogue_failures_are_recorded_once(tmp_path):
+    def broken(url):
+        if "/dataflow/ESTAT/all" in url:
+            raise ValueError("Catalogue unavailable: HTTP 404")
+        return offline(url)
+
+    complete, seen = model([GOOD])
+    result = run(tmp_path, complete, broken)
+    assert seen.count("connector_terms") == 2
+    catalogue = [a for a in result["assessments"] if a["title"] == "eurostat catalogue"]
+    assert len(catalogue) == 1
+    assert result["assessments"][-1]["reason"] == (
+        "No connector dataset found after reformulated search"
+    )
