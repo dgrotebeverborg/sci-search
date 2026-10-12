@@ -100,7 +100,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         load_legacy_mistral_key(Path("."))
         memory = ScientificMemory(Path("data/scientific_memory"))
         memory.bootstrap_runs(Path("data/research_runs"))
-        manager = ResearchRunManager(Path("data/research_runs"), memory=memory)
+        manager = ResearchRunManager(
+            Path("data/research_runs"),
+            memory=memory,
+            connector_cache_dir=Path("data/connector-catalogues"),
+        )
         profile = REVIEW_PROFILES[args.review_mode]
         maximum = args.max_full_texts or profile["maximum"]
         limits = ResearchLimits(

@@ -11,6 +11,7 @@ from sci_search.application.authorization import Action, ResourceNotFound
 from sci_search.application.research_api import InMemoryResearchApiService, ResourceVersionConflict
 from sci_search.infrastructure.local_dashboards import LocalDashboardOperations
 from sci_search.infrastructure.research_execution import _limits, _manager
+from sci_search.research_runs import ResearchRunManager
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +253,9 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
                 if pending_key[0] == project_id and pending.get("memory_status") == "pending":
                     self._recover_memory(*pending_key)
             manager = _manager(work_root)
+            if isinstance(manager, ResearchRunManager):
+                # Statistics catalogues are cached per day for all local runs, outside run folders.
+                manager.connector_cache_dir = self.root / "connector-catalogues"
             configure_progress = getattr(manager, "set_progress_callback", None)
             if callable(configure_progress):
                 configure_progress(lambda progress: self._save_progress(key, progress))

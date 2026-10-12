@@ -85,15 +85,17 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _record_gap(result, candidate, strategy, page, stage, reason):
+def _record_gap(result, candidate, strategy, page, stage, reason, connectors):
     """A page that only renders through scripts is a host a connector could cover."""
+    host = urlsplit(candidate["url"]).hostname or ""
+    if any(host in getattr(connector, "HOSTS", ()) for connector in connectors.values()):
+        return
     text, links = page.get("text", ""), page.get("links", [])
     if stage not in {"assessment", "navigation", "parse"} or not (
         (len(text) < 300 and not links)
         or re.search(r"\b(loading|enable javascript|javascript is required)\b", text, re.I)
     ):
         return
-    host = urlsplit(candidate["url"]).hostname or ""
     gaps = result.setdefault("connector_gaps", [])
     if host and not any(g["host"] == host for g in gaps):
         gaps.append(
@@ -131,6 +133,7 @@ def execute(
     progress=lambda message: None,
     post=None,
     connectors=None,
+    cache_dir=None,
 ):
     strategy = validate_strategy(strategy)
     # The web path below may narrow `strategy` to measurements no connector covered;
@@ -138,8 +141,10 @@ def execute(
     full_strategy = strategy
     analyzer = analyzer or configured_analyzer()
     search = search or discover
-    # Statistical API responses are capped at 5 MB each; an injected fetch is used unchanged.
+    # Statistical API responses are capped at 5 MB each and catalogue lists at 20 MB
+    # (the Eurostat dataflow list is about 7 MB); an injected fetch is used unchanged.
     connector_fetch = fetch or (lambda url: fetch_public(url, limit=5_000_000))
+    search_fetch = fetch or (lambda url: fetch_public(url, limit=20_000_000))
     fetch = fetch or fetch_public
     complete = complete or (lambda prompt, schema: complete_object(analyzer, prompt, schema))
     directory = Path(directory)
@@ -217,10 +222,13 @@ def execute(
                 directory / "connectors",
                 complete=complete,
                 fetch=connector_fetch,
+                search_fetch=search_fetch,
                 post=post,
                 check_cancelled=connector_check_cancelled,
                 progress=progress,
                 connectors=available,
+                # Shared daily catalogue cache outside the run; None keeps it in the run folder.
+                cache_dir=cache_dir,
             )
         except Exception as exc:
             if cancellations:
@@ -486,7 +494,9 @@ def execute(
                 if body.startswith(b"PK"):
                     stage = "parse"
                 if use_connectors:
-                    _record_gap(result, candidate, strategy, page, stage, choice["reason"])
+                    _record_gap(
+                        result, candidate, strategy, page, stage, choice["reason"], available
+                    )
                 raise ValueError(choice["reason"] or "No supported downloadable data on this page")
             quote = choice["definition_quote"]
             if quote.strip() and not body.startswith(b"PK") and quote not in page["text"]:
@@ -1107,7 +1117,7 @@ def execute(
             assessment["reason"] = str(exc)[:700]
             assessment["failure_stage"] = stage
             if use_connectors:
-                _record_gap(result, candidate, strategy, page, stage, exc)
+                _record_gap(result, candidate, strategy, page, stage, exc, available)
             assessment["availability"] = (
                 "found_but_not_read"
                 if stage in {"access", "download", "parse"}
@@ -1153,11 +1163,17 @@ def execute(
                 )
         finally:
             if data is not None and source is not None:
-                retained[position] = {"body": data, "source": source, "metadata": page["text"]}
+                retained[position] = {
+                    "body": data,
+                    "source": source,
+                    "metadata": page["text"],
+                    "folder": folder.name,
+                }
             elif body is not None:
                 retained[position] = {
                     "body": body,
                     "metadata": page["text"],
+                    "folder": folder.name,
                     "source": {
                         "title": candidate["title"],
                         "url": url,

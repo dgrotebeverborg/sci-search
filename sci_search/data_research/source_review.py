@@ -63,7 +63,9 @@ def reassess_source(
             "status": "already_retained",
             "reason": "Requested source measurements are already retained; no extraction repeated.",
         }
-    folder = Path(directory) / f"source-{index + 1}-review-{round_number}"
+    # The candidate's own folder; assessment positions can differ from folder numbers.
+    source_folder = source_record.get("folder", f"source-{index + 1}")
+    folder = Path(directory) / f"{source_folder}-review-{round_number}"
     folder.mkdir()
     record = {
         "measurements": measurements,
@@ -150,7 +152,7 @@ def reassess_source(
     finally:
         record["execution_review"] = execution_summary(folder)
         (folder / "review.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))
-        original_folder = Path(directory) / f"source-{index + 1}"
+        original_folder = Path(directory) / source_folder
         original_folder.mkdir(exist_ok=True)
         (original_folder / "assessment.json").write_text(
             json.dumps(assessment, ensure_ascii=False, indent=2)

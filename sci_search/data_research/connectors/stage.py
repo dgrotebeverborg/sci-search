@@ -574,8 +574,11 @@ def run(
     progress,
     connectors=None,
     cache_dir=None,
+    search_fetch=None,
 ):
     connectors = CONNECTORS if connectors is None else connectors
+    # Catalogue lists can be larger than one data response; the caller may bound them separately.
+    search_fetch = search_fetch or fetch
     directory = Path(directory)
     cache_dir = Path(cache_dir) if cache_dir else directory / "catalogues"
     result = {
@@ -604,7 +607,7 @@ def run(
         connectors,
         [t for ts in terms.values() for t in ts],
         strategy,
-        fetch,
+        search_fetch,
         cache_dir,
         result,
         check_cancelled=check_cancelled,
@@ -648,7 +651,7 @@ def run(
                 connectors,
                 retry_terms,
                 strategy,
-                fetch,
+                search_fetch,
                 cache_dir,
                 result,
                 check_cancelled=check_cancelled,

@@ -194,8 +194,11 @@ class ResearchRunManager:
         openalex_api_key: str | None = None,
         memory: ScientificMemory | None = None,
         analyzer: MistralAnalyzer | None = None,
+        connector_cache_dir: Path | None = None,
     ) -> None:
         self.root = root.resolve()
+        # Daily statistics-catalogue cache shared by runs; None keeps it inside each run.
+        self.connector_cache_dir = connector_cache_dir
         self.root.mkdir(parents=True, exist_ok=True)
         self.openalex_api_key = openalex_api_key or require_openalex_key()
         email = os.environ.get("CROSSREF_EMAIL") or os.environ.get("UNPAYWALL_EMAIL")
@@ -1012,6 +1015,7 @@ class ResearchRunManager:
                 run_directory / "data_analysis",
                 check_cancelled=self._check_cancelled,
                 progress=lambda message: self._update(run_id, stage="acquiring", message=message),
+                cache_dir=self.connector_cache_dir,
             )
             if data_strategy["route"] == "data" and not data_result["analyses"]:
                 data_result["initial_route"] = "data"
