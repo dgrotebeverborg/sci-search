@@ -189,3 +189,25 @@ def test_score_matches_whole_words_in_the_real_eurostat_catalogue():
     assert base.score("Gross non-performing loans", ["Mauna Loa"]) == 0
     assert base.score("Life expectancy", ["", "the and"]) == 0  # empty terms and stop words
     assert base.score("Rates of employment", ["rate"]) == 0  # short tokens need the whole word
+
+
+@pytest.mark.parametrize(
+    "title, term",
+    [
+        ("Batterijopslag; capaciteit", "opslag"),
+        ("Zonnestroom; vermogen en vermogensklasse", "stroom"),
+        ("Windenergie op land; productie", "energie"),
+        ("Broeikasgasemissies door de economie", "emissies"),
+        ("Energieverbruik; sectoren", "energie"),
+    ],
+)
+def test_dutch_compounds_match_their_parts(title, term):
+    # Dutch puts the head noun last in a compound: "opslag" in "Batterijopslag".
+    assert base.score(title, [term]) > 0
+
+
+def test_compound_matching_needs_five_characters():
+    assert base.score("Gross non-performing loans", ["loa"]) == 0  # short: whole words only
+    # A term of five or more characters matches a word ending with it, even a different
+    # compound such as "uitstroom" (outflow) for "stroom"; the model then judges relevance.
+    assert base.score("Uitstroom uit het onderwijs", ["stroom"]) > 0

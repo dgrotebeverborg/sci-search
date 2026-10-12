@@ -82,12 +82,16 @@ def _words(text):
 
 
 def _matches(word, title_words):
-    """Whole-word match; words of 5 or more characters also match an inflected form."""
+    """Whole-word match. A word of 5 or more characters also matches a title word that starts
+    or ends with it (a Dutch compound puts its head last: "opslag" in "batterijopslag"), or an
+    inflected form sharing all but its last two characters ("expectancy", "expectancies")."""
     if word in title_words:
         return True
     if len(word) < 5:
         return False
     for other in title_words:
+        if other.startswith(word) or other.endswith(word):
+            return True
         if len(other) < 5:
             continue
         shared = len(os.path.commonprefix([word, other]))
