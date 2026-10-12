@@ -39,6 +39,16 @@ TERMS_SCHEMA = {
         }
     },
 }
+
+
+def terms_schema(measurements):
+    """TERMS_SCHEMA with the measurement named from the requested labels."""
+    schema = copy.deepcopy(TERMS_SCHEMA)
+    item = schema["properties"]["terms"]["items"]["properties"]
+    item["measurement"] = {"type": "string", "enum": list(dict.fromkeys(measurements))}
+    return schema
+
+
 # Search terms are kept per language; a connector's LANGUAGES says which ones it searches.
 LANGUAGE_FIELDS = {"en": "english", "nl": "dutch"}
 CHOICE_SCHEMA = {
@@ -132,7 +142,7 @@ def _terms(question, strategy, complete):
                     "geography": strategy["geography"],
                 }
             ),
-            TERMS_SCHEMA,
+            terms_schema(strategy["measurements"]),
         )
         terms = {t["measurement"]: _term_lists(t) for t in reply["terms"]}
     except (ValueError, KeyError, TypeError, AttributeError):
@@ -610,7 +620,7 @@ def _reformulate(question, measurement, previous, reasons, complete):
                 },
                 ensure_ascii=False,
             ),
-            TERMS_SCHEMA,
+            terms_schema([measurement]),
         )
         entry = next(t for t in reply["terms"] if t["measurement"] == measurement)
         return _term_lists(entry)

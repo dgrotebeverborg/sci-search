@@ -455,3 +455,33 @@ def test_the_selection_schema_follows_the_cbs_series_rules():
     assert schema["properties"]["filters"]["properties"]["Measure"]["maxItems"] == 1
     series = schema["properties"]["series_dimensions"]
     assert series["maxItems"] == 1 and "Measure" not in series["items"]["enum"]
+
+
+def test_search_term_schemas_enumerate_the_requested_measurements(tmp_path):
+    from sci_search.data_research.connectors import eurostat
+
+    schemas = []
+
+    def complete(prompt, schema):
+        if schema["title"] == "connector_terms":
+            schemas.append(schema)
+            return {"terms": []}
+        return scripted(prompt, schema)
+
+    strategy = {**STRATEGY, "measurements": ["zzzz qqqq"]}
+    stage.run(
+        "q",
+        strategy,
+        tmp_path,
+        complete=complete,
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda m: None,
+        connectors={"eurostat": eurostat},
+        cache_dir=tmp_path / "cache",
+    )
+    assert len(schemas) == 2  # the first search and the reformulation round
+    for schema in schemas:
+        item = schema["properties"]["terms"]["items"]["properties"]["measurement"]
+        assert item == {"type": "string", "enum": ["zzzz qqqq"]}
