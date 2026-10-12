@@ -154,9 +154,86 @@ def test_requested_country_without_data_is_not_a_failed_dataset():
     assert len(eurostat.mapping(table, prep, selection, "life expectancy")["entities"]) == 2
 
 
-def test_non_annual_dataset_is_rejected_naming_the_frequency():
+def _described(scope=SCOPE, fetch=offline):
     candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    return candidate, eurostat.describe(candidate, scope, fetch=fetch)
 
+
+def test_injection_shaped_dataset_ids_are_refused():
+    bad = base.DatasetCandidate("eurostat", "demo_mlexpec/../x?y=1", "x", "unknown")
+    with pytest.raises(base.DatasetRejected):
+        eurostat.describe(bad, SCOPE, fetch=offline)
+    candidate, description = _described()
+    forged = base.DatasetDescription(
+        bad, description.dimensions, (), "", "", "Eurostat", extra=description.extra
+    )
+    selection = {
+        "filters": {"freq": ["A"], "unit": ["YR"], "sex": ["F"], "age": ["Y_LT1"], "geo": ["NL"]},
+        "series_dimensions": ["geo"],
+        "reason": "x",
+    }
+    with pytest.raises(base.DatasetRejected):
+        eurostat.fetch(forged, selection, SCOPE, fetch=offline, post=None)
+
+
+def test_search_skips_flows_with_unsafe_ids(tmp_path):
+    body = (FIX / "dataflows.xml").read_bytes().replace(b'id="DEMO_MLEXPEC"', b'id="DEMO/../X?Y=1"')
+
+    def poisoned(url):
+        return (body, "application/xml", url) if "/dataflow/ESTAT/all" in url else offline(url)
+
+    candidates, _ = eurostat.search(["life expectancy"], SCOPE, fetch=poisoned, cache_dir=tmp_path)
+    assert all(eurostat.DATASET.fullmatch(c.dataset) for c in candidates)
+    assert "demo_mlexpec" not in [c.dataset for c in candidates]
+
+
+def test_requested_country_missing_from_key_listing_is_noted_by_fetch():
+    def without_greece(url):
+        body, kind, final = offline(url)
+        if "serieskeysonly" in url:
+            lines = body.decode().splitlines(keepends=True)
+            body = "".join(line for line in lines if not line.rstrip().endswith(",EL")).encode()
+        return body, kind, final
+
+    _, description = _described(fetch=without_greece)
+    assert set(description.extra["missing_geo"]) == {"EL"}
+    assert "EL" not in description.dimensions[-1].codes
+    selection = {
+        "filters": {
+            "freq": ["A"],
+            "unit": ["YR"],
+            "sex": ["F"],
+            "age": ["Y_LT1"],
+            "geo": ["NL", "DE"],
+        },
+        "series_dimensions": ["geo"],
+        "reason": "Requested",
+    }
+    fetched = eurostat.fetch(description, selection, SCOPE, fetch=offline, post=None)
+    assert "No data published for geo: EL" in fetched.notes
+
+
+def test_transport_errors_are_not_mistaken_for_missing_series():
+    def broken(url):
+        if "serieskeysonly" in url:
+            raise ValueError("Dataset server returned HTTP 503")
+        return offline(url)
+
+    with pytest.raises(ValueError, match="HTTP 503"):
+        _described(fetch=broken)
+
+
+def test_not_found_key_listing_is_a_missing_annual_series_not_a_transport_error():
+    def not_found(url):
+        if "serieskeysonly" in url:
+            raise ValueError("Dataset server returned HTTP 404")
+        return offline(url)
+
+    with pytest.raises(base.DatasetRejected, match="no annual series in the requested period"):
+        _described(fetch=not_found)
+
+
+def test_non_annual_dataset_names_the_frequency_in_words():
     def monthly(url):
         if "detail=serieskeysonly" in url:
             if "/data/demo_mlexpec/A." in url:
@@ -164,5 +241,24 @@ def test_non_annual_dataset_is_rejected_naming_the_frequency():
             return b"freq,unit,sex,age,geo\nM,YR,F,Y_LT1,DE\n", "text/tab-separated-values", url
         return offline(url)
 
-    with pytest.raises(base.DatasetRejected, match="dataset is M; no aggregation was performed"):
-        eurostat.describe(candidate, SCOPE, fetch=monthly)
+    with pytest.raises(base.DatasetRejected, match="dataset is monthly; no aggregation"):
+        _described(fetch=monthly)
+
+
+def test_countries_without_eurostat_codes_are_named():
+    with pytest.raises(base.DatasetRejected, match="USA"):
+        _described({"start_year": 2000, "end_year": 2024, "countries": ["USA"]})
+    _, description = _described({**SCOPE, "countries": ["NLD", "USA"]})
+    assert description.extra["unmapped"] == ["USA"]
+
+
+def test_all_requested_countries_missing_is_rejected_naming_them():
+    def only_germany(url):
+        body, kind, final = offline(url)
+        if "serieskeysonly" in url:
+            lines = body.decode().splitlines(keepends=True)
+            body = "".join(ln for ln in lines if not ln.rstrip().endswith(",DE")).encode()
+        return body, kind, final
+
+    with pytest.raises(base.DatasetRejected, match="DE"):
+        _described({**SCOPE, "countries": ["DEU"]}, fetch=only_germany)

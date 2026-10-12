@@ -55,6 +55,8 @@ def search(terms, scope, *, fetch, cache_dir):
     root = ElementTree.fromstring(body)
     found = []
     for flow in root.iter("{%s}Dataflow" % NS["s"]):
+        if not DATASET.fullmatch(flow.get("id", "").lower()):
+            continue
         title = _name(flow)
         points = base.score(title, terms)
         if points:
@@ -74,6 +76,7 @@ def search(terms, scope, *, fetch, cache_dir):
 
 
 def _structure(dataset, fetch):
+    _checked(dataset)
     body, _, _ = fetch(
         f"{API}/dataflow/ESTAT/{dataset}?references=descendants&detail=referencepartial"
     )
@@ -99,6 +102,23 @@ def _structure(dataset, fetch):
     return [(d, codes) for _, d, codes in dimensions], _name(flow) if flow is not None else dataset
 
 
+DATASET = re.compile(r"[a-z0-9_]+")
+FREQUENCIES = {
+    "D": "daily",
+    "W": "weekly",
+    "M": "monthly",
+    "Q": "quarterly",
+    "S": "half-yearly",
+    "A": "annual",
+}
+
+
+def _checked(dataset):
+    if not DATASET.fullmatch(dataset):
+        raise base.DatasetRejected("not a Eurostat dataset code")
+    return dataset
+
+
 def _key(order, filters):
     return ".".join("+".join(filters.get(d, [])) for d in order)
 
@@ -109,8 +129,10 @@ def _series_keys(dataset, order, filters, scope, fetch):
         query["startPeriod"] = str(scope["start_year"])
     try:
         body, _, _ = fetch(f"{API}/data/{dataset}/{_key(order, filters)}/?{urlencode(query)}")
-    except ValueError:
-        return {}  # Eurostat answers 404 when the key matches no series
+    except ValueError as exc:
+        if "HTTP 404" in str(exc):  # Eurostat answers 404 when the key matches no series
+            return {}
+        raise
     lines = body.decode("utf-8-sig").splitlines()
     header = lines[0].split(",") if lines else []
     observed = {d: set() for d in header}
@@ -128,12 +150,23 @@ def describe(candidate, scope, *, fetch):
         # Name what the dataset does publish, so the rejection states the frequency.
         labels = dict(order).get("freq", {})
         found = _series_keys(candidate.dataset, keys, {}, scope, fetch).get("freq", set())
-        named = ", ".join(sorted(labels.get(c, c) for c in found)) or "not annual"
+        if "A" in found or not found:
+            raise base.DatasetRejected(
+                "dataset has no annual series in the requested period; no aggregation was performed"
+            )
+        named = ", ".join(sorted(FREQUENCIES.get(c) or labels.get(c, c) for c in found))
         raise base.DatasetRejected(f"dataset is {named}; no aggregation was performed")
-    wanted_geo = {ISO3_TO_GEO[c] for c in scope.get("countries") or [] if c in ISO3_TO_GEO}
-    if wanted_geo and not observed.get("geo", set()) & wanted_geo:
+    countries = list(scope.get("countries") or [])
+    unmapped = [c for c in countries if c not in ISO3_TO_GEO]
+    if countries and len(unmapped) == len(countries):
         raise base.DatasetRejected(
-            "none of the requested countries has published series: " + ", ".join(sorted(wanted_geo))
+            "no Eurostat geo code for the requested countries: " + ", ".join(unmapped)
+        )
+    wanted_geo = {ISO3_TO_GEO[c] for c in countries if c in ISO3_TO_GEO}
+    missing_geo = sorted(wanted_geo - observed.get("geo", set()))
+    if wanted_geo and len(missing_geo) == len(wanted_geo):
+        raise base.DatasetRejected(
+            "none of the requested countries has published series: " + ", ".join(missing_geo)
         )
     dimensions = []
     for d, codes in order:
@@ -156,13 +189,14 @@ def describe(candidate, scope, *, fetch):
         licence_url=LICENCE_URL,
         definitions=definitions[:30000],
         publisher=PUBLISHER,
-        extra={"order": [d for d, _ in order]},
+        extra={"order": [d for d, _ in order], "missing_geo": missing_geo, "unmapped": unmapped},
     )
 
 
 def fetch(description, selection, scope, *, fetch, post):
     from sci_search.data_research.statistical_tables import inspect_statistics
 
+    _checked(description.candidate.dataset)
     selection = base.validate_selection(description, selection)
     order = description.extra["order"]
     filters = selection["filters"]
@@ -175,6 +209,10 @@ def fetch(description, selection, scope, *, fetch, post):
     raw, _, final = fetch_scoped(url, scope, fetch, [])
     preview = inspect_statistics(raw)
     notes = []
+    if description.extra.get("missing_geo"):
+        notes.append("No data published for geo: " + ", ".join(description.extra["missing_geo"]))
+    if description.extra.get("unmapped"):
+        notes.append("No Eurostat geo code for: " + ", ".join(description.extra["unmapped"]))
     kept = {}
     for d in order:
         present = [c for c in filters[d] if c in preview["dimension_values"].get(d, [])]
