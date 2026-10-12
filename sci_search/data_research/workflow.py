@@ -215,8 +215,10 @@ def execute(
     attempted = set()
     if use_connectors:
         progress("Searching official statistics catalogues.")
+        # Filled by the stage as it goes, so a failure keeps the analyses it completed.
+        staged = {}
         try:
-            staged = connector_stage.run(
+            connector_stage.run(
                 question,
                 strategy,
                 directory / "connectors",
@@ -229,16 +231,19 @@ def execute(
                 connectors=available,
                 # Shared daily catalogue cache outside the run; None keeps it in the run folder.
                 cache_dir=cache_dir,
+                result=staged,
             )
         except Exception as exc:
             if cancellations:
                 raise
-            staged = {
-                "analyses": [],
-                "assessments": [_connector_failure("connector:stage", exc)],
-                "covered": [],
-                "search": {},
-            }
+            for key, empty in (
+                ("analyses", []),
+                ("assessments", []),
+                ("covered", []),
+                ("search", {}),
+            ):
+                staged.setdefault(key, empty)
+            staged["assessments"].append(_connector_failure("connector:stage", exc))
         for staged_assessment in staged["assessments"]:
             # The research planner and run summaries read url and reason on every assessment.
             staged_assessment.setdefault("url", "")

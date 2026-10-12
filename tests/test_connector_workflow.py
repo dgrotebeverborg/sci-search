@@ -626,3 +626,93 @@ def test_production_stage_shares_a_catalogue_cache_outside_the_run(monkeypatch):
     )
     assert seen["cache"] == Path(tempfile.gettempdir()) / "sci-search-connector-catalogues"
     assert not seen["cache"].resolve().is_relative_to(seen["root"])
+
+
+HEALTHY = "healthy life years"
+TWO_MEASUREMENTS = {**STRATEGY, "measurements": [STRATEGY["measurements"][0], HEALTHY]}
+
+
+def verified_folders(directory):
+    import json
+
+    return [
+        p.parent.name
+        for p in (directory / "connectors").glob("connector-*/analysis.json")
+        if json.loads(p.read_text()).get("execution", {}).get("status") == "verified"
+    ]
+
+
+def test_an_unexpected_connector_error_keeps_the_other_analyses_and_their_replay(tmp_path):
+    import types
+    from xml.etree.ElementTree import ParseError
+
+    from sci_search.data_research.connectors import base
+
+    def describe(candidate, scope, *, fetch):
+        raise ParseError("not xml")
+
+    broken = types.SimpleNamespace(
+        NAME="broken",
+        LANGUAGES=("en",),
+        HOSTS=set(),
+        PUBLISHER="X",
+        search=lambda terms, scope, **k: (
+            [base.DatasetCandidate("broken", "b1", HEALTHY, "annual")],
+            "",
+        ),
+        describe=describe,
+        dataset_from_url=lambda url: None,
+    )
+    choices = {
+        "choices": [
+            {"candidate": "eurostat:demo_mlexpec", "measurement": STRATEGY["measurements"][0], "reason": "a"},
+            {"candidate": "broken:b1", "measurement": HEALTHY, "reason": "b"},
+        ]
+    }  # fmt: skip
+    complete, _ = model([GOOD], choices=choices)
+    result = workflow.execute(
+        "Life expectancy",
+        TWO_MEASUREMENTS,
+        tmp_path,
+        search=no_candidates,
+        fetch=offline,
+        complete=complete,
+        connectors={"eurostat": eurostat, "broken": broken},
+    )
+    assert len(result["analyses"]) == len(verified_folders(tmp_path)) == 1
+    failed = next(a for a in result["assessments"] if a.get("connector") == "broken")
+    assert failed["failure_stage"] == "connector:describe"
+    assert failed["error_class"] == "ParseError"
+    replay = replayed(tmp_path)
+    assert replay.returncode == 0, replay.stderr
+
+
+def test_a_failing_stage_keeps_the_analyses_it_completed(tmp_path, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("connector bug")
+
+    # The first measurement is analysed; the stage fails on the reformulation for the second.
+    monkeypatch.setattr(connector_stage, "_reformulate", broken)
+    searched = {}
+
+    def search(question, scope, **kwargs):
+        searched["measurements"] = scope["measurements"]
+        return {"candidates": []}
+
+    complete, _ = model([GOOD])
+    result = workflow.execute(
+        "Life expectancy",
+        TWO_MEASUREMENTS,
+        tmp_path,
+        search=search,
+        fetch=offline,
+        complete=complete,
+        connectors={"eurostat": eurostat},
+    )
+    assert len(result["analyses"]) == len(verified_folders(tmp_path)) == 1
+    assert result["assessments"][0]["decision"] == "analysed"
+    assert result["assessments"][-1]["failure_stage"] == "connector:stage"
+    assert "connector bug" in result["assessments"][-1]["reason"]
+    assert searched["measurements"] == [HEALTHY]
+    replay = replayed(tmp_path)
+    assert replay.returncode == 0, replay.stderr

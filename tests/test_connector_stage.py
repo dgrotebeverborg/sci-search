@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import types
+from xml.etree import ElementTree
 
 import pytest
 
@@ -485,3 +486,125 @@ def test_search_term_schemas_enumerate_the_requested_measurements(tmp_path):
     for schema in schemas:
         item = schema["properties"]["terms"]["items"]["properties"]["measurement"]
         assert item == {"type": "string", "enum": ["zzzz qqqq"]}
+
+
+def broken_connector(error):
+    def describe(candidate, scope, *, fetch):
+        raise error
+
+    return types.SimpleNamespace(NAME="broken", PUBLISHER="X", describe=describe)
+
+
+BROKEN = base.DatasetCandidate("broken", "b1", "Healthy life years", "annual")
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ElementTree.ParseError("not xml"), StopIteration(), AttributeError("x"), RuntimeError("bug")],
+)
+def test_an_unexpected_connector_error_is_a_blocked_assessment(tmp_path, error):
+    analysis, assessment = single(broken_connector(error), BROKEN, STRATEGY, {}, tmp_path, offline)
+    assert analysis is None
+    assert assessment["decision"] == "blocked"
+    assert assessment["failure_stage"] == "connector:describe"
+    assert assessment["error_class"] == type(error).__name__
+
+
+def test_cancellation_inside_analyse_dataset_propagates(tmp_path):
+    from sci_search.research_runs import ResearchCancelled
+
+    def cancelled():
+        raise ResearchCancelled("Research cancelled")
+
+    with pytest.raises(ResearchCancelled):
+        stage.analyse_dataset(
+            "q",
+            STRATEGY,
+            tmp_path,
+            broken_connector(RuntimeError("bug")),
+            BROKEN,
+            "m",
+            complete=lambda prompt, schema: {},
+            fetch=offline,
+            post=None,
+            check_cancelled=cancelled,
+            progress=lambda m: None,
+        )
+
+
+def test_a_cancellation_turned_into_another_error_still_propagates(tmp_path, monkeypatch):
+    # A step that receives check_cancelled and wraps its exception must not hide the cancellation.
+    from sci_search.data_research.connectors import eurostat
+    from sci_search.research_runs import ResearchCancelled
+
+    calls = []
+
+    def cancelled_during_execution():
+        calls.append(1)
+        if len(calls) > 2:
+            raise ResearchCancelled("Research cancelled")
+
+    def execute_analysis(analysis, folder, *, check_cancelled):
+        try:
+            check_cancelled()
+        except ResearchCancelled as exc:
+            raise ValueError("execution stopped") from exc
+        return analysis
+
+    monkeypatch.setattr(stage, "execute_analysis", execute_analysis)
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "annual")
+    with pytest.raises(ResearchCancelled):
+        stage.analyse_dataset(
+            "q",
+            STRATEGY,
+            tmp_path,
+            eurostat,
+            candidate,
+            "life expectancy at birth",
+            complete=with_positive_meaning_review(scripted),
+            fetch=offline,
+            post=None,
+            check_cancelled=cancelled_during_execution,
+            progress=lambda m: None,
+        )
+
+
+def test_a_reader_attribute_error_rejects_the_dataset(tmp_path, monkeypatch):
+    from sci_search.data_research.connectors import eurostat
+
+    def unreadable(raw, selection=None):
+        raise AttributeError("'int' object has no attribute 'strip'")
+
+    monkeypatch.setattr(stage, "prepare_table", unreadable)
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "annual")
+    analysis, assessment = single(
+        eurostat,
+        candidate,
+        STRATEGY,
+        scripted({}, {"title": "connector_selection"}),
+        tmp_path,
+        offline,
+    )
+    assert analysis is None
+    assert assessment["failure_stage"] == "connector:normalize"
+    assert assessment["error_class"] == "DatasetRejected"
+
+
+def test_an_unexpected_catalogue_error_is_a_blocked_search(tmp_path):
+    def search(terms, scope, *, fetch, cache_dir):
+        raise ElementTree.ParseError("not xml")
+
+    broken = types.SimpleNamespace(NAME="broken", LANGUAGES=("en",), search=search)
+    result = {"assessments": [], "search": {"catalogues": {}}}
+    found = stage._search_all(
+        {"broken": broken},
+        {"en": ["x"]},
+        STRATEGY,
+        offline,
+        tmp_path,
+        result,
+        check_cancelled=lambda: None,
+    )
+    assert found == {}
+    assert result["assessments"][0]["failure_stage"] == "connector:search"
+    assert "not xml" in result["assessments"][0]["reason"]

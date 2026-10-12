@@ -207,3 +207,24 @@ def test_unknown_frequency_package_that_is_not_annual_is_rejected(monkeypatch):
     unknown = base.DatasetCandidate("cbs", "82610NED", "x", "unknown")
     with pytest.raises(base.DatasetRejected, match="dataset is not annual; no aggregation"):
         cbs.describe(unknown, SCOPE, fetch=offline)
+
+
+def test_a_truncated_package_is_a_rejected_dataset():
+    def truncated(url):
+        return b"PK\x03\x04truncated", "application/zip", url
+
+    with pytest.raises(base.DatasetRejected, match="not a readable CBS package"):
+        cbs.describe(CANDIDATE, SCOPE, fetch=truncated)
+
+
+def test_a_package_without_a_time_dimension_is_a_rejected_dataset(monkeypatch):
+    import json
+
+    raw = offline("https://datasets.cbs.nl/CSV/CBS/nl/82610NED")[0]
+    _, preparation = prepare_table(raw)
+    metadata = json.loads(preparation["metadata"])
+    metadata["dimensions"] = [d for d in metadata["dimensions"] if d["Kind"] != "TimeDimension"]
+    untimed = {**preparation, "metadata": json.dumps(metadata)}
+    monkeypatch.setattr(cbs, "prepare_table", lambda raw: (b"", untimed))
+    with pytest.raises(base.DatasetRejected, match="no time dimension"):
+        cbs.describe(CANDIDATE, SCOPE, fetch=offline)

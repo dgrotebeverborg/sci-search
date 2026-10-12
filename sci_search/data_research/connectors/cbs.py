@@ -2,6 +2,7 @@
 
 import json
 import re
+import zipfile
 from urllib.parse import urlsplit
 
 from sci_search.data_research.connectors import base
@@ -92,6 +93,8 @@ def describe(candidate, scope, *, fetch):
     raw, _, _ = fetch(url)
     try:
         _, preparation = prepare_table(raw)  # validates the package with the existing CBS reader
+    except zipfile.BadZipFile as exc:  # a truncated or non-ZIP body
+        raise base.DatasetRejected("not a readable CBS package: " + str(exc)) from exc
     except ValueError as exc:  # a malformed or non-annual package, not a transport failure
         if "non-annual" in str(exc):
             raise base.DatasetRejected(
@@ -100,7 +103,11 @@ def describe(candidate, scope, *, fetch):
         raise base.DatasetRejected(str(exc)) from exc
     metadata = json.loads(preparation["metadata"])
     measures = {m["Identifier"]: f"{m['Title']} ({m['Unit']})" for m in metadata["measures"]}
-    time = next(d["Identifier"] for d in metadata["dimensions"] if d["Kind"] == "TimeDimension")
+    time = next(
+        (d["Identifier"] for d in metadata["dimensions"] if d["Kind"] == "TimeDimension"), None
+    )
+    if time is None:
+        raise base.DatasetRejected("CBS package has no time dimension")
     dimensions = [base.Dimension("Measure", "Measure", measures)]
     for d in metadata["dimensions"]:
         if d["Identifier"] != time:

@@ -321,3 +321,20 @@ def test_an_empty_slice_without_published_combinations_rejects_the_dataset():
     }
     with pytest.raises(base.DatasetRejected, match="no published series"):
         eurostat.fetch(description, selection, SCOPE, fetch=nothing_published, post=None)
+
+
+def html(url):
+    return b"<html><body>Service unavailable<br></body></html>", "text/html", url
+
+
+def test_a_catalogue_that_is_not_xml_is_a_value_error(tmp_path):
+    with pytest.raises(ValueError, match="Eurostat catalogue is not XML"):
+        eurostat.search(["life expectancy"], SCOPE, fetch=html, cache_dir=tmp_path)
+
+
+def test_a_structure_that_is_not_xml_rejects_the_dataset():
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    with pytest.raises(
+        base.DatasetRejected, match="Eurostat structure for demo_mlexpec is not XML"
+    ):
+        eurostat.describe(candidate, SCOPE, fetch=html)

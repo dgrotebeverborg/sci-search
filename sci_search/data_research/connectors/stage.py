@@ -269,6 +269,26 @@ def _with_retry(step, recovery):
     return step()
 
 
+class _Cancellation:
+    """check_cancelled that remembers what it raised, so a broad error guard re-raises it even
+    when a step wrapped it in another exception."""
+
+    def __init__(self, check_cancelled):
+        self._check = check_cancelled
+        self.raised = None
+
+    def __call__(self):
+        try:
+            self._check()
+        except BaseException as exc:
+            self.raised = exc
+            raise
+
+    def reraise(self):
+        if self.raised is not None:
+            raise self.raised
+
+
 def _facts(value):
     """Observed codes for a repair prompt; strings that look like URLs are dropped."""
 
@@ -298,6 +318,7 @@ def analyse_dataset(
     progress,
     catalogue_sha256="",
 ):
+    check_cancelled = _Cancellation(check_cancelled)
     folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
     recovery = []
     assessment = {
@@ -378,7 +399,14 @@ def analyse_dataset(
         stage_name = "connector:normalize"
         try:
             table, preparation = prepare_table(fetched.raw, fetched.selection)
-        except (ValueError, KeyError, TypeError, zipfile.BadZipFile, csv.Error) as exc:
+        except (
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            zipfile.BadZipFile,
+            csv.Error,
+        ) as exc:
             failure = _reader_failure(exc)
             if isinstance(failure, base.DatasetRejected):
                 raise failure from exc
@@ -469,7 +497,9 @@ def analyse_dataset(
             source=source,
         )
         return analysis, assessment
-    except (ValueError, KeyError, TypeError, OSError) as exc:
+    except Exception as exc:
+        # Any connector or reader bug blocks this dataset only; a cancellation always propagates.
+        check_cancelled.reraise()
         assessment.update(
             reason=str(exc)[:700], failure_stage=stage_name, error_class=type(exc).__name__
         )
@@ -480,6 +510,7 @@ def analyse_dataset(
 
 def _search_all(connectors, terms, strategy, fetch, cache_dir, result, *, check_cancelled):
     """Search every connector catalogue in its languages; failures become blocked assessments."""
+    check_cancelled = _Cancellation(check_cancelled)
     found = {}
     for name, connector in connectors.items():
         check_cancelled()
@@ -492,7 +523,8 @@ def _search_all(connectors, terms, strategy, fetch, cache_dir, result, *, check_
             candidates, digest = connector.search(
                 wanted, strategy, fetch=fetch, cache_dir=cache_dir
             )
-        except (ValueError, KeyError, TypeError, OSError) as exc:
+        except Exception as exc:
+            check_cancelled.reraise()
             if any(
                 a.get("title") == f"{name} catalogue"
                 and a.get("failure_stage") == "connector:search"
@@ -641,25 +673,31 @@ def run(
     connectors=None,
     cache_dir=None,
     search_fetch=None,
+    result=None,
 ):
+    """Run the connector stage. A caller that passes result keeps what the stage completed,
+    every analysis with its assessment, even when a later step raises."""
     connectors = CONNECTORS if connectors is None else connectors
     # Catalogue lists can be larger than one data response; the caller may bound them separately.
     search_fetch = search_fetch or fetch
     directory = Path(directory)
     cache_dir = Path(cache_dir) if cache_dir else directory / "catalogues"
-    result = {
-        "analyses": [],
-        "assessments": [],
-        "covered": [],
-        "search": {
-            "terms": {},
-            "candidates": [],
-            "catalogues": {},
-            "skipped_choices": [],
-            "reformulated_terms": {},
-            "reformulated_skipped_choices": [],
-        },
-    }
+    result = {} if result is None else result
+    result.update(
+        {
+            "analyses": [],
+            "assessments": [],
+            "covered": [],
+            "search": {
+                "terms": {},
+                "candidates": [],
+                "catalogues": {},
+                "skipped_choices": [],
+                "reformulated_terms": {},
+                "reformulated_skipped_choices": [],
+            },
+        }
+    )
     steps = {
         "complete": complete,
         "fetch": fetch,

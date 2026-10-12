@@ -37,6 +37,14 @@ def _name(node):
     return names[0].text if names else ""
 
 
+def _xml(body, message, error):
+    """Parse an SDMX body; an HTML error page or truncated body raises error with message."""
+    try:
+        return ElementTree.fromstring(body)
+    except ElementTree.ParseError as exc:
+        raise error(f"{message} ({exc})") from exc
+
+
 def dataset_from_url(url):
     parts = urlsplit(url)
     if parts.scheme != "https" or parts.hostname not in HOSTS:
@@ -54,7 +62,7 @@ def search(terms, scope, *, fetch, cache_dir):
     body, digest = base.catalogue(
         NAME, API + "/dataflow/ESTAT/all?detail=allstubs", fetch, cache_dir
     )
-    root = ElementTree.fromstring(body)
+    root = _xml(body, "Eurostat catalogue is not XML", ValueError)
     found = []
     for flow in root.iter("{%s}Dataflow" % NS["s"]):
         if not DATASET.fullmatch(flow.get("id", "").lower()):
@@ -82,7 +90,7 @@ def _structure(dataset, fetch):
     body, _, _ = fetch(
         f"{API}/dataflow/ESTAT/{dataset}?references=descendants&detail=referencepartial"
     )
-    root = ElementTree.fromstring(body)
+    root = _xml(body, f"Eurostat structure for {dataset} is not XML", base.DatasetRejected)
     codelists = {
         cl.get("id"): {code.get("id"): _name(code) for code in cl.findall("s:Code", NS)}
         for cl in root.iter("{%s}Codelist" % NS["s"])
