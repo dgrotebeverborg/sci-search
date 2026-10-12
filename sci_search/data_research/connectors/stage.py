@@ -4,6 +4,7 @@
 import copy
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -109,6 +110,41 @@ def _terms(question, strategy, complete):
     return {m: terms.get(m) or [m] for m in strategy["measurements"]}
 
 
+def _slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")[:60] or "x"
+
+
+def _attempt_folder(directory, name, dataset, measurement):
+    """A new folder per attempt: sealed artifacts of an earlier analysis are never overwritten."""
+    stem = f"connector-{_slug(name)}-{_slug(dataset)}-{_slug(measurement)}"
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    for number in range(1, 1000):
+        folder = Path(directory) / (stem if number == 1 else f"{stem}-{number}")
+        try:
+            folder.mkdir()
+        except FileExistsError:
+            continue
+        return folder
+    raise OSError("Too many attempts for " + stem)
+
+
+def _download(request):
+    """Whether DOWNLOAD's plain GET of source["url"] can reproduce the retained bytes."""
+    if request.get("method", "GET") != "GET":
+        return {
+            "reproducible": False,
+            "reason": f"The retained source came from a {request.get('method')} request; "
+            "its URL and body are in connector.request",
+        }
+    if any(key.endswith("_sha256") for key in request):
+        return {
+            "reproducible": False,
+            "reason": "The retained source combines several API responses; "
+            "their hashes are in connector.request",
+        }
+    return {"reproducible": True}
+
+
 def analyse_dataset(
     question,
     strategy,
@@ -124,11 +160,7 @@ def analyse_dataset(
     progress,
     catalogue_sha256="",
 ):
-    folder = (
-        Path(directory)
-        / f"connector-{connector.NAME}-{candidate.dataset.replace('/', '_').replace(':', '_')}"
-    )
-    folder.mkdir(parents=True, exist_ok=True)
+    folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
     assessment = {
         "title": candidate.title,
         "url": candidate.landing_url,
@@ -187,6 +219,7 @@ def analyse_dataset(
             "sha256": hashlib.sha256(fetched.raw).hexdigest(),
             "retrieved_at": datetime.now(UTC).isoformat(),
             "artifact": fetched.artifact,
+            "download": _download(fetched.request),
             "connector": {
                 "name": connector.NAME,
                 "dataset": candidate.dataset,
@@ -295,17 +328,51 @@ def run(
     ]
     if not found:
         return result
-    choice = complete(
-        "Choose at most 4 datasets that measure the requested measurements. Prefer annual series that "
-        "cover the requested years; do not choose monthly or quarterly datasets.\n"
-        + json.dumps(
-            {"question": question, "scope": strategy, "candidates": result["search"]["candidates"]},
-            ensure_ascii=False,
-        ),
-        CHOICE_SCHEMA,
-    )
-    for item in choice["choices"][:4]:
-        if item["candidate"] not in found or item["measurement"] not in strategy["measurements"]:
+    try:
+        choice = complete(
+            "Choose at most 4 datasets that measure the requested measurements. Prefer annual "
+            "series that cover the requested years; do not choose monthly or quarterly datasets.\n"
+            + json.dumps(
+                {
+                    "question": question,
+                    "scope": strategy,
+                    "candidates": result["search"]["candidates"],
+                },
+                ensure_ascii=False,
+            ),
+            CHOICE_SCHEMA,
+        )
+        items = [
+            {"candidate": i["candidate"], "measurement": i["measurement"], "reason": i["reason"]}
+            for i in choice["choices"][:4]
+        ]
+        if not all(isinstance(i["candidate"], str) for i in items):
+            raise TypeError("Dataset choice candidate must be a string")
+    except (ValueError, KeyError, TypeError) as exc:
+        result["assessments"].append(
+            {
+                "title": "connector dataset choice",
+                "decision": "blocked",
+                "failure_stage": "connector:choice",
+                "reason": str(exc)[:500],
+            }
+        )
+        return result
+    result["search"]["skipped_choices"] = []
+    for item in items:
+        problem = ""
+        if item["candidate"] not in found:
+            problem = "unknown candidate"
+        elif item["measurement"] not in strategy["measurements"]:
+            problem = "measurement not requested"
+        if problem:
+            result["search"]["skipped_choices"].append(
+                {
+                    "candidate": item["candidate"],
+                    "measurement": item["measurement"],
+                    "reason": problem,
+                }
+            )
             continue
         if item["measurement"] in result["covered"]:
             continue
