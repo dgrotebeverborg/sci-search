@@ -71,7 +71,20 @@ def save(path, value):
 
 
 def selection_schema(description):
+    """Strict selection schema; a connector's own rules narrow it, validate_selection decides."""
     dims = [d.id for d in description.dimensions]
+    # Dimensions the connector requires to have exactly one code, never a series.
+    fixed = set(description.extra.get("fixed_dimensions", ()))
+    series_dims = [d for d in dims if d not in fixed]
+    series = {
+        "type": "array",
+        "items": {"type": "string", "enum": series_dims} if series_dims else {"type": "string"},
+    }
+    limit = description.extra.get("max_series_dimensions")
+    if not series_dims:
+        series["maxItems"] = 0
+    elif limit is not None:
+        series["maxItems"] = limit
     return {
         "title": "connector_selection",
         "type": "object",
@@ -86,12 +99,13 @@ def selection_schema(description):
                     d.id: {
                         "type": "array",
                         "minItems": 1,
+                        **({"maxItems": 1} if d.id in fixed else {}),
                         "items": {"type": "string", "enum": sorted(d.codes)},
                     }
                     for d in description.dimensions
                 },
             },
-            "series_dimensions": {"type": "array", "items": {"type": "string", "enum": dims}},
+            "series_dimensions": series,
             "reason": {"type": "string"},
         },
     }

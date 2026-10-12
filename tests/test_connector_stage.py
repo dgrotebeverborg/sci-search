@@ -431,3 +431,27 @@ def test_every_connector_declares_its_search_languages():
         "pxweb": ("en",),
         "owid": ("en",),
     }
+
+
+def test_the_selection_schema_pins_one_owid_indicator():
+    # A live model used several OWID indicators as a series three times in a row.
+    from sci_search.data_research.connectors import owid
+    from tests.test_connector_owid import CANDIDATE, SCOPE
+    from tests.test_connector_owid import offline as owid_offline
+
+    schema = stage.selection_schema(owid.describe(CANDIDATE, SCOPE, fetch=owid_offline))
+    filters = schema["properties"]["filters"]["properties"]
+    assert filters["indicator"]["maxItems"] == 1
+    assert "maxItems" not in filters["entity"]
+    assert schema["properties"]["series_dimensions"]["items"]["enum"] == ["entity"]
+
+
+def test_the_selection_schema_follows_the_cbs_series_rules():
+    from sci_search.data_research.connectors import cbs
+    from tests.test_connector_cbs import CANDIDATE, SCOPE
+    from tests.test_connector_cbs import offline as cbs_offline
+
+    schema = stage.selection_schema(cbs.describe(CANDIDATE, SCOPE, fetch=cbs_offline))
+    assert schema["properties"]["filters"]["properties"]["Measure"]["maxItems"] == 1
+    series = schema["properties"]["series_dimensions"]
+    assert series["maxItems"] == 1 and "Measure" not in series["items"]["enum"]

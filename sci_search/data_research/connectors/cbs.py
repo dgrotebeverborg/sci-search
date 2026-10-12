@@ -119,7 +119,12 @@ def describe(candidate, scope, *, fetch):
         raise base.DatasetRejected(
             "dataset has no annual series in the requested period; no aggregation was performed"
         )
-    extra = {"other_countries": [c for c in countries if c != "NLD"]}
+    extra = {
+        "other_countries": [c for c in countries if c != "NLD"],
+        # _check_series: one measure, at most one series dimension; the schema follows it.
+        "fixed_dimensions": ["Measure"],
+        "max_series_dimensions": 1,
+    }
     return base.DatasetDescription(
         candidate=candidate,
         dimensions=tuple(dimensions),

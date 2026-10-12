@@ -139,6 +139,8 @@ def describe(candidate, scope, *, fetch):
             "csv_sha256": hashlib.sha256(csv_body).hexdigest(),
             "metadata_sha256": hashlib.sha256(meta_body).hexdigest(),
             "missing_countries": missing,
+            # fetch reads exactly one indicator; the selection schema pins it.
+            "fixed_dimensions": ["indicator"],
         },
     )
 
