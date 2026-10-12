@@ -170,10 +170,13 @@ their reasons.
 Measurements no connector covered continue to the web-search workflow, restricted to those
 measurements. A web candidate on a connector host whose URL names a dataset enters the connector
 path instead of the scraper. Results that include connector analyses keep the existing status
-`partial`, like every other discovered-data result. If the connector stage itself fails, the
-failure is recorded as a `connector:stage` assessment and the run continues with web search.
-`SCI_SEARCH_DATA_CONNECTORS=0` (or `false`, `no`) skips the stage and restores the previous path
-exactly.
+`partial`, like every other discovered-data result. An unexpected error in one connector blocks
+only that catalogue or dataset, recorded with its stage and error class. If the connector stage
+itself fails, the failure is recorded as a `connector:stage` assessment; the analyses it already
+completed are kept, and the measurements they do not cover continue with web search.
+`SCI_SEARCH_DATA_CONNECTORS=0` (or `false`, `no`) skips the stage and restores the previous search
+path, not the previous behaviour as a whole: the meaning-review schema changed with the
+connectors and applies to every path, with exactly one review per requested measurement.
 
 Limits: catalogue and search requests are bounded to 20 MB (the Eurostat dataflow list is about
 7 MB); metadata and data responses to 5 MB. The existing 50,000-row limit applies. Catalogues are
