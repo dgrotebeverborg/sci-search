@@ -182,6 +182,12 @@ for the local service, and in the container's temporary directory
 (`sci-search-connector-catalogues`) for the production worker. Cache files are replaced atomically;
 a damaged cache file is fetched again.
 
+Known limitation: CBS delivers each table as one CSV package with every code table, and filtering
+happens only after download. Large CBS tables therefore exceed the 5 MB response limit or the
+package ZIP's file-count and expanded-size limits, and are rejected ("Dataset exceeds the 5 MB
+acquisition limit", "Data ZIP exceeds its file-count or expanded-size limit"). The limits are not
+relaxed for connectors; such a measurement continues with the next candidate or web search.
+
 ### Recovery
 
 Every failure is classified, and each class has a fixed recovery. Recovery never relaxes a check:
