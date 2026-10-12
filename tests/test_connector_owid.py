@@ -6,6 +6,7 @@ import pytest
 
 from sci_search.data_research.connectors import base, owid
 from sci_search.data_research.packages import prepare_table
+from sci_search.data_research.tabular import read_csv
 
 FIX = Path(__file__).parent / "fixtures/data_research/connectors/owid"
 
@@ -60,8 +61,42 @@ def test_fetch_records_hashes_of_the_original_responses():
     )
     meta = (FIX / "life-expectancy.metadata.json").read_bytes()
     assert request["metadata_sha256"] == hashlib.sha256(meta).hexdigest()
-    envelope = json.loads(description.payload)
-    assert envelope["csv"].encode() == (FIX / "life-expectancy.csv").read_bytes()
+    envelope = json.loads(fetched_raw(description, selection))
+    assert hashlib.sha256(envelope["csv"].encode()).hexdigest() == request["csv_sha256"]
+    assert hashlib.sha256(envelope["metadata"].encode()).hexdigest() == request["metadata_sha256"]
+
+
+def fetched_raw(description, selection):
+    return owid.fetch(description, selection, SCOPE, fetch=offline, post=None).raw
+
+
+def test_bom_csv_hash_is_recomputable_and_rows_parse():
+    def bom(url):
+        body, kind, final = offline(url)
+        return (b"\xef\xbb\xbf" + body if ".csv" in url else body), kind, final
+
+    description = owid.describe(CANDIDATE, SCOPE, fetch=bom)
+    selection = {
+        "filters": {"indicator": ["life_expectancy_0"], "entity": ["Germany"]},
+        "series_dimensions": ["entity"],
+        "reason": "x",
+    }
+    fetched = owid.fetch(description, selection, SCOPE, fetch=bom, post=None)
+    envelope = json.loads(fetched.raw)
+    assert hashlib.sha256(envelope["csv"].encode()).hexdigest() == fetched.request["csv_sha256"]
+    _, rows = read_csv(prepare_table(fetched.raw, fetched.selection)[0])
+    assert {r["Series"] for r in rows} == {"Germany"}
+
+
+@pytest.mark.parametrize("which", [".csv", ".metadata.json"])
+def test_oversized_response_is_rejected(which):
+    def big(url):
+        if which in url:
+            return b"x" * 5_000_001, "text/plain", url
+        return offline(url)
+
+    with pytest.raises(base.DatasetRejected, match="5 MB"):
+        owid.describe(CANDIDATE, SCOPE, fetch=big)
 
 
 def test_missing_countries_are_named_and_all_missing_is_rejected():

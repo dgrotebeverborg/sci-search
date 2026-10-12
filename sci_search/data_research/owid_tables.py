@@ -19,14 +19,22 @@ def prepare_owid(body, selection):
     if len(body) > 5_000_000:
         raise ValueError("OWID response exceeds the 5 MB analysis limit")
     envelope = json.loads(body.decode("utf-8"))
-    columns = envelope["metadata"].get("columns", {})
+    metadata = envelope["metadata"]
+    if isinstance(metadata, str):  # the verbatim response text, so its hash is recomputable
+        metadata = json.loads(metadata)
+    # Columns are keyed by display name; the CSV header uses the shortName.
+    columns = {
+        v["shortName"]: v
+        for v in metadata.get("columns", {}).values()
+        if isinstance(v, dict) and v.get("shortName")
+    }
     indicator = selection.get("indicator")
     if indicator not in columns:
         raise ValueError("Selected OWID indicator is not in the chart metadata")
     unit = (columns[indicator].get("unit") or columns[indicator].get("shortUnit") or "").strip()
     if not unit:
         raise ValueError("OWID indicator has no documented unit")
-    reader = csv.DictReader(io.StringIO(envelope["csv"]))
+    reader = csv.DictReader(io.StringIO(envelope["csv"].removeprefix("\ufeff")))
     if not {"entity", "year", indicator} <= set(reader.fieldnames or []):
         raise ValueError("OWID CSV lacks entity, year or the selected indicator column")
     wanted = selection.get("entities") or []

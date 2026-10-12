@@ -8,7 +8,7 @@ from sci_search.data_research.tabular import read_csv
 CSV = "entity,code,year,life_expectancy_0\nGermany,DEU,2000,77.9\nGermany,DEU,2001,78.2\nNetherlands,NLD,2000,78.0\nWorld,OWID_WRL,2000,66.5\n"
 METADATA = {
     "columns": {
-        "life_expectancy_0": {
+        "Period life expectancy at birth": {
             "titleShort": "Life expectancy",
             "unit": "years",
             "shortName": "life_expectancy_0",
@@ -48,7 +48,9 @@ def test_unknown_entity_or_indicator_or_missing_unit_is_rejected():
         prepare_table(envelope(), {**SELECTION, "entities": ["Atlantis"]})
     with pytest.raises(ValueError, match="indicator"):
         prepare_table(envelope(), {**SELECTION, "indicator": "gdp"})
-    no_unit = {"columns": {"life_expectancy_0": {"titleShort": "x", "unit": ""}}}
+    no_unit = {
+        "columns": {"Display": {"titleShort": "x", "unit": "", "shortName": "life_expectancy_0"}}
+    }
     with pytest.raises(ValueError, match="unit"):
         prepare_table(envelope(metadata=no_unit), SELECTION)
 
@@ -67,3 +69,10 @@ def test_duplicate_year_and_oversized_selection_are_rejected():
         prepare_table(envelope(CSV + "Germany,DEU,2000,1.0\n"), SELECTION)
     with pytest.raises(ValueError, match="60"):
         prepare_table(envelope(), {**SELECTION, "entities": [f"E{i}" for i in range(61)]})
+
+
+def test_reader_accepts_verbatim_metadata_text_and_bom_csv():
+    text = json.dumps(METADATA, indent=2)
+    body = json.dumps({"csv": "\ufeff" + CSV, "metadata": text}).encode()
+    _, rows = read_csv(prepare_table(body, SELECTION)[0])
+    assert {r["Series"] for r in rows} == {"Germany", "Netherlands"}

@@ -38,6 +38,11 @@ def _csv_url(slug):
     return f"{GRAPHER}{slug}.csv?v=1&csvType=full&useColumnShortNames=true"
 
 
+def _capped(body):
+    if len(body) > MAX_BYTES:
+        raise base.DatasetRejected("OWID response exceeds the 5 MB analysis limit")
+
+
 def search(terms, scope, *, fetch, cache_dir):
     found = {}
     for term in terms[:4]:
@@ -65,10 +70,17 @@ def _frequency(year):
 def describe(candidate, scope, *, fetch):
     slug = _checked(candidate.dataset)
     csv_body, _, _ = fetch(_csv_url(slug))
+    _capped(csv_body)
     meta_body, _, _ = fetch(f"{GRAPHER}{slug}.metadata.json?v=1")
+    _capped(meta_body)
     metadata = json.loads(meta_body)
-    columns = {v.get("shortName", k): v for k, v in metadata.get("columns", {}).items()}
-    reader = csv.DictReader(io.StringIO(csv_body.decode("utf-8-sig")))
+    columns = {
+        v["shortName"]: v
+        for v in metadata.get("columns", {}).values()
+        if isinstance(v, dict) and v.get("shortName")
+    }
+    csv_text = csv_body.decode("utf-8")  # the BOM stays, so the stored text hashes to csv_sha256
+    reader = csv.DictReader(io.StringIO(csv_text.removeprefix("\ufeff")))
     fields = reader.fieldnames or []
     if not {"entity", "year"} <= set(fields):
         raise base.DatasetRejected("OWID CSV lacks entity or year columns")
@@ -106,8 +118,7 @@ def describe(candidate, scope, *, fetch):
     if not indicators:
         raise base.DatasetRejected("OWID chart has no indicator with a documented unit")
     envelope = json.dumps(
-        {"csv": csv_body.decode("utf-8-sig"), "metadata": {**metadata, "columns": columns}},
-        ensure_ascii=False,
+        {"csv": csv_text, "metadata": meta_body.decode("utf-8")}, ensure_ascii=False
     ).encode()
     if len(envelope) > MAX_BYTES:
         raise base.DatasetRejected("OWID chart exceeds the 5 MB analysis limit")
