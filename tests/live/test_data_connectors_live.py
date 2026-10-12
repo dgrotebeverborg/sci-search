@@ -81,4 +81,8 @@ def teardown_module(module):
         f"| {q} | {'yes' if ok else 'no'} | {', '.join(s) or '-'} | {', '.join(g) or '-'} |"
         for q, ok, s, g in OUTCOMES
     ]
-    Path("docs/operations/data-connectors-acceptance.md").write_text("\n".join(lines) + "\n")
+    # One report per provider: the committed results are compared across providers.
+    name = "-".join(sorted(PROVIDERS))
+    Path(f"docs/operations/data-connectors-acceptance-{name}.md").write_text(
+        "\n".join(lines) + "\n"
+    )

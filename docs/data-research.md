@@ -225,11 +225,11 @@ has no Mistral key of its own:
 SCI_SEARCH_ANALYSIS_PROVIDER=openai uv run python -m pytest tests/live -q --run-live-data
 ```
 
-It runs seven reference questions and writes `docs/operations/data-connectors-acceptance.md`
-with the outcome of every question. With OpenAI, five questions must produce an analysis, and
-Rhine discharge and coral cover must record a connector gap. Mistral has no web search, so it
+It runs seven reference questions and writes
+`docs/operations/data-connectors-acceptance-<provider>.md` with the outcome of every question.
+With OpenAI, five questions must produce an analysis, and Rhine discharge and coral cover must
+record a connector gap. Mistral has no web search, so it
 measures only the connectors: the questions answered by sources without a connector (EFFIS, NOAA)
 and the two connector-gap questions are run and tabulated but then skipped ("needs web search;
 not measured with the connector-only provider"), because gaps are recorded only for web
-candidates. The run makes paid model calls; results are kept as
-`docs/operations/data-connectors-acceptance-<provider>.md`.
+candidates. The run makes paid model calls; the report of each provider is committed.

@@ -45,3 +45,16 @@ def test_appendix_lists_recovery_and_connector_provenance():
     assert "Automatic recovery: selection → repair · Unobserved/code" in text
     assert "Queried the Eurostat API: dataset demo_mlexpec" in text
     assert "Exact request: https://x.example/api?a=1" in text
+
+
+def test_the_live_acceptance_report_is_named_after_its_provider(tmp_path, monkeypatch):
+    from tests.live import test_data_connectors_live as live
+
+    (tmp_path / "docs/operations").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(live, "OUTCOMES", [("Question", True, ["eurostat"], [])])
+    monkeypatch.setattr(live, "PROVIDERS", {"mistral"})
+    live.teardown_module(live)
+    written = tmp_path / "docs/operations/data-connectors-acceptance-mistral.md"
+    assert [p.name for p in (tmp_path / "docs/operations").iterdir()] == [written.name]
+    assert "| Question | yes | eurostat | - |" in written.read_text()
