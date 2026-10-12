@@ -60,8 +60,15 @@ def test_reads_annual_values_units_status_and_missing():
 
 
 def test_rejects_non_annual_time():
-    with pytest.raises(ValueError, match="no aggregation was performed"):
+    with pytest.raises(ValueError, match="^dataset is monthly; no aggregation was performed$"):
         prepare_jsonstat(dataset(time_codes=("2020M01", "2020M02")), SELECTION)
+    with pytest.raises(ValueError, match="^dataset is half-yearly; no aggregation was performed$"):
+        prepare_jsonstat(dataset(time_codes=("2020H1", "2020H2")), SELECTION)
+
+
+def test_truncated_value_list_fails_loudly():
+    with pytest.raises(ValueError, match="value count"):
+        prepare_jsonstat(dataset(values=(1.5, None, 2.5)), SELECTION)
 
 
 def test_fixed_dimensions_must_have_one_code_and_unit_is_required():

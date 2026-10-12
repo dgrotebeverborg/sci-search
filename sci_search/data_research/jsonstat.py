@@ -5,6 +5,7 @@ import hashlib
 import io
 import itertools
 import json
+import math
 import re
 
 
@@ -15,6 +16,13 @@ def _order(category):
     if isinstance(index, list):
         return list(index)
     return list(category.get("label", {}))
+
+
+def _frequency(code):
+    match = re.search(r"[MQHSWD]", code.strip().upper())
+    names = {"M": "monthly", "Q": "quarterly", "H": "half-yearly", "S": "half-yearly"}
+    names.update({"W": "weekly", "D": "daily"})
+    return names[match.group()] if match else "not annual"
 
 
 def prepare_jsonstat(body, selection):
@@ -36,7 +44,7 @@ def prepare_jsonstat(body, selection):
     years = []
     for code in order[time_id]:
         if not re.fullmatch(r"(?:18|19|20|21)\d{2}", code.strip()):
-            raise ValueError(f"dataset period {code!r} is not annual; no aggregation was performed")
+            raise ValueError(f"dataset is {_frequency(code)}; no aggregation was performed")
         years.append(code.strip())
     others = [d for d in ids if d != time_id]
     series = selection.get("series_dimensions") or []
@@ -49,6 +57,8 @@ def prepare_jsonstat(body, selection):
     units = dims[metric]["category"].get("unit", {}) if metric else {}
     values = data["value"]
     if isinstance(values, list):
+        if len(values) != math.prod(sizes):
+            raise ValueError("JSON-stat value count does not match its dimensions")
         values = dict(enumerate(values))
     else:
         values = {int(k): v for k, v in values.items()}
