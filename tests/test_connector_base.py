@@ -163,3 +163,29 @@ def test_catalogue_cache_is_replaced_atomically(tmp_path, monkeypatch):
     base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12))
     assert cached.read_bytes() == b"<new/>"
     assert len(list(tmp_path.iterdir())) == 2
+
+
+def test_score_matches_whole_words_in_the_real_eurostat_catalogue():
+    from pathlib import Path
+    from xml.etree import ElementTree
+
+    path = Path("tests/fixtures/data_research/connectors/eurostat/dataflows.xml")
+    from sci_search.data_research.connectors import eurostat
+
+    flows = [
+        (flow.get("id", "").lower(), eurostat._name(flow))
+        for flow in ElementTree.parse(path).getroot().iter()
+        if flow.tag.endswith("}Dataflow")
+    ]
+
+    def ranked(terms):
+        scores = [(base.score(title, terms), dataset) for dataset, title in flows]
+        return [dataset for points, dataset in sorted(scores, reverse=True) if points]
+
+    assert ranked(["life expectancy"])[0] == "demo_mlexpec"
+    assert ranked(["life expectancies"])[0] == "demo_mlexpec"  # inflection by prefix
+    # Fragments match nothing: "art" is only part of "part-time" and "partners" here.
+    assert ranked(["art"]) == []
+    assert base.score("Gross non-performing loans", ["Mauna Loa"]) == 0
+    assert base.score("Life expectancy", ["", "the and"]) == 0  # empty terms and stop words
+    assert base.score("Rates of employment", ["rate"]) == 0  # short tokens need the whole word

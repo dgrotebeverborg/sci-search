@@ -70,14 +70,43 @@ def annual(code):
     return int(match[1]) if match else None
 
 
+# Common English and Dutch words that say nothing about a dataset.
+STOP_WORDS = frozenset(
+    "and the for with from per all its their into over "
+    "van het een naar voor met bij door uit".split()
+)
+
+
+def _words(text):
+    return [w for w in re.findall(r"\w+", text.casefold()) if len(w) >= 3 and w not in STOP_WORDS]
+
+
+def _matches(word, title_words):
+    """Whole-word match; words of 5 or more characters also match an inflected form."""
+    if word in title_words:
+        return True
+    if len(word) < 5:
+        return False
+    for other in title_words:
+        if len(other) < 5:
+            continue
+        shared = len(os.path.commonprefix([word, other]))
+        if shared >= max(5, min(len(word), len(other)) - 2):
+            return True
+    return False
+
+
 def score(title, terms):
-    text = title.casefold()
+    title_words = set(_words(title))
+    phrase = " ".join(_words(title))
     total = 0
     for term in terms:
-        words = [w for w in re.findall(r"\w+", term.casefold()) if len(w) > 2]
-        if term.casefold() in text:
+        words = _words(term)
+        if not words:
+            continue
+        if f" {' '.join(words)} " in f" {phrase} ":
             total += 3
-        total += sum(1 for w in words if w in text)
+        total += sum(1 for w in words if _matches(w, title_words))
     return total
 
 
