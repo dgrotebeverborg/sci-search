@@ -179,11 +179,13 @@ path, not the previous behaviour as a whole: the meaning-review schema changed w
 connectors and applies to every path, with exactly one review per requested measurement.
 
 Limits: catalogue and search requests are bounded to 20 MB (the Eurostat dataflow list is about
-7 MB); metadata and data responses to 5 MB. The existing 50,000-row limit applies. Catalogues are
+7 MB); metadata and data responses to 5 MB. The existing 50,000-row limit applies. A dataset
+with a dimension of more than 1000 observed codes is rejected before the model is asked ("dimension
+geo lists 1500 codes; narrow the geography"). Catalogues are
 cached per calendar day: under `data/connector-catalogues` for the CLI, `<root>/connector-catalogues`
 for the local service, and in the container's temporary directory
 (`sci-search-connector-catalogues`) for the production worker. Cache files are replaced atomically;
-a damaged cache file is fetched again.
+a damaged cache file is fetched again. Writing a connector's new day removes its older days.
 
 Known limitation: CBS delivers each table as one CSV package with every code table, and filtering
 happens only after download. Large CBS tables therefore exceed the 5 MB response limit or the
