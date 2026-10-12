@@ -110,6 +110,7 @@ def execute(
         "daily.py",
         "statistical_tables.py",
         "jsonstat.py",
+        "owid_tables.py",
     ):
         (directory / engine).write_bytes(Path(__file__).with_name(engine).read_bytes())
     result = {

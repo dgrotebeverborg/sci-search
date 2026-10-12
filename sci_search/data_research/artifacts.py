@@ -13,6 +13,7 @@ ENGINES = (
     "spreadsheets.py",
     "statistical_tables.py",
     "jsonstat.py",
+    "owid_tables.py",
     "daily.py",
     "wildfire.py",
     "python_rows.py",

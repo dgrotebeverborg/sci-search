@@ -21,6 +21,12 @@ def prepare_table(body, selection=None):
         except ImportError:
             from jsonstat import prepare_jsonstat
         return prepare_jsonstat(body, selection)
+    if selection is not None and selection.get("reader") == "owid_csv":
+        try:
+            from .owid_tables import prepare_owid
+        except ImportError:
+            from owid_tables import prepare_owid
+        return prepare_owid(body, selection)
     if selection is not None and selection.get("reader") == "statistical_tsv":
         try:
             from .statistical_tables import prepare_statistics

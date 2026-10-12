@@ -23,6 +23,7 @@ def export(result, directory, *, bundle=False):
                     "preparation.py",
                     "statistical_tables.py",
                     "jsonstat.py",
+                    "owid_tables.py",
                     "daily.py",
                 )
             )
@@ -51,6 +52,7 @@ def export(result, directory, *, bundle=False):
                             "daily.py",
                             "statistical_tables.py",
                             "jsonstat.py",
+                            "owid_tables.py",
                         }
                         or file.name in required
                     )
