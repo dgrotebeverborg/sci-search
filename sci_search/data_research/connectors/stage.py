@@ -216,6 +216,9 @@ REFORMULATE_PROMPT = (
     "Dutch for Dutch statistics. Do not name datasets.\n"
 )
 MAX_REPAIRS = 2
+# Each code becomes an enum value in the selection schema; providers refuse much larger schemas
+# (Eurostat lists about 1500 NUTS regions when no countries are requested).
+MAX_CODES = 1000
 # Reader failures that mean the bytes could not be parsed or have an unexpected shape. Only
 # these go to Python extraction. Every other reader failure (frequency, unit, status flag,
 # size or entity limit, duplicate or unobserved code) is a content rejection, because Python
@@ -289,6 +292,14 @@ class _Cancellation:
             raise self.raised
 
 
+def _check_code_counts(description):
+    for d in description.dimensions:
+        if len(d.codes) > MAX_CODES:
+            raise base.DatasetRejected(
+                f"dimension {d.id} lists {len(d.codes)} codes; narrow the geography"
+            )
+
+
 def _facts(value):
     """Observed codes for a repair prompt; strings that look like URLs are dropped."""
 
@@ -337,6 +348,7 @@ def analyse_dataset(
         description = _with_retry(
             lambda: connector.describe(candidate, strategy, fetch=fetch), recovery
         )
+        _check_code_counts(description)
         payload = {
             "question": question,
             "measurement": measurement,

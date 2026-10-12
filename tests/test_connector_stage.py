@@ -608,3 +608,49 @@ def test_an_unexpected_catalogue_error_is_a_blocked_search(tmp_path):
     assert found == {}
     assert result["assessments"][0]["failure_stage"] == "connector:search"
     assert "not xml" in result["assessments"][0]["reason"]
+
+
+def test_a_dimension_with_too_many_codes_is_rejected_before_the_model_is_asked(tmp_path):
+    codes = {f"R{i}": f"Region {i}" for i in range(1500)}
+
+    def describe(candidate, scope, *, fetch):
+        return base.DatasetDescription(
+            candidate=candidate,
+            dimensions=(base.Dimension("geo", "geo", codes),),
+            years=(),
+            licence_url="",
+            definitions="",
+            publisher="X",
+        )
+
+    asked = []
+    connector = types.SimpleNamespace(NAME="many", PUBLISHER="X", describe=describe)
+    analysis, assessment = stage.analyse_dataset(
+        "q",
+        STRATEGY,
+        tmp_path,
+        connector,
+        BROKEN,
+        "m",
+        complete=lambda prompt, schema: asked.append(schema) or {},
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda m: None,
+    )
+    assert analysis is None and asked == []
+    assert assessment["reason"] == "dimension geo lists 1500 codes; narrow the geography"
+    assert assessment["error_class"] == "DatasetRejected"
+    assert assessment["failure_stage"] == "connector:describe"
+
+
+def test_a_dimension_with_1000_codes_is_offered_to_the_model():
+    description = base.DatasetDescription(
+        candidate=BROKEN,
+        dimensions=(base.Dimension("geo", "geo", {f"R{i}": "" for i in range(1000)}),),
+        years=(),
+        licence_url="",
+        definitions="",
+        publisher="X",
+    )
+    stage._check_code_counts(description)  # does not raise
