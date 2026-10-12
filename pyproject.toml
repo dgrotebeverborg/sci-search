@@ -72,6 +72,7 @@ addopts = "--strict-config --strict-markers --import-mode=importlib"
 markers = [
   "security: mandatory tenant-isolation and authentication security tests",
   "retained_corpus: requires locally retained full texts or historical research runs; enable with --run-retained-corpus",
+  "live_data: queries real statistical APIs and a configured model; enable with --run-live-data",
 ]
 
 [tool.coverage.run]

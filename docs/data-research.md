@@ -138,3 +138,84 @@ These checks verify the presence of citations deterministically. Whether those p
 justify the interpretation remains a model judgment, not independent scientific expert validation.
 The additional standard-table review costs one model call per candidate measurement; existing
 Python semantic review now uses the same structured evidence contract.
+
+## Statistical API connectors
+
+Before web search, `workflow.execute` runs a connector stage that queries four statistical APIs
+directly. Each connector has a fixed host set and never requests a URL supplied by the model;
+dataset IDs must match a per-connector pattern. All traffic goes through the same public-address,
+DNS-pinning and redirect checks as web downloads, and no credentials are sent.
+
+| Connector | Hosts | Data request |
+|---|---|---|
+| Eurostat | `ec.europa.eu` | SDMX 2.1 dataflow list, structure and a TSV slice for the selected codes |
+| CBS (Statistics Netherlands) | `opendata.cbs.nl`, `datasets.cbs.nl`, `www.cbs.nl` | OData catalogue; the CSV package with every code table |
+| PxWeb | `statistikdatabasen.scb.se` (Statistics Sweden, API v2), `data.ssb.no` (Statistics Norway, API v1, POST) | JSON-stat 2 for the selected table cells |
+| Our World in Data | `ourworldindata.org` | Grapher CSV and its metadata for one indicator |
+
+For each requested measurement, the model proposes 2 to 4 search terms (also in Dutch for CBS),
+chooses at most four candidate datasets, and selects codes from a strict schema whose values are
+the codes observed in the dataset. The selection is validated before fetching: at most 60 entities,
+years within the dataset's coverage, annual data only. Other frequencies are rejected with
+"dataset is <frequency>; no aggregation was performed". Missing values stay missing, and source
+status flags (Eurostat `p` and `e`, CBS provisional) are kept in the Status column. The fetched
+slice is stored with its SHA-256 and passes through the same table mapping, meaning review, executed
+Python calculation and offline replay as web-discovered files. Each connector analysis records the
+connector, dataset ID, exact request (URL, and body for POST), the response SHA-256, the SHA-256 of
+the catalogue snapshot it was found in, the licence from the metadata, and the model's choices with
+their reasons.
+
+Measurements no connector covered continue to the web-search workflow, restricted to those
+measurements. A web candidate on a connector host whose URL names a dataset enters the connector
+path instead of the scraper. Results that include connector analyses keep the existing status
+`partial`, like every other discovered-data result. If the connector stage itself fails, the
+failure is recorded as a `connector:stage` assessment and the run continues with web search.
+`SCI_SEARCH_DATA_CONNECTORS=0` (or `false`, `no`) skips the stage and restores the previous path
+exactly.
+
+Limits: catalogue and search requests are bounded to 20 MB (the Eurostat dataflow list is about
+7 MB); metadata and data responses to 5 MB. The existing 50,000-row limit applies. Catalogues are
+cached per calendar day: under `data/connector-catalogues` for the CLI, `<root>/connector-catalogues`
+for the local service, and in the container's temporary directory
+(`sci-search-connector-catalogues`) for the production worker. Cache files are replaced atomically;
+a damaged cache file is fetched again.
+
+### Recovery
+
+Every failure is classified, and each class has a fixed recovery. Recovery never relaxes a check:
+a wrong unit, an unobserved code or a non-annual series is never accepted on a later attempt.
+
+| Class | Example | Automatic recovery | Limit |
+|---|---|---|---|
+| Model selection error with an informative reason | unobserved code; too many entities; "no results for this key" | Return the error to the model with the facts it needs (valid codes, or combinations that contain data) for a new selection | 2 repairs per dataset |
+| Wrong dataset | semantic review rejects the meaning; monthly-only; years not covered; a reader's content rejection (frequency, unit, status flag, size or entity limit, duplicate or unobserved code) | Next candidate. The rejection reason goes to the model, which reformulates search terms for one more search round | 1 extra search round per measurement |
+| Transient | timeout; HTTP 5xx | Retry the request once | 1 retry |
+| Connector cannot read the response | the reader meets bytes it cannot parse or an unexpected shape | No selection loop. The same raw bytes go to Python recovery for that one measurement only, with its own semantic review; the case is recorded as a connector defect | the existing 3 Python attempts |
+
+Only parse and shape failures reach Python recovery; any other reader failure is a content
+rejection and moves to the next candidate, so Python extraction cannot bypass the annual, unit or
+limit checks. A Python recovery that leaves its measurement uncovered is rejected. Every failed step
+is recorded as an assessment with `failure_stage` `connector:<step>` and a readable reason, and its
+recovery steps appear on the dashboard. A connector failure never stops the run.
+
+### Connector gaps
+
+When a web candidate on a host without a connector is a JavaScript-only page, or a near-empty page
+without static links, the run records it in `result["connector_gaps"]` as
+`{host, measurement, evidence}`. The dashboard and Markdown report show it as "Needs an API connector for <host>".
+Pages on connector hosts are never recorded as gaps. The gap list shows which connector to build
+next (for example Rijkswaterstaat or AIMS).
+
+### Live acceptance run
+
+The standard suite is offline. An opt-in acceptance test queries the real APIs with the configured
+model, loading `.env.local` as the CLI does:
+
+```bash
+SCI_SEARCH_ANALYSIS_PROVIDER=openai uv run python -m pytest tests/live -q --run-live-data
+```
+
+It runs seven reference questions and writes `docs/operations/data-connectors-acceptance.md`.
+Questions answered only by sources without a connector (EFFIS, NOAA) need web search, so with
+Mistral they are not required to succeed. The run makes paid model calls; results from earlier
+runs are kept as `docs/operations/data-connectors-acceptance-<provider>.md`.

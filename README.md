@@ -28,6 +28,11 @@ This runtime requires Linux, `bubblewrap` (`bwrap`), a non-root account and perm
 unprivileged namespaces. If isolation is unavailable, the app reports that limitation and does not
 execute generated code on the host. Existing saved dashboards remain readable.
 
+Before searching the web, data research queries the statistical APIs of Eurostat, CBS, two PxWeb
+installations (Statistics Sweden, Statistics Norway) and Our World in Data. Measurements those
+connectors cannot answer continue to web search. Set `SCI_SEARCH_DATA_CONNECTORS=0` to skip the
+connector stage; see [statistical API connectors](docs/data-research.md#statistical-api-connectors).
+
 ## Online scientific search
 
 Create a local configuration from `.env.example` and set `OPENALEX_API_KEY`. To enable model-assisted analysis, also set `MISTRAL_API_KEY`; `MISTRAL_MODEL` defaults to `mistral-small-latest`. Real values belong only in `.env.local`, which is ignored by version control and should have restrictive file permissions.
