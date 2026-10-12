@@ -124,7 +124,7 @@ The connector stage runs at the start of `workflow.execute`:
 
 1. **Search terms.** One model call turns each requested measurement into 2 to 4 search terms, in
    English and in a connector's language where relevant (Dutch for CBS). Without a configured model,
-   the measurement text is used. All connectors search in parallel with a per-connector timeout.
+   the measurement text is used. Connectors are searched one after another; each request has the fetcher's timeout.
 2. **Candidate choice.** The model sees the merged candidates (title, connector, frequency, period
    range) and picks at most 4 datasets with a reason each, preferring annual series that cover the
    requested years.
@@ -212,7 +212,7 @@ runs the benchmark questions against the real APIs and writes the outcomes to
 | Rhine discharge at Lobith | 0 of 3 | names the Rijkswaterstaat connector gap |
 | Coral cover on the Great Barrier Reef | 0 of 1 | names the AIMS connector gap |
 
-The first five must also succeed with Mistral and no web search.
+With Mistral and no web search, the connector-covered questions (life expectancy, renewable share, electricity storage) must succeed; burned area and CO₂ use non-connector sources and need web search.
 
 ## Compatibility and rollback
 
