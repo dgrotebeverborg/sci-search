@@ -67,6 +67,9 @@ API behaviour probed on 2026-10-12:
 - OWID: `ourworldindata.org/api/search?q=` returns chart slugs.
   `grapher/<slug>.csv?csvType=filtered&country=NLD~DEU` and `grapher/<slug>.metadata.json` return
   the data and its metadata.
+- Eurostat answers `availableconstraint` with HTTP 405.
+  `data/<id>/<key>/?format=TSV&detail=serieskeysonly` lists the existing series keys (2,990 bytes
+  for `demo_mlexpec`, annual, age `Y_LT1`).
 
 ## Components
 
@@ -93,18 +96,15 @@ Each connector implements four functions:
 "entity_dimension", "start_year", "end_year"}`. It is validated against the `DatasetDescription`
 before fetching.
 
-`normalize` is a pure function registered as a `reader` in `prepare_table`, and each connector
-module is added to `artifacts.ENGINES`, so the sandbox calculation reproduces the table from the
-stored raw response. Its output has the columns Year, the entity label, one column per remaining
-filtered dimension (labels), Value, Unit and Status. The connector also returns the column mapping
-for `analyse_csv`, so the model does not map columns for connector data.
+The sandbox accepts only flat file names, so readers are flat engine modules: Eurostat reuses
+`statistical_tables.prepare_statistics`, CBS reuses `packages._cbs`, and the new `jsonstat.py`
+(PxWeb) and `owid_tables.py` (OWID) are added to `artifacts.ENGINES`. Connectors in `connectors/`
+hold only the network side. The CBS connector downloads the CSV package
+(`datasets.cbs.nl/CSV/CBS/nl/<id>`), which contains every code table; filtering happens in the
+column mapping.
 
-Moved into connectors:
-
-- `packages._cbs` becomes the CBS `normalize` for CSV packages; `prepare_table` keeps
-  recognising CBS ZIPs by delegating to it.
-- `retrieval.eurostat_download_url` and `statistical_tables` become part of the Eurostat
-  connector; `retrieval._await_eurostat` is reused for the asynchronous delivery protocol.
+`packages._cbs`, `statistical_tables` and `retrieval.eurostat_download_url` stay where they are
+and are reused by the connectors; no parallel copy is made.
 
 Catalogue caching: the Eurostat dataset list and CBS catalogue are cached per calendar day under
 the data directory. Each run records the hash of the snapshot it searched.
@@ -130,7 +130,7 @@ The connector stage runs at the start of `workflow.execute`:
    requested years.
 3. **Code selection.** For each chosen dataset, `describe` provides the metadata. The model fills a
    strict schema whose enums are the observed codes. Codes are first reduced to those present in the
-   dataset (Eurostat and CBS availability queries), and countries to `strategy["countries"]` when set.
+   dataset (Eurostat series-keys-only query; CBS, PxWeb and OWID metadata list only observed codes), and countries to `strategy["countries"]` when set.
 4. **Fetch and read.** The slice is fetched and stored as the source artifact; `normalize` builds the
    table; the existing `analyse_csv`, `semantics.assess` (with the dataset's definitions as
    documents), `execute_analysis`, provenance and replay follow unchanged.

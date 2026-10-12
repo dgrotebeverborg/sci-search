@@ -2,6 +2,7 @@
 
 import http.client
 import ipaddress
+import json
 import socket
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -35,8 +36,8 @@ def public_addresses(url):
     return addresses
 
 
-def fetch_public(url, *, limit=50_000_000):
-    for _ in range(5):
+def _request(method, url, body, limit, follow):
+    for _ in range(5 if follow else 1):
         addresses = public_addresses(url)
         parts = urlsplit(url)
         port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -48,19 +49,20 @@ def fetch_public(url, *, limit=50_000_000):
                 socket.create_connection((addresses[0], port), timeout)
             )
         )
+        headers = {
+            "User-Agent": "Sci-Search/0.2 (public research data)",
+            "Accept-Encoding": "identity",
+            "Accept": "*/*",
+        }
+        if body is not None:
+            headers["Content-Type"] = "application/json"
         try:
             path = urlunsplit(("", "", parts.path or "/", parts.query, ""))
-            connection.request(
-                "GET",
-                path,
-                headers={
-                    "User-Agent": "Sci-Search/0.2 (public research data)",
-                    "Accept-Encoding": "identity",
-                    "Accept": "*/*",
-                },
-            )
+            connection.request(method, path, body=body, headers=headers)
             response = connection.getresponse()
             if response.status in {301, 302, 303, 307, 308}:
+                if not follow:
+                    raise ValueError("POST redirect refused")
                 target = response.getheader("Location")
                 if not target:
                     raise ValueError("Dataset redirect lacks a location")
@@ -68,13 +70,25 @@ def fetch_public(url, *, limit=50_000_000):
                 continue
             if response.status != 200:
                 raise ValueError(f"Dataset server returned HTTP {response.status}")
-            body = response.read(limit + 1)
-            if len(body) > limit:
+            data = response.read(limit + 1)
+            if len(data) > limit:
                 raise ValueError(f"Dataset exceeds the {limit // 1_000_000} MB acquisition limit")
-            return body, response.getheader("Content-Type", ""), url
+            return data, response.getheader("Content-Type", ""), url
         finally:
             connection.close()
     raise ValueError("Dataset exceeded the redirect limit")
+
+
+def fetch_public(url, *, limit=50_000_000):
+    return _request("GET", url, None, limit, True)
+
+
+def post_public(url, payload, *, limit=5_000_000):
+    """JSON POST for statistical APIs (PxWeb v1). Redirects are refused."""
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    if len(body) > 64_000:
+        raise ValueError("POST body exceeds the 64 KB limit")
+    return _request("POST", url, body, limit, False)
 
 
 class Page(HTMLParser):
