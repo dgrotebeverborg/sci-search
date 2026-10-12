@@ -33,6 +33,9 @@ INSTALLATIONS = {
     },
 }
 HOSTS = {i["host"] for i in INSTALLATIONS.values()}
+# Web interfaces of the same installations. Their pages are covered by this connector, so they are
+# not connector gaps, but they are never requested: requests go to HOSTS only.
+UI_HOSTS = {"www.ssb.no", "www.statistikdatabasen.scb.se"}
 PUBLISHER = "PxWeb statistical office"
 LICENCE_URL = ""
 FREQUENCY_NAMES = {"M": "monthly", "Q": "quarterly", "H": "half-yearly", "S": "half-yearly"}

@@ -88,7 +88,10 @@ def save(path, value):
 def _record_gap(result, candidate, strategy, page, stage, reason, connectors):
     """A page that only renders through scripts is a host a connector could cover."""
     host = urlsplit(candidate["url"]).hostname or ""
-    if any(host in getattr(connector, "HOSTS", ()) for connector in connectors.values()):
+    if any(
+        host in getattr(connector, "HOSTS", ()) or host in getattr(connector, "UI_HOSTS", ())
+        for connector in connectors.values()
+    ):
         return
     text, links = page.get("text", ""), page.get("links", [])
     if stage not in {"assessment", "navigation", "parse"} or not (

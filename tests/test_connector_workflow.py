@@ -716,3 +716,25 @@ def test_a_failing_stage_keeps_the_analyses_it_completed(tmp_path, monkeypatch):
     assert searched["measurements"] == [HEALTHY]
     replay = replayed(tmp_path)
     assert replay.returncode == 0, replay.stderr
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.ssb.no/en/statbank/table/08307",
+        "https://www.statistikdatabasen.scb.se/pxweb/en/ssd/",
+    ],
+)
+def test_pxweb_web_interfaces_are_not_connector_gaps(url):
+    from sci_search.data_research.connectors import pxweb
+
+    result = {}
+    strategy = {**STRATEGY, "measurements": ["electricity use"]}
+    page = {"text": "Loading...", "links": []}
+    workflow._record_gap(
+        result, {"url": url}, strategy, page, "assessment", "loading", {"pxweb": pxweb}
+    )
+    assert "connector_gaps" not in result
+    # The web interfaces are never requested by the connector.
+    assert "www.ssb.no" not in pxweb.HOSTS
+    assert "www.statistikdatabasen.scb.se" not in pxweb.HOSTS
