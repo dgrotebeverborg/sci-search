@@ -125,3 +125,15 @@ def test_connectors_can_be_disabled(monkeypatch):
     for value in ("0", "false", "no"):
         monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", value)
         assert not connectors.enabled()
+
+
+def test_unwritable_catalogue_cache_still_returns_the_fetched_body(tmp_path):
+    (tmp_path / "eurostat-2026-10-12.bin").mkdir()
+
+    def fetch(url):
+        return b"<catalogue/>", "application/xml", url
+
+    body, digest = base.catalogue(
+        "eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12)
+    )
+    assert body == b"<catalogue/>" and len(digest) == 64

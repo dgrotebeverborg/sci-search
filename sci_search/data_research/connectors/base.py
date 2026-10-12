@@ -152,6 +152,9 @@ def catalogue(name, url, fetch, cache_dir, today: date | None = None):
         pass
     body, _, _ = fetch(url)
     digest = hashlib.sha256(body).hexdigest()
-    path.write_bytes(body)
-    digest_path.write_text(digest)
+    try:
+        path.write_bytes(body)
+        digest_path.write_text(digest)
+    except OSError:
+        pass  # an unwritable cache must not fail a successful fetch
     return body, digest
