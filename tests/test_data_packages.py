@@ -30,6 +30,50 @@ def test_actual_cbs_package_resolves_measures_periods_units_and_missingness():
     assert "opslagcapaciteit > 1 MWh" in prep["metadata"]
 
 
+def _with_replacements(entry, replacements):
+    output = io.BytesIO()
+    with zipfile.ZipFile(FIXTURE) as source, zipfile.ZipFile(output, "w") as target:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == entry:
+                text = data.decode("utf-8-sig")
+                for old, new in replacements.items():
+                    assert old in text
+                    text = text.replace(old, new)
+                data = text.encode()
+            target.writestr(name, data)
+    return output.getvalue()
+
+
+def _with_measure_titles(replacements):
+    return _with_replacements("MeasureCodes.csv", replacements)
+
+
+def test_cbs_measures_sharing_a_title_are_distinguished_by_unit():
+    # CBS repeats measure titles across groups, e.g. production in kWh and as % of use.
+    body, _ = prepare_table(
+        _with_measure_titles({"Batterijen; vermogen": "Batterijen; aantal systemen"})
+    )
+    _, rows = read_csv(body)
+    units = {r["Unit"] for r in rows if r["Measure"] == "Batterijen; aantal systemen"}
+    assert units == {"aantal", "MW"}
+
+
+def test_cbs_measures_sharing_title_and_unit_remain_ambiguous():
+    package = _with_measure_titles({"Batterijen; eigen verbruik": "Batterijen; bruto productie"})
+    with pytest.raises(ValueError, match="ambiguous"):
+        prepare_table(package)
+
+
+def test_cbs_period_labels_with_surrounding_whitespace_are_annual():
+    package = _with_replacements(
+        "PeriodenCodes.csv", {"JJ00;0;Perioden;2;2023;": "JJ00;0;Perioden;2;2023 ;"}
+    )
+    body, _ = prepare_table(package)
+    _, rows = read_csv(body)
+    assert "2023" in {r["Year"] for r in rows}
+
+
 def test_cbs_series_keeps_original_observation_reference_and_unit_contract():
     body, prep = prepare_table(FIXTURE.read_bytes())
     mapping = {

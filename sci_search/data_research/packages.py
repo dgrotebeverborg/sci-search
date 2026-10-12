@@ -115,20 +115,21 @@ def _cbs(archive):
             raise ValueError("CBS package is missing a required code table: " + name)
         return read_csv(archive.read(name), delimiter=";")
 
-    def codes(name):
+    def codes(name, distinct=("Title",)):
         _, rows = table(name)
         if any(not r.get("Identifier") or not r.get("Title") for r in rows):
             raise ValueError("CBS code table lacks identifiers or labels")
         values = {r["Identifier"]: r for r in rows}
         if len(values) != len(rows):
             raise ValueError("CBS code table has duplicate identifiers")
-        if len({r["Title"] for r in rows}) != len(rows):
+        if len({tuple(r.get(k, "") for k in distinct) for r in rows}) != len(rows):
             raise ValueError("CBS code labels are ambiguous")
         return values
 
     _, properties = table("Properties.csv")
     _, dims = table("Dimensions.csv")
-    measures = codes("MeasureCodes.csv")
+    # Measures may repeat a title in another unit; the normalized Unit column keeps them apart.
+    measures = codes("MeasureCodes.csv", distinct=("Title", "Unit"))
     obs_headers, observations, source_lines = read_csv(
         archive.read("Observations.csv"), with_line_numbers=True, delimiter=";"
     )
@@ -161,7 +162,7 @@ def _cbs(archive):
             raise ValueError(
                 "CBS package contains non-annual or unknown periods; no aggregation was performed"
             )
-        if period["Title"] != row[time_key][:4]:
+        if period["Title"].strip() != row[time_key][:4]:
             raise ValueError("CBS period label does not match its annual code")
         labels = {}
         for key in entity_keys:
@@ -175,7 +176,7 @@ def _cbs(archive):
         if flag not in {"", "None"} and row["Value"]:
             raise ValueError("CBS flagged numeric observation requires explicit interpretation")
         normalized = {
-            "Year": period["Title"],
+            "Year": period["Title"].strip(),
             "Measure": measure["Title"],
             **labels,
             "Value": row["Value"],
