@@ -217,13 +217,19 @@ next (for example Rijkswaterstaat or AIMS).
 ### Live acceptance run
 
 The standard suite is offline. An opt-in acceptance test queries the real APIs with the configured
-model, loading `.env.local` as the CLI does:
+model. It loads `.env.local` as the CLI does, and, like `research-online`, reads only
+`MISTRAL_API_KEY` from `../sci-graph/.env.local` through `load_legacy_mistral_key` when Sci-Search
+has no Mistral key of its own:
 
 ```bash
 SCI_SEARCH_ANALYSIS_PROVIDER=openai uv run python -m pytest tests/live -q --run-live-data
 ```
 
-It runs seven reference questions and writes `docs/operations/data-connectors-acceptance.md`.
-Questions answered only by sources without a connector (EFFIS, NOAA) need web search, so with
-Mistral they are not required to succeed. The run makes paid model calls; results from earlier
-runs are kept as `docs/operations/data-connectors-acceptance-<provider>.md`.
+It runs seven reference questions and writes `docs/operations/data-connectors-acceptance.md`
+with the outcome of every question. With OpenAI, five questions must produce an analysis, and
+Rhine discharge and coral cover must record a connector gap. Mistral has no web search, so it
+measures only the connectors: the questions answered by sources without a connector (EFFIS, NOAA)
+and the two connector-gap questions are run and tabulated but then skipped ("needs web search;
+not measured with the connector-only provider"), because gaps are recorded only for web
+candidates. The run makes paid model calls; results are kept as
+`docs/operations/data-connectors-acceptance-<provider>.md`.
