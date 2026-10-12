@@ -17,6 +17,7 @@ from sci_search.data_research.packages import attach_provenance, prepare_table
 from sci_search.data_research.python_recovery import recover as recover_python
 from sci_search.data_research.tabular import analyse_csv, read_csv
 
+TERM_LIST = {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 4}
 TERMS_SCHEMA = {
     "title": "connector_terms",
     "type": "object",
@@ -28,15 +29,18 @@ TERMS_SCHEMA = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["measurement", "terms"],
+                "required": ["measurement", "english", "dutch"],
                 "properties": {
                     "measurement": {"type": "string"},
-                    "terms": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
+                    "english": TERM_LIST,
+                    "dutch": TERM_LIST,
                 },
             },
         }
     },
 }
+# Search terms are kept per language; a connector's LANGUAGES says which ones it searches.
+LANGUAGE_FIELDS = {"en": "english", "nl": "dutch"}
 CHOICE_SCHEMA = {
     "title": "connector_choice",
     "type": "object",
@@ -93,11 +97,20 @@ def selection_schema(description):
     }
 
 
+def _term_lists(entry):
+    """{language: terms} from one schema entry; blank or non-string terms are dropped."""
+    return {
+        code: [t.strip() for t in entry.get(field) or [] if isinstance(t, str) and t.strip()][:4]
+        for code, field in LANGUAGE_FIELDS.items()
+    }
+
+
 def _terms(question, strategy, complete):
     try:
         reply = complete(
-            "For each requested measurement give 2 to 4 short search terms for official statistics "
-            "catalogues, in English and also in Dutch for Dutch statistics. Do not name datasets.\n"
+            "For each requested measurement give 1 to 4 short search terms in English and, "
+            "separately, 1 to 4 in Dutch for Dutch statistics, for official statistics "
+            "catalogues. Do not name datasets.\n"
             + json.dumps(
                 {
                     "question": question,
@@ -107,10 +120,25 @@ def _terms(question, strategy, complete):
             ),
             TERMS_SCHEMA,
         )
-        terms = {t["measurement"]: [x for x in t["terms"] if x.strip()][:4] for t in reply["terms"]}
-    except (ValueError, KeyError, TypeError):
+        terms = {t["measurement"]: _term_lists(t) for t in reply["terms"]}
+    except (ValueError, KeyError, TypeError, AttributeError):
         terms = {}
-    return {m: terms.get(m) or [m] for m in strategy["measurements"]}
+    result = {}
+    for m in strategy["measurements"]:
+        lists = terms.get(m) or {code: [] for code in LANGUAGE_FIELDS}
+        # The measurement text itself is always searched, whatever language the model used.
+        lists["en"] = list(dict.fromkeys([m, *lists["en"]]))
+        result[m] = lists
+    return result
+
+
+def _merge(term_sets):
+    """Combine {language: terms} dictionaries into one."""
+    merged = {}
+    for lists in term_sets:
+        for code, values in lists.items():
+            merged.setdefault(code, []).extend(values)
+    return merged
 
 
 def _slug(text):
@@ -159,8 +187,9 @@ CHOOSE_PROMPT = (
     "series that cover the requested years; do not choose monthly or quarterly datasets.\n"
 )
 REFORMULATE_PROMPT = (
-    "The previous searches did not yield a usable dataset. Using the reasons below, give 2 to 4 "
-    "different short search terms for this measurement. Do not name datasets.\n"
+    "The previous searches did not yield a usable dataset. Using the reasons below, give 1 to 4 "
+    "different short search terms for this measurement in English and, separately, 1 to 4 in "
+    "Dutch for Dutch statistics. Do not name datasets.\n"
 )
 MAX_REPAIRS = 2
 # Reader failures that mean the bytes could not be parsed or have an unexpected shape. Only
@@ -426,13 +455,18 @@ def analyse_dataset(
 
 
 def _search_all(connectors, terms, strategy, fetch, cache_dir, result, *, check_cancelled):
-    """Search every connector catalogue for terms; failures become blocked assessments."""
+    """Search every connector catalogue in its languages; failures become blocked assessments."""
     found = {}
     for name, connector in connectors.items():
         check_cancelled()
+        wanted = sorted(
+            {t for code in getattr(connector, "LANGUAGES", ("en",)) for t in terms.get(code, [])}
+        )
+        if not wanted:
+            continue
         try:
             candidates, digest = connector.search(
-                sorted(set(terms)), strategy, fetch=fetch, cache_dir=cache_dir
+                wanted, strategy, fetch=fetch, cache_dir=cache_dir
             )
         except (ValueError, KeyError, TypeError, OSError) as exc:
             if any(
@@ -564,10 +598,10 @@ def _reformulate(question, measurement, previous, reasons, complete):
             ),
             TERMS_SCHEMA,
         )
-        terms = next(t["terms"] for t in reply["terms"] if t["measurement"] == measurement)
-        return [t for t in terms if isinstance(t, str) and t.strip()][:4]
-    except (ValueError, KeyError, TypeError, StopIteration):
-        return []
+        entry = next(t for t in reply["terms"] if t["measurement"] == measurement)
+        return _term_lists(entry)
+    except (ValueError, KeyError, TypeError, AttributeError, StopIteration):
+        return {}
 
 
 def run(
@@ -613,7 +647,7 @@ def run(
     result["search"]["terms"] = terms
     found = _search_all(
         connectors,
-        [t for ts in terms.values() for t in ts],
+        _merge(terms.values()),
         strategy,
         search_fetch,
         cache_dir,
@@ -647,7 +681,7 @@ def run(
         entry = {
             "class": "search",
             "action": "reformulate",
-            "outcome": ", ".join(retry_terms)[:200],
+            "outcome": ", ".join(t for ts in retry_terms.values() for t in ts)[:200],
         }
         tried = {
             f"{a.get('connector')}:{a.get('dataset')}"
@@ -664,7 +698,7 @@ def run(
                 result,
                 check_cancelled=check_cancelled,
             )
-            if retry_terms
+            if any(retry_terms.values())
             else {}
         )
         fresh = {k: v for k, v in found_again.items() if k not in tried}

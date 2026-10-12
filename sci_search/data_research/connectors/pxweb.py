@@ -7,6 +7,8 @@ from urllib.parse import quote, urlencode
 from sci_search.data_research.connectors import base
 
 NAME = "pxweb"
+# Search-term languages: the installations are searched in English.
+LANGUAGES = ("en",)
 # "table" is the id pattern for that installation's tables; "country" the one country it covers.
 # Ids keep the source's casing: PxWeb servers may be case-sensitive.
 INSTALLATIONS = {

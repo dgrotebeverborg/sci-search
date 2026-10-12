@@ -9,6 +9,8 @@ from sci_search.data_research.connectors import base
 from sci_search.data_research.retrieval import fetch_scoped
 
 NAME = "eurostat"
+# Search-term languages: the catalogue titles are English.
+LANGUAGES = ("en",)
 PUBLISHER = "Eurostat"
 LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/"
 HOSTS = {"ec.europa.eu"}

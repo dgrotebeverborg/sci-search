@@ -33,7 +33,12 @@ def test_connector_analysis_skips_web_search_when_everything_is_covered(tmp_path
     assert result["analyses"] and result["analyses"][0]["source"]["connector"]["name"] == "eurostat"
     assert result["status"] == "partial"
     assert result["uncovered_measurements"] == []
-    assert result["connector_search"]["terms"] == {STRATEGY["measurements"][0]: ["life expectancy"]}
+    assert result["connector_search"]["terms"] == {
+        STRATEGY["measurements"][0]: {
+            "en": [STRATEGY["measurements"][0], "life expectancy"],
+            "nl": ["levensverwachting"],
+        }
+    }
     assert result["period"] == workflow.period_summary(STRATEGY, result["analyses"])
 
 

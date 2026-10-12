@@ -153,8 +153,10 @@ DNS-pinning and redirect checks as web downloads, and no credentials are sent.
 | PxWeb | `statistikdatabasen.scb.se` (Statistics Sweden, API v2), `data.ssb.no` (Statistics Norway, API v1, POST) | JSON-stat 2 for the selected table cells |
 | Our World in Data | `ourworldindata.org` | Grapher CSV and its metadata for one indicator |
 
-For each requested measurement, the model proposes 2 to 4 search terms (also in Dutch for CBS),
-chooses at most four candidate datasets, and selects codes from a strict schema whose values are
+For each requested measurement, the model proposes 1 to 4 English and, separately, 1 to 4 Dutch
+search terms. The measurement text itself is always one of the English terms. Each connector
+searches only in its declared languages: English for Eurostat, PxWeb and Our World in Data, and
+Dutch and English for CBS. The model then chooses at most four candidate datasets, and selects codes from a strict schema whose values are
 the codes observed in the dataset. The selection is validated before fetching: at most 60 entities,
 years within the dataset's coverage, annual data only. Other frequencies are rejected with
 "dataset is <frequency>; no aggregation was performed". Missing values stay missing, and source

@@ -37,7 +37,11 @@ def scripted(prompt, schema):
     if title == "connector_terms":
         return {
             "terms": [
-                {"measurement": "life expectancy at birth", "terms": ["life expectancy", "sex"]}
+                {
+                    "measurement": "life expectancy at birth",
+                    "english": ["life expectancy", "sex"],
+                    "dutch": ["levensverwachting"],
+                }
             ]
         }
     if title == "connector_choice":
@@ -133,7 +137,7 @@ def test_the_same_dataset_for_two_measurements_keeps_both_analyses_sealed(tmp_pa
         if schema["title"] == "connector_terms":
             return {
                 "terms": [
-                    {"measurement": m, "terms": ["life expectancy"]}
+                    {"measurement": m, "english": ["life expectancy"], "dutch": ["leven"]}
                     for m in strategy["measurements"]
                 ]
             }
@@ -367,3 +371,63 @@ def test_the_meaning_review_prompt_leaves_out_row_provenance(tmp_path):
     assert result["covered"] == ["life expectancy at birth"]
     assert prompts and all("row_provenance" not in p for p in prompts)
     assert result["analyses"][0]["preparation"]["row_provenance"]
+
+
+def test_english_measurement_text_is_searched_and_dutch_terms_only_in_dutch_catalogues(tmp_path):
+    # A live Mistral reply gave only Dutch terms, so Eurostat searched in Dutch.
+    searched = {}
+
+    def connector(name, languages):
+        def search(terms, scope, *, fetch, cache_dir):
+            searched.setdefault(name, list(terms))  # the first round
+            return [], "digest"
+
+        return types.SimpleNamespace(NAME=name, LANGUAGES=languages, search=search)
+
+    def complete(prompt, schema):
+        assert schema["title"] == "connector_terms"
+        assert schema["properties"]["terms"]["items"]["required"] == [
+            "measurement",
+            "english",
+            "dutch",
+        ]
+        return {
+            "terms": [
+                {
+                    "measurement": "life expectancy at birth",
+                    "english": ["levensverwachting"],
+                    "dutch": ["levensverwachting bij geboorte"],
+                }
+            ]
+        }
+
+    stage.run(
+        "q",
+        STRATEGY,
+        tmp_path,
+        complete=complete,
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda m: None,
+        connectors={
+            "eurostat": connector("eurostat", ("en",)),
+            "cbs": connector("cbs", ("nl", "en")),
+        },
+        cache_dir=tmp_path / "cache",
+    )
+    assert "life expectancy at birth" in searched["eurostat"]
+    assert "levensverwachting bij geboorte" not in searched["eurostat"]
+    assert "levensverwachting bij geboorte" in searched["cbs"]
+    assert "life expectancy at birth" in searched["cbs"]
+
+
+def test_every_connector_declares_its_search_languages():
+    from sci_search.data_research.connectors import CONNECTORS
+
+    assert {name: c.LANGUAGES for name, c in CONNECTORS.items()} == {
+        "eurostat": ("en",),
+        "cbs": ("nl", "en"),
+        "pxweb": ("en",),
+        "owid": ("en",),
+    }

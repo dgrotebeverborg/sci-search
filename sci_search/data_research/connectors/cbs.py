@@ -9,6 +9,8 @@ from sci_search.data_research.packages import prepare_table
 from sci_search.data_research.tabular import read_csv
 
 NAME = "cbs"
+# Search-term languages: most CBS titles are Dutch; some tables have English editions.
+LANGUAGES = ("nl", "en")
 PUBLISHER = "CBS (Statistics Netherlands)"
 LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/"
 HOSTS = {"www.cbs.nl", "opendata.cbs.nl", "datasets.cbs.nl"}

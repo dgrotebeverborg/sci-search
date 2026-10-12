@@ -32,7 +32,13 @@ UNSUPPORTED = dict(
 )
 
 
-def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choices=None):
+def model(
+    selections,
+    *,
+    terms=(["life expectancy"], ["life expectancy"]),
+    choices=None,
+    measurement=STRATEGY["measurements"][0],
+):
     # Two term replies: the first search and the reformulation round for uncovered measurements.
     replies = {"selection": iter(selections), "terms": iter(terms)}
     seen = []
@@ -44,7 +50,11 @@ def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choic
         if schema.get("title") == "connector_terms":
             return {
                 "terms": [
-                    {"measurement": STRATEGY["measurements"][0], "terms": next(replies["terms"])}
+                    {
+                        "measurement": measurement,
+                        "english": next(replies["terms"]),
+                        "dutch": ["levensverwachting"],
+                    }
                 ]
             }
         if schema.get("title") == "connector_choice":
@@ -52,7 +62,7 @@ def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choic
                 "choices": [
                     {
                         "candidate": "eurostat:demo_mlexpec",
-                        "measurement": STRATEGY["measurements"][0],
+                        "measurement": measurement,
                         "reason": "Annual",
                     }
                 ]
@@ -68,10 +78,14 @@ def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choic
     return wrapped, seen
 
 
-def run(tmp_path, complete, fetch=offline):
+# The measurement text is always searched; this wording matches no catalogue title.
+UNMATCHED = {**STRATEGY, "measurements": ["zzzz qqqq"]}
+
+
+def run(tmp_path, complete, fetch=offline, strategy=STRATEGY):
     return stage.run(
         "Life expectancy",
-        STRATEGY,
+        strategy,
         tmp_path,
         complete=complete,
         fetch=fetch,
@@ -160,26 +174,30 @@ def test_rejections_are_never_retried_as_transient(exc):
 
 
 def test_no_candidates_triggers_one_reformulated_search(tmp_path):
-    complete, seen = model([GOOD], terms=(["zzzz nothing"], ["still nothing"]))
-    result = run(tmp_path, complete)
+    complete, seen = model(
+        [GOOD], terms=(["zzzz nothing"], ["still nothing"]), measurement="zzzz qqqq"
+    )
+    result = run(tmp_path, complete, strategy=UNMATCHED)
     assert seen.count("connector_terms") == 2
     assert result["assessments"][-1]["reason"] == (
         "No connector dataset found after reformulated search"
     )
     assert result["search"]["reformulated_terms"] == {
-        STRATEGY["measurements"][0]: ["still nothing"]
+        "zzzz qqqq": {"en": ["still nothing"], "nl": ["levensverwachting"]}
     }
 
 
 def test_reformulation_finds_the_dataset(tmp_path):
-    complete, seen = model([GOOD], terms=(["zzzz nothing"], ["life expectancy"]))
-    result = run(tmp_path, complete)
+    complete, seen = model(
+        [GOOD], terms=(["zzzz nothing"], ["life expectancy"]), measurement="zzzz qqqq"
+    )
+    result = run(tmp_path, complete, strategy=UNMATCHED)
     assert seen.count("connector_terms") == 2
-    assert result["covered"] == STRATEGY["measurements"]
+    assert result["covered"] == ["zzzz qqqq"]
     assert result["assessments"][-1]["recovery"][0] == {
         "class": "search",
         "action": "reformulate",
-        "outcome": "life expectancy",
+        "outcome": "life expectancy, levensverwachting",
     }
 
 

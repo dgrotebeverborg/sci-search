@@ -11,6 +11,8 @@ from urllib.parse import urlencode, urlsplit
 from sci_search.data_research.connectors import base
 
 NAME = "owid"
+# Search-term languages: the catalogue titles are English.
+LANGUAGES = ("en",)
 PUBLISHER = "Our World in Data"
 LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/"
 HOSTS = {"ourworldindata.org"}
