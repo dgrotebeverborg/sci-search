@@ -270,6 +270,17 @@ def test_observed_eurostat_dataset_page_resolves_documented_api():
     )
 
 
+def test_eurostat_custom_view_resolves_to_its_base_dataset():
+    from sci_search.data_research.retrieval import eurostat_download_url
+
+    # Saved databrowser views append a session-specific suffix the API does not serve.
+    url = eurostat_download_url(
+        "https://ec.europa.eu/eurostat/databrowser/view/NRG_IND_REN__custom_9909313/default/bar?lang=en",
+        {"start_year": None, "end_year": None},
+    )
+    assert "/data/nrg_ind_ren/" in url
+
+
 def test_eurostat_queued_response_is_polled_then_downloaded(monkeypatch):
     from sci_search.data_research.retrieval import fetch_scoped
 

@@ -159,13 +159,15 @@ def eurostat_download_url(url, scope):
     )
     if not match:
         return None
+    # Saved databrowser views ("<code>__custom_<n>") are not served by the API.
+    dataset = re.sub(r"__custom_\d+$", "", match[1], flags=re.I).lower()
     parameters = {"format": "TSV", "compressed": "true"}
     for name, key in [("startPeriod", "start_year"), ("endPeriod", "end_year")]:
         if scope.get(key) is not None:
             parameters[name] = str(scope[key])
     return (
         "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/"
-        + match[1]
+        + dataset
         + "/?"
         + urlencode(parameters)
     )
