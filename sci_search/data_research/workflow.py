@@ -15,6 +15,8 @@ from xml.etree.ElementTree import ParseError
 from sci_search.data_research import semantics
 from sci_search.data_research.adaptive import research_candidates
 from sci_search.data_research.artifacts import execute_analysis, write_replay
+from sci_search.data_research.connectors import CONNECTORS, base, dataset_from_url, enabled
+from sci_search.data_research.connectors import stage as connector_stage
 from sci_search.data_research.discovery import complete_object, discover
 from sci_search.data_research.navigation import resolve_table_download
 from sci_search.data_research.packages import attach_provenance, prepare_table
@@ -31,6 +33,7 @@ from sci_search.data_research.retrieval import (
     fetch_public,
     fetch_scoped,
     inspect_page,
+    post_public,
 )
 from sci_search.data_research.source_review import execution_summary, reassess_source
 from sci_search.data_research.spreadsheets import SELECTION_SCHEMA, inspect_if_workbook
@@ -82,6 +85,39 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _record_gap(result, candidate, strategy, page, stage, reason):
+    """A page that only renders through scripts is a host a connector could cover."""
+    text, links = page.get("text", ""), page.get("links", [])
+    if stage not in {"assessment", "navigation", "parse"} or not (
+        (len(text) < 300 and not links)
+        or re.search(r"\b(loading|enable javascript|javascript is required)\b", text, re.I)
+    ):
+        return
+    host = urlsplit(candidate["url"]).hostname or ""
+    gaps = result.setdefault("connector_gaps", [])
+    if host and not any(g["host"] == host for g in gaps):
+        gaps.append(
+            {
+                "host": host,
+                "measurement": ", ".join(strategy["measurements"]),
+                "evidence": str(reason)[:200],
+            }
+        )
+
+
+def _connector_failure(failure_stage, exc, **details):
+    """An unexpected connector error is recorded; the web path continues without it."""
+    return {
+        "title": "Statistics catalogue connectors",
+        "url": "",
+        **details,
+        "decision": "blocked",
+        "failure_stage": failure_stage,
+        "error_class": type(exc).__name__,
+        "reason": f"Connector step failed: {type(exc).__name__}. {str(exc)[:500]}",
+    }
+
+
 def execute(
     question,
     strategy,
@@ -93,10 +129,17 @@ def execute(
     complete=None,
     check_cancelled=lambda: None,
     progress=lambda message: None,
+    post=None,
+    connectors=None,
 ):
     strategy = validate_strategy(strategy)
+    # The web path below may narrow `strategy` to measurements no connector covered;
+    # the result and its period summary always describe the whole request.
+    full_strategy = strategy
     analyzer = analyzer or configured_analyzer()
     search = search or discover
+    # Statistical API responses are capped at 5 MB each; an injected fetch is used unchanged.
+    connector_fetch = fetch or (lambda url: fetch_public(url, limit=5_000_000))
     fetch = fetch or fetch_public
     complete = complete or (lambda prompt, schema: complete_object(analyzer, prompt, schema))
     directory = Path(directory)
@@ -124,12 +167,91 @@ def execute(
     }
 
     def finish():
-        result["period"] = period_summary(strategy, result["analyses"])
+        result["period"] = period_summary(full_strategy, result["analyses"])
         write_replay(directory)
         save(directory / "analysis.json", result)
         return result
 
+    def conclude(covered):
+        missing = [m for m in full_strategy["measurements"] if m not in covered]
+        result["uncovered_measurements"] = missing
+        result["status"] = "partial" if result["analyses"] else "blocked"
+        result["limitations"] += [
+            "Source selection and column mapping are model assessments; original files and decisions are retained for inspection.",
+            "Data and literature findings are separate evidence streams. Neither establishes causation on its own.",
+        ]
+        if missing:
+            result["limitations"].append(
+                "Requested measurements not analysed: " + ", ".join(missing)
+            )
+        if not result["analyses"]:
+            result["limitations"].append(
+                "No numerical answer was produced from the discovered sources."
+            )
+        check_cancelled()
+        return finish()
+
     check_cancelled()
+    available = CONNECTORS if connectors is None else connectors
+    use_connectors = enabled() and bool(available)
+    post = post or post_public
+    cancellations = []
+
+    def connector_check_cancelled():
+        # Remembers a cancellation so the connector error guards below never swallow it.
+        try:
+            check_cancelled()
+        except BaseException as exc:
+            cancellations.append(exc)
+            raise
+
+    connector_covered = []
+    # (connector, dataset, measurement) already analysed through a connector.
+    attempted = set()
+    if use_connectors:
+        progress("Searching official statistics catalogues.")
+        try:
+            staged = connector_stage.run(
+                question,
+                strategy,
+                directory / "connectors",
+                complete=complete,
+                fetch=connector_fetch,
+                post=post,
+                check_cancelled=connector_check_cancelled,
+                progress=progress,
+                connectors=available,
+            )
+        except Exception as exc:
+            if cancellations:
+                raise
+            staged = {
+                "analyses": [],
+                "assessments": [_connector_failure("connector:stage", exc)],
+                "covered": [],
+                "search": {},
+            }
+        for staged_assessment in staged["assessments"]:
+            # The research planner and run summaries read url and reason on every assessment.
+            staged_assessment.setdefault("url", "")
+            staged_assessment.setdefault("reason", "")
+            if staged_assessment.get("dataset"):
+                attempted.add(
+                    (
+                        staged_assessment.get("connector"),
+                        staged_assessment["dataset"],
+                        staged_assessment.get("measurement"),
+                    )
+                )
+        result["analyses"] += staged["analyses"]
+        result["assessments"] += staged["assessments"]
+        result["connector_search"] = staged["search"]
+        connector_covered = list(staged["covered"])
+        remaining = [m for m in strategy["measurements"] if m not in connector_covered]
+        if not remaining:
+            return conclude(set(connector_covered))
+        strategy = {**strategy, "measurements": remaining}
+
     progress("Searching the web for primary datasets and their definitions.")
     try:
         trace = search(question, strategy, analyzer=analyzer)
@@ -137,12 +259,15 @@ def execute(
         result["limitations"].append(
             f"Dataset discovery could not run: {type(exc).__name__}. {str(exc)[:250]}"
         )
+        if result["analyses"]:
+            return conclude(set(connector_covered))
         return finish()
     result["discovery"] = trace
     save(directory / "discovery.json", trace)
     source_schema = copy.deepcopy(ASSESS_SCHEMA)
     source_schema["properties"]["covered_measurements"]["items"]["enum"] = strategy["measurements"]
-    covered = set()
+    covered = set(connector_covered)
+    # Keyed by position in result["assessments"]: the planner's source_index refers to it.
     retained = {}
 
     def review_source(index, measurements, link_index, round_number):
@@ -183,7 +308,59 @@ def execute(
         )
     ):
         check_cancelled()
+        routed = dataset_from_url(candidate["url"]) if use_connectors else None
+        if routed and routed[0] in available:
+            # A web result on a known statistics host is analysed through its API first.
+            name, dataset = routed
+            for measurement in [m for m in strategy["measurements"] if m not in covered]:
+                if (name, dataset, measurement) in attempted:
+                    continue
+                attempted.add((name, dataset, measurement))
+                try:
+                    analysis, routed_assessment = connector_stage.analyse_dataset(
+                        question,
+                        strategy,
+                        directory / "connectors",
+                        available[name],
+                        base.DatasetCandidate(
+                            name,
+                            dataset,
+                            candidate["title"],
+                            "unknown",
+                            landing_url=candidate["url"],
+                        ),
+                        measurement,
+                        complete=complete,
+                        fetch=connector_fetch,
+                        post=post,
+                        check_cancelled=connector_check_cancelled,
+                        progress=progress,
+                    )
+                except Exception as exc:
+                    if cancellations:
+                        raise
+                    analysis, routed_assessment = (
+                        None,
+                        _connector_failure(
+                            "connector:reroute",
+                            exc,
+                            title=candidate["title"],
+                            connector=name,
+                            dataset=dataset,
+                            measurement=measurement,
+                        ),
+                    )
+                routed_assessment["rerouted_from"] = candidate["url"]
+                routed_assessment.setdefault("url", candidate["url"])
+                result["assessments"].append(routed_assessment)
+                if analysis:
+                    result["analyses"].append(analysis)
+                    covered.add(measurement)
+            if all(m in covered for m in strategy["measurements"]):
+                continue
+            # Otherwise the existing web path still checks this page.
         assessment = {**candidate, "decision": "blocked", "reason": ""}
+        position = len(result["assessments"])
         result["assessments"].append(assessment)
         folder = directory / f"source-{index + 1}"
         folder.mkdir(exist_ok=True)
@@ -308,6 +485,8 @@ def execute(
             if choice["adapter"] == "unsupported":
                 if body.startswith(b"PK"):
                     stage = "parse"
+                if use_connectors:
+                    _record_gap(result, candidate, strategy, page, stage, choice["reason"])
                 raise ValueError(choice["reason"] or "No supported downloadable data on this page")
             quote = choice["definition_quote"]
             if quote.strip() and not body.startswith(b"PK") and quote not in page["text"]:
@@ -927,6 +1106,8 @@ def execute(
         ) as exc:
             assessment["reason"] = str(exc)[:700]
             assessment["failure_stage"] = stage
+            if use_connectors:
+                _record_gap(result, candidate, strategy, page, stage, exc)
             assessment["availability"] = (
                 "found_but_not_read"
                 if stage in {"access", "download", "parse"}
@@ -972,9 +1153,9 @@ def execute(
                 )
         finally:
             if data is not None and source is not None:
-                retained[index] = {"body": data, "source": source, "metadata": page["text"]}
+                retained[position] = {"body": data, "source": source, "metadata": page["text"]}
             elif body is not None:
-                retained[index] = {
+                retained[position] = {
                     "body": body,
                     "metadata": page["text"],
                     "source": {
@@ -990,7 +1171,7 @@ def execute(
             assessment["execution_review"] = execution_summary(folder)
             assessment["execution_review"]["source_preview"] = page["text"][:8000]
             assessment["execution_review"]["retained_bytes"] = (
-                len(retained[index]["body"]) if index in retained else 0
+                len(retained[position]["body"]) if position in retained else 0
             )
             inspection = assessment["execution_review"].get("inspection", "")
             documented_links = re.findall(r'https?://[^\s<>"\\]+', inspection)
@@ -1001,21 +1182,7 @@ def execute(
                 )
             )[:100]
             save(folder / "assessment.json", assessment)
-    missing = [m for m in strategy["measurements"] if m not in covered]
-    result["uncovered_measurements"] = missing
-    result["status"] = "partial" if result["analyses"] else "blocked"
-    result["limitations"] += [
-        "Source selection and column mapping are model assessments; original files and decisions are retained for inspection.",
-        "Data and literature findings are separate evidence streams. Neither establishes causation on its own.",
-    ]
-    if missing:
-        result["limitations"].append("Requested measurements not analysed: " + ", ".join(missing))
-    if not result["analyses"]:
-        result["limitations"].append(
-            "No numerical answer was produced from the discovered sources."
-        )
-    check_cancelled()
-    return finish()
+    return conclude(covered)
 
 
 def investigation(question, brief, result):

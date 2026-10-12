@@ -75,7 +75,7 @@ import json, tempfile
 from pathlib import Path
 from execution import run_python, digest
 root=Path(__file__).resolve().parent
-folders=[root] if (root/"calculation").exists() else sorted(root.glob("source-*"))
+folders=[root] if (root/"calculation").exists() else sorted(root.glob("source-*"))+sorted(root.glob("connectors/connector-*"))
 published_root=json.loads((root/"analysis.json").read_text())
 if not (root/"calculation").exists():
     retained=[]

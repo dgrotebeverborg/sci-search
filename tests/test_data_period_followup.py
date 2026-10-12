@@ -1,8 +1,17 @@
 import io
 import zipfile
 
+import pytest
+
 from sci_search.data_research.reporting import export
 from sci_search.data_research.workflow import execute
+
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
 
 SCOPE = dict(
     route="data",

@@ -6,6 +6,12 @@ from sci_search.data_research.tabular import analyse_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
 
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 def strategy(**updates):
     return validate_strategy(
         dict(

@@ -21,6 +21,15 @@ GOOD = {
     "reason": "Birth, both sexes",
 }
 BAD = {**GOOD, "filters": {**GOOD["filters"], "sex": ["X"]}}
+# The web path's source assessment for a page that only shows a loading message.
+UNSUPPORTED = dict(
+    adapter="unsupported",
+    download_link_index=-1,
+    reason="Page shows only a loading message",
+    definition_quote="",
+    license_note="Unknown",
+    covered_measurements=[],
+)
 
 
 def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choices=None):
@@ -50,6 +59,8 @@ def model(selections, *, terms=(["life expectancy"], ["life expectancy"]), choic
             }
         if schema.get("title") == "connector_selection":
             return next(replies["selection"])
+        if schema.get("title") is None:
+            return UNSUPPORTED
         raise AssertionError(schema.get("title"))
 
     wrapped = with_positive_meaning_review(complete)

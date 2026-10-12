@@ -8,6 +8,13 @@ from sci_search.data_research.packages import attach_provenance, prepare_table
 from sci_search.data_research.tabular import analyse_csv, read_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 FIXTURE = Path(__file__).parent / "fixtures/data_research/cbs_85929NED.zip"
 
 

@@ -10,6 +10,13 @@ from sci_search.data_research.daily import aggregate_daily
 from sci_search.data_research.tabular import read_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 PLAN = dict(
     operation="daily_mean",
     year_column="Date",

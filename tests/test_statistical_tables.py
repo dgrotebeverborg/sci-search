@@ -11,6 +11,13 @@ from sci_search.data_research.statistical_tables import (
 from sci_search.data_research.tabular import analyse_csv, read_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 DATA = b"freq,unit,sex,age,geo\\TIME_PERIOD\t2000 \t2001 \t2002 \nA,YR,F,Y_LT1,NL\t80.1 \t: \t81.2 b\nA,YR,M,Y_LT1,NL\t75.2 p\t76.1 \t76.4 \nA,YR,F,Y1,NL\t82 \t83 \t84 \n"
 
 

@@ -3,6 +3,13 @@ import pytest
 from sci_search.data_research import python_recovery
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 SCOPE = dict(measurements=["population"], geography="Netherlands", start_year=2001, end_year=2003)
 SOURCE = dict(
     title="Population",

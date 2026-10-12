@@ -3,6 +3,12 @@ import pytest
 from sci_search.data_research.wildfire import analyse, parse_number, propose
 
 
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 def test_numbers_preserve_missingness_and_convert_grouping():
     assert parse_number("12\u00a0345 ") == 12345
     assert parse_number("0") == 0

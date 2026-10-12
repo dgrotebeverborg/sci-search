@@ -8,6 +8,12 @@ from sci_search.data_research.tabular import read_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
 
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 def test_empty_trailing_columns_removed_only_if_empty_everywhere():
     body = b"id;year;value;;;\nA;2001;2;;;\nB;2003;0;;;\n"
     data, prep = prepare_delimited(body)

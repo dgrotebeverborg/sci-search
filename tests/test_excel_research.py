@@ -7,6 +7,12 @@ from sci_search.data_research.spreadsheets import inspect_workbook, workbook_tab
 from tests.data_meaning_fixtures import with_positive_meaning_review
 
 
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 def workbook():
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:

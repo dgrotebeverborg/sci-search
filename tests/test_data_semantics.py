@@ -6,6 +6,13 @@ import pytest
 
 from sci_search.data_research import semantics
 
+
+@pytest.fixture(autouse=True)
+def web_path_only(monkeypatch):
+    """These tests exercise the web path; the connector stage has its own workflow tests."""
+    monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
+
+
 DOCUMENTS = {
     "metadata": "Population counts residents in people in the Netherlands at 1 January of the reporting year."
 }
