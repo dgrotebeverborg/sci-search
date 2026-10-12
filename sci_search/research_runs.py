@@ -230,13 +230,17 @@ class ResearchRunManager:
             "message": state.get("message", ""),
             "started_at": state.get("created_at"),
             "updated_at": state.get("progress_updated_at", state.get("created_at")),
-            "counters": {k: v for k, v in (state.get("progress") or {}).items() if type(v) in (int, float)},
+            "counters": {
+                k: v for k, v in (state.get("progress") or {}).items() if type(v) in (int, float)
+            },
             "events": state.get("activity", [])[-30:],
         }
         try:
             self._progress_callback(json.loads(json.dumps(snapshot)))
         except Exception as exc:
-            logging.getLogger(__name__).warning("Progress update unavailable: %s", type(exc).__name__)
+            logging.getLogger(__name__).warning(
+                "Progress update unavailable: %s", type(exc).__name__
+            )
 
     def set_cancellation_check(self, check: Callable[[], bool]) -> None:
         """Install an optional caller-owned cancellation signal for this manager."""
@@ -513,15 +517,22 @@ class ResearchRunManager:
                         archive.writestr(
                             "data-research/" + entry.filename, data_archive.read(entry.filename)
                         )
-            if investigation.get('investigation_review'):
-                review_trace = investigation['investigation_review']
-                archive.writestr('data/investigation-review.json', json.dumps(review_trace, ensure_ascii=False, indent=2))
-                source_paths = {f.get('source_artifact') for f in review_trace.get('partial_findings', []) if f.get('source_artifact')}
+            if investigation.get("investigation_review"):
+                review_trace = investigation["investigation_review"]
+                archive.writestr(
+                    "data/investigation-review.json",
+                    json.dumps(review_trace, ensure_ascii=False, indent=2),
+                )
+                source_paths = {
+                    f.get("source_artifact")
+                    for f in review_trace.get("partial_findings", [])
+                    if f.get("source_artifact")
+                }
                 for relative in sorted(source_paths):
-                    original = (run_directory / 'corpus' / relative).resolve()
-                    original.relative_to((run_directory / 'corpus').resolve())
+                    original = (run_directory / "corpus" / relative).resolve()
+                    original.relative_to((run_directory / "corpus").resolve())
                     if original.is_file():
-                        archive.write(original, 'reviewed-sources/' + relative)
+                        archive.write(original, "reviewed-sources/" + relative)
             archive.writestr("literature-review.pdf", render_review_pdf(report))
             archive.writestr("literature-review.html", render_review_html(report).encode("utf-8"))
             archive.writestr("literature-review.md", render_review_markdown(report).encode("utf-8"))
@@ -974,12 +985,14 @@ class ResearchRunManager:
 
             legacy_scope = validate_scope(data_strategy)
             data_strategy = {
-                "adapter": "discovered_data_v1", "route": legacy_scope["route"],
+                "adapter": "discovered_data_v1",
+                "route": legacy_scope["route"],
                 "rationale": "Official reported fires and burned area, with source definition checks.",
                 "measurements": ["reported forest fires", "burned area"],
                 "geography": "European Union" if legacy_scope["geography"] == "eu27" else "Europe",
                 "country_scope": legacy_scope["geography"],
-                "start_year": legacy_scope["start_year"], "end_year": legacy_scope["end_year"],
+                "start_year": legacy_scope["start_year"],
+                "end_year": legacy_scope["end_year"],
             }
             brief = {**brief, "data_research": data_strategy}
             self._update(run_id, question_brief=brief)
@@ -1510,24 +1523,38 @@ class ResearchRunManager:
             )
         )
         payload = analysis_checkpoint.output
-        if not payload.get('answer_adequacy', {}).get('can_answer_overall_question'):
+        if not payload.get("answer_adequacy", {}).get("can_answer_overall_question"):
             from sci_search.data_research.discovery import complete_object
             from sci_search.investigation_review import review_investigation
             from sci_search.model_provider import configured_analyzer
 
             reviewer = self.analyzer or configured_analyzer()
             if reviewer is not None:
-                payload['investigation_review'] = review_investigation(
-                    question, list(plan.subject_terms or plan.concepts), provisional_matrix,
-                    payload.get('answer_adequacy', {}), directory=run_directory,
+                payload["investigation_review"] = review_investigation(
+                    question,
+                    list(plan.subject_terms or plan.concepts),
+                    provisional_matrix,
+                    payload.get("answer_adequacy", {}),
+                    directory=run_directory,
                     complete=lambda prompt, schema: complete_object(reviewer, prompt, schema),
                     data_summary={
-                        'status': data_result.get('status'),
-                        'uncovered_measurements': data_result.get('uncovered_measurements'),
-                        'sources': [{'title': a.get('title'), 'decision': a['decision'], 'reason': a['reason'],
-                                     'python_error': a.get('python_error')} for a in data_result['assessments']],
-                    } if data_result else None,
-                    progress=lambda message: self._update(run_id, stage='analyzing', message=message),
+                        "status": data_result.get("status"),
+                        "uncovered_measurements": data_result.get("uncovered_measurements"),
+                        "sources": [
+                            {
+                                "title": a.get("title"),
+                                "decision": a["decision"],
+                                "reason": a["reason"],
+                                "python_error": a.get("python_error"),
+                            }
+                            for a in data_result["assessments"]
+                        ],
+                    }
+                    if data_result
+                    else None,
+                    progress=lambda message: self._update(
+                        run_id, stage="analyzing", message=message
+                    ),
                     check_cancelled=self._check_cancelled,
                 )
         coverage_search["final_assessment"] = payload.get("answer_adequacy")
@@ -1775,7 +1802,13 @@ class ResearchRunManager:
                 or (next_stage is not None and next_stage != state.get("stage"))
             ):
                 activity = list(state.get("activity") or [])
-                activity.append({"at": _now(), "stage": next_stage or state.get("stage"), "message": changes["message"]})
+                activity.append(
+                    {
+                        "at": _now(),
+                        "stage": next_stage or state.get("stage"),
+                        "message": changes["message"],
+                    }
+                )
                 changes["activity"] = activity[-30:]
             changes["progress_updated_at"] = _now()
             state.update(changes)

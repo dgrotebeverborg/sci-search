@@ -28,19 +28,24 @@ def export(result, directory, *, bundle=False):
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             for file in sorted(Path(directory).rglob("*")):
-                if file.is_file() and not file.is_symlink() and file.name not in {"reproduce.py", "README.txt"} and (
-                    file.parent != Path(directory)
-                    or file.name
-                    not in {
-                        "tabular.py",
-                        "packages.py",
-                        "wildfire.py",
-                        "spreadsheets.py",
-                        "preparation.py",
-                        "daily.py",
-                        "statistical_tables.py",
-                    }
-                    or file.name in required
+                if (
+                    file.is_file()
+                    and not file.is_symlink()
+                    and file.name not in {"reproduce.py", "README.txt"}
+                    and (
+                        file.parent != Path(directory)
+                        or file.name
+                        not in {
+                            "tabular.py",
+                            "packages.py",
+                            "wildfire.py",
+                            "spreadsheets.py",
+                            "preparation.py",
+                            "daily.py",
+                            "statistical_tables.py",
+                        }
+                        or file.name in required
+                    )
                 ):
                     archive.write(file, str(file.relative_to(directory)))
             archive.writestr("report.html", export(result, directory)[2])
@@ -141,14 +146,25 @@ for directory in sorted(root.glob("source-*")):
         source = analysis["source"]
         sections.append(f"<h2>{escape(source['title'])}</h2><p>Source: {escape(source['url'])}</p>")
         if analysis.get("execution"):
-            sections.append("<p>Executed Python and original files are included in the research package. Source hashes and calculated values were checked before publication.</p>")
+            sections.append(
+                "<p>Executed Python and original files are included in the research package. Source hashes and calculated values were checked before publication.</p>"
+            )
         if analysis.get("python_extraction"):
-            sections.append("<p>Extraction code was written by the model and executed in isolation. Its semantic review is a model assessment.</p>")
-        reviews = [analysis.get("semantic_review")] + [c.get("semantic_review") for c in analysis.get("components", [])]
-        unique_reviews = list(dict.fromkeys(json.dumps(r, ensure_ascii=False, indent=2) for r in reviews if r))
+            sections.append(
+                "<p>Extraction code was written by the model and executed in isolation. Its semantic review is a model assessment.</p>"
+            )
+        reviews = [analysis.get("semantic_review")] + [
+            c.get("semantic_review") for c in analysis.get("components", [])
+        ]
+        unique_reviews = list(
+            dict.fromkeys(json.dumps(r, ensure_ascii=False, indent=2) for r in reviews if r)
+        )
         for review in unique_reviews:
-            sections.append("<details><summary>Measurement definitions and source passages</summary><pre>"
-                            + escape(review) + "</pre></details>")
+            sections.append(
+                "<details><summary>Measurement definitions and source passages</summary><pre>"
+                + escape(review)
+                + "</pre></details>"
+            )
         if analysis.get("limitations"):
             sections.append(
                 "<h3>Coverage and limitations</h3><ul>"
@@ -209,10 +225,13 @@ def markdown_appendix(result):
     for analysis in result.get("analyses", []):
         source = analysis["source"]
         if analysis.get("execution"):
-            lines.extend([
-                "", "Executed Python: source hashes and numerical output checked before publication.",
-                "Original files, scripts, dependencies and offline replay are included in the research package.",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "Executed Python: source hashes and numerical output checked before publication.",
+                    "Original files, scripts, dependencies and offline replay are included in the research package.",
+                ]
+            )
         lines.extend(
             [
                 "",

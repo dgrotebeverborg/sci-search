@@ -69,7 +69,10 @@ def test_generic_series_preserves_small_values_and_model_provenance(
                 "limitations": [],
                 "execution": {
                     "status": "verified",
-                    "checks": ["Original source hash", "Executed calculation equals published values"],
+                    "checks": [
+                        "Original source hash",
+                        "Executed calculation equals published values",
+                    ],
                 },
                 "python_extraction": {
                     "attempts": 2,
@@ -124,8 +127,12 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     expect(page.locator("#dashboard-answer svg")).to_have_count(1)
     expect(page.locator("#dashboard-model")).to_contain_text("openai · fixture")
     page.get_by_text("Executed Python and validation", exact=True).click()
-    expect(page.get_by_text("The model wrote and executed the extraction in 2 attempt(s).", exact=True)).to_be_visible()
-    expect(page.get_by_text("Model review does not replace expert validation.", exact=True)).to_be_visible()
+    expect(
+        page.get_by_text("The model wrote and executed the extraction in 2 attempt(s).", exact=True)
+    ).to_be_visible()
+    expect(
+        page.get_by_text("Model review does not replace expert validation.", exact=True)
+    ).to_be_visible()
     page.get_by_text("Annual observations and source rows", exact=True).click()
     expect(page.get_by_role("cell", name="0,04", exact=True)).to_be_visible()
     expect(page.get_by_role("cell", name="Missing", exact=True)).to_be_visible()
@@ -238,9 +245,25 @@ def test_chart_uses_round_ticks_and_preserves_observations(live_browser_url, chr
                 y:Number(svg.querySelector('circle').getAttribute('cy'))
             }));
         }""")
-        assert result[0]["ticks"] == ["0", "100.000", "200.000", "300.000", "400.000", "500.000", "600.000"]
+        assert result[0]["ticks"] == [
+            "0",
+            "100.000",
+            "200.000",
+            "300.000",
+            "400.000",
+            "500.000",
+            "600.000",
+        ]
         assert result[0]["title"] == "2017: 539.921 ha"
-        assert result[1]["ticks"] == ["0", "0,0001", "0,0002", "0,0003", "0,0004", "0,0005", "0,0006"]
+        assert result[1]["ticks"] == [
+            "0",
+            "0,0001",
+            "0,0002",
+            "0,0003",
+            "0,0004",
+            "0,0005",
+            "0,0006",
+        ]
         assert result[2]["ticks"][0] == "-600.000"
         assert result[2]["ticks"][-1] == "0"
         for chart in result:
@@ -250,35 +273,68 @@ def test_chart_uses_round_ticks_and_preserves_observations(live_browser_url, chr
         page.close()
 
 
-def test_partial_investigation_review_is_visible_without_claiming_overall_answer(live_browser_url, chromium_browser):
+def test_partial_investigation_review_is_visible_without_claiming_overall_answer(
+    live_browser_url, chromium_browser
+):
     import json
     from pathlib import Path
-    snapshot=json.loads((Path(__file__).parents[1]/'fixtures/dashboard_v1.json').read_text())
-    for block in snapshot['blocks']:
-        if block['id']=='answer':
-            block['status']='ready'
-            block['data']['investigation_review']={
-                'qualification':'Partial evidence only; the whole question remains unresolved.',
-                'partial_findings':[{'subject':'coral cover','title':'Observed reef sites',
-                    'quote':'Coral cover declined at the surveyed sites.', 'qualification':'2000–2010 only.',
-                    'doi':'10.123/example'}],
-                'steps':[{'decision':{'reason':'Review cover separately'},'outcome':{'status':'retained'}}],
-                'stop_reason':'No evidence for 2026.'}
-    page=chromium_browser.new_page()
+
+    snapshot = json.loads((Path(__file__).parents[1] / "fixtures/dashboard_v1.json").read_text())
+    for block in snapshot["blocks"]:
+        if block["id"] == "answer":
+            block["status"] = "ready"
+            block["data"]["investigation_review"] = {
+                "qualification": "Partial evidence only; the whole question remains unresolved.",
+                "partial_findings": [
+                    {
+                        "subject": "coral cover",
+                        "title": "Observed reef sites",
+                        "quote": "Coral cover declined at the surveyed sites.",
+                        "qualification": "2000–2010 only.",
+                        "doi": "10.123/example",
+                    }
+                ],
+                "steps": [
+                    {
+                        "decision": {"reason": "Review cover separately"},
+                        "outcome": {"status": "retained"},
+                    }
+                ],
+                "stop_reason": "No evidence for 2026.",
+            }
+    page = chromium_browser.new_page()
     try:
-        page.route('**/runs?*',lambda route:route.fulfill(json={'items':[],'next_cursor':None}))
-        page.route('**/runs/reflection/dashboard**',lambda route:route.fulfill(json={**snapshot,'role':'owner','current_revision':1}))
-        page.route('**/runs/reflection/revisions',lambda route:route.fulfill(json={'items':[{'revision':1}]}))
-        page.request.post(live_browser_url+'/auth/development')
-        page.goto(live_browser_url+'/app?project=development-project&run=reflection')
-        expect(page.get_by_text('Coral cover declined at the surveyed sites.',exact=True)).to_be_visible()
-        expect(page.get_by_text('Partial evidence only; the whole question remains unresolved.',exact=True)).to_be_visible()
-        expect(page.get_by_role('link',name='Source publication',exact=True)).to_have_attribute('href','https://doi.org/10.123/example')
+        page.route(
+            "**/runs?*", lambda route: route.fulfill(json={"items": [], "next_cursor": None})
+        )
+        page.route(
+            "**/runs/reflection/dashboard**",
+            lambda route: route.fulfill(json={**snapshot, "role": "owner", "current_revision": 1}),
+        )
+        page.route(
+            "**/runs/reflection/revisions",
+            lambda route: route.fulfill(json={"items": [{"revision": 1}]}),
+        )
+        page.request.post(live_browser_url + "/auth/development")
+        page.goto(live_browser_url + "/app?project=development-project&run=reflection")
+        expect(
+            page.get_by_text("Coral cover declined at the surveyed sites.", exact=True)
+        ).to_be_visible()
+        expect(
+            page.get_by_text(
+                "Partial evidence only; the whole question remains unresolved.", exact=True
+            )
+        ).to_be_visible()
+        expect(page.get_by_role("link", name="Source publication", exact=True)).to_have_attribute(
+            "href", "https://doi.org/10.123/example"
+        )
     finally:
         page.close()
 
 
-def test_unconfirmed_meaning_and_malformed_reviews_remain_visible(live_browser_url, chromium_browser):
+def test_unconfirmed_meaning_and_malformed_reviews_remain_visible(
+    live_browser_url, chromium_browser
+):
     page = chromium_browser.new_page()
     page.request.post(live_browser_url + "/auth/development")
     page.goto(live_browser_url + "/app")
@@ -292,7 +348,15 @@ def test_unconfirmed_meaning_and_malformed_reviews_remain_visible(live_browser_u
           followup_questions:['Which components are disjoint?']}]
       }]}, host);
     }""")
-    expect(page.locator('#meaning-test').get_by_text('Addition may double count', exact=True)).to_be_visible()
-    expect(page.locator('#meaning-test blockquote')).to_have_text('Both fields measure live coral cover.')
-    expect(page.locator('#meaning-test').get_by_text('Documentation needed: Which components are disjoint?', exact=True)).to_be_visible()
+    expect(
+        page.locator("#meaning-test").get_by_text("Addition may double count", exact=True)
+    ).to_be_visible()
+    expect(page.locator("#meaning-test blockquote")).to_have_text(
+        "Both fields measure live coral cover."
+    )
+    expect(
+        page.locator("#meaning-test").get_by_text(
+            "Documentation needed: Which components are disjoint?", exact=True
+        )
+    ).to_be_visible()
     page.close()

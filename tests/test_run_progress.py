@@ -8,7 +8,13 @@ def test_progress_reports_actual_steps_and_keeps_only_public_fields(tmp_path):
     state = manager._new_state("test", "Population", ResearchLimits())
     state["result"] = {"private": "must not be in a progress response"}
     manager._set_state("test", state)
-    manager._update("test", status="running", stage="acquiring", message="Inspecting EFFIS workbook", progress={"full_texts_acquired": 2})
+    manager._update(
+        "test",
+        status="running",
+        stage="acquiring",
+        message="Inspecting EFFIS workbook",
+        progress={"full_texts_acquired": 2},
+    )
     manager._update("test", message="Executing Python extraction")
     assert updates[-1]["message"] == "Executing Python extraction"
     assert updates[-1]["counters"] == {"full_texts_acquired": 2}

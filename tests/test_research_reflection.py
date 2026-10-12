@@ -165,10 +165,10 @@ Path('/output/observations.json').write_text(json.dumps({'observations':[dict(en
     assert result["analyses"][0]["series"][0]["annual"][0]["value"] == 40
     assert result["research_process"]["steps"][0]["outcome"]["status"] == "retained"
     assert (tmp_path / "source-1-review-1/analysis.json").exists()
-    assessment = json.loads((tmp_path / 'source-1/assessment.json').read_text())
-    assert assessment['decision'] == 'analysed'
-    assert assessment['initial_assessment']['decision'] == 'blocked'
-    assert 'availability' not in assessment
+    assessment = json.loads((tmp_path / "source-1/assessment.json").read_text())
+    assert assessment["decision"] == "analysed"
+    assert assessment["initial_assessment"]["decision"] == "blocked"
+    assert "availability" not in assessment
 
 
 def test_source_review_keeps_existing_measurement_and_extracts_only_missing_one(
@@ -250,7 +250,20 @@ def test_broken_documentation_response_does_not_abort_investigation(tmp_path):
 
 def test_site_level_partial_data_keeps_more_than_200_entities_without_aggregation():
     from sci_search.data_research.python_rows import analyse_observations
-    rows=[dict(entity=f'Reef {i}',year=2025,value=0.4,unit='proportion',measurement='cover',source_reference=f'data.csv:{i+2}') for i in range(271)]
-    analysis=analyse_observations({'observations':rows},{'measurements':['cover'], 'start_year':2000, 'end_year':2026})
-    assert len(analysis['series'])==271
-    assert all(s['annual'][-1]['value'] is None for s in analysis['series'])
+
+    rows = [
+        dict(
+            entity=f"Reef {i}",
+            year=2025,
+            value=0.4,
+            unit="proportion",
+            measurement="cover",
+            source_reference=f"data.csv:{i + 2}",
+        )
+        for i in range(271)
+    ]
+    analysis = analyse_observations(
+        {"observations": rows}, {"measurements": ["cover"], "start_year": 2000, "end_year": 2026}
+    )
+    assert len(analysis["series"]) == 271
+    assert all(s["annual"][-1]["value"] is None for s in analysis["series"])

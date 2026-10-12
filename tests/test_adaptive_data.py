@@ -277,18 +277,64 @@ def test_workflow_recovers_from_html_download_to_observed_csv(tmp_path):
 
 
 def test_reviewer_can_reprocess_download_with_documentation_and_see_outcome():
-    calls=[]
-    result={'analyses':[], 'assessments':[dict(url='https://example.org/data',title='Data',decision='blocked',reason='No units',python_error='missing units',recovery_links=['https://example.org/methods'])], 'limitations':[]}
-    def model(prompt,schema):
+    calls = []
+    result = {
+        "analyses": [],
+        "assessments": [
+            dict(
+                url="https://example.org/data",
+                title="Data",
+                decision="blocked",
+                reason="No units",
+                python_error="missing units",
+                recovery_links=["https://example.org/methods"],
+            )
+        ],
+        "limitations": [],
+    }
+
+    def model(prompt, schema):
         calls.append(prompt)
-        if len(calls)==1:
-            assert 'missing units' in prompt
-            return dict(action='reassess',source_index=0,link_index=0,query='',measurements=['cover'],reason='Read units then extract the available cover subset')
-        assert 'validated cover' in prompt
-        return dict(action='stop',source_index=-1,link_index=-1,query='',reason='Cover retained; no bleaching source remains')
-    def reassess(index,measurements,link,round_number):
-        assert (index,measurements,link)==(0,['cover'],0)
-        result['analyses'].append({'source':{'title':'Data'},'series':[]})
-        return {'status':'retained','reason':'validated cover'}
-    assert list(research_candidates('cover and bleaching',{'measurements':['cover','bleaching']},{'candidates':[]},result,None,None,model,lambda *a:None,lambda *a:None,lambda:None,review_source=reassess))==[]
-    assert result['research_process']['steps'][0]['outcome']['status']=='retained'
+        if len(calls) == 1:
+            assert "missing units" in prompt
+            return dict(
+                action="reassess",
+                source_index=0,
+                link_index=0,
+                query="",
+                measurements=["cover"],
+                reason="Read units then extract the available cover subset",
+            )
+        assert "validated cover" in prompt
+        return dict(
+            action="stop",
+            source_index=-1,
+            link_index=-1,
+            query="",
+            reason="Cover retained; no bleaching source remains",
+        )
+
+    def reassess(index, measurements, link, round_number):
+        assert (index, measurements, link) == (0, ["cover"], 0)
+        result["analyses"].append({"source": {"title": "Data"}, "series": []})
+        return {"status": "retained", "reason": "validated cover"}
+
+    assert (
+        list(
+            research_candidates(
+                "cover and bleaching",
+                {"measurements": ["cover", "bleaching"]},
+                {"candidates": []},
+                result,
+                None,
+                None,
+                model,
+                lambda *a: None,
+                lambda *a: None,
+                lambda: None,
+                review_source=reassess,
+            )
+        )
+        == []
+    )
+    assert result["research_process"]["steps"][0]["outcome"]["status"] == "retained"

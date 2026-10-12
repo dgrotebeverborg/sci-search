@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import re
+from typing import Any
 
 MAX_EXPANDED = 10_000_000
 SELECTION_SCHEMA = {
@@ -102,7 +103,7 @@ def _read(body):
     return dimensions, years, records
 
 
-def inspect_statistics(body):
+def inspect_statistics(body) -> dict[str, Any]:
     dimensions, years, records = _read(body)
     return dict(
         dimensions=dimensions,
@@ -139,7 +140,9 @@ def prepare_statistics(body, selection):
             raise ValueError("Selection contains duplicate or unobserved dimension codes")
         filters[d] = values
     if set(filters) != set(dimensions):
-        raise ValueError("Every dimension requires an explicit filter, including comparison dimensions")
+        raise ValueError(
+            "Every dimension requires an explicit filter, including comparison dimensions"
+        )
     series_dims = selection["series_dimensions"]
     if (
         not series_dims

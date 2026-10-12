@@ -4,6 +4,7 @@ import csv
 import io
 import math
 import re
+from typing import Literal, overload
 
 CONVERSIONS = {("ha", "km2"): 0.01, ("hectares", "km²"): 0.01, ("ha", "km²"): 0.01}
 MAPPING_SCHEMA = {
@@ -44,6 +45,18 @@ MODEL_MAPPING_SCHEMA = {
     },
 }
 MODEL_MAPPING_SCHEMA["required"] = list(MODEL_MAPPING_SCHEMA["properties"])
+
+
+@overload
+def read_csv(
+    body: bytes, *, with_line_numbers: Literal[False] = False, delimiter: str | None = None
+) -> tuple[list[str], list[dict[str, str]]]: ...
+
+
+@overload
+def read_csv(
+    body: bytes, *, with_line_numbers: Literal[True], delimiter: str | None = None
+) -> tuple[list[str], list[dict[str, str]], list[int]]: ...
 
 
 def read_csv(body, *, with_line_numbers=False, delimiter=None):

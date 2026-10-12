@@ -72,7 +72,16 @@ _STAGES = frozenset(
     {"discover", "acquire", "parse", "extract", "normalize", "analyze", "report", "export"}
 )
 _PROVIDERS = frozenset(
-    {"crossref", "europe_pmc", "openalex", "scientific_memory", "mistral", "openai", "codex", "other"}
+    {
+        "crossref",
+        "europe_pmc",
+        "openalex",
+        "scientific_memory",
+        "mistral",
+        "openai",
+        "codex",
+        "other",
+    }
 )
 _ACQUISITION_OUTCOMES = frozenset(
     {"acquired", "not_open", "not_found", "invalid", "too_large", "failed"}

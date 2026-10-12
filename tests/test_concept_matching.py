@@ -131,26 +131,34 @@ def test_later_redundant_anchor_does_not_discard_required_compound():
     assert concept_present(text, SUBJECT)
 
 
-@pytest.mark.parametrize(("text", "term"), [
-    ("C++ programming", "C"),
-    ("CD4+ cells", "CD4−"),
-    ("CD4− cells", "CD4+"),
-    ("CD4− cells", "CD4"),
-    ("HER2+ cancer", "HER2-negative"),
-    ("input output", "input/output"),
-    ("CD4+ cell population response following targeted immune therapy", 
-     "CD4− cell population response following targeted immune therapy"),
-])
+@pytest.mark.parametrize(
+    ("text", "term"),
+    [
+        ("C++ programming", "C"),
+        ("CD4+ cells", "CD4−"),
+        ("CD4− cells", "CD4+"),
+        ("CD4− cells", "CD4"),
+        ("HER2+ cancer", "HER2-negative"),
+        ("input output", "input/output"),
+        (
+            "CD4+ cell population response following targeted immune therapy",
+            "CD4− cell population response following targeted immune therapy",
+        ),
+    ],
+)
 def test_meaningful_symbols_are_not_erased(text, term):
     assert not concept_present(text, term)
 
 
-@pytest.mark.parametrize(("text", "term"), [
-    ("CD4− cells", "CD4−"),
-    ("C++ programming", "C++"),
-    ("input/output", "input/output"),
-    ("green‐hydrogen production", "green hydrogen"),
-])
+@pytest.mark.parametrize(
+    ("text", "term"),
+    [
+        ("CD4− cells", "CD4−"),
+        ("C++ programming", "C++"),
+        ("input/output", "input/output"),
+        ("green‐hydrogen production", "green hydrogen"),
+    ],
+)
 def test_literal_symbols_and_hyphen_normalization_are_supported(text, term):
     assert concept_present(text, term)
 

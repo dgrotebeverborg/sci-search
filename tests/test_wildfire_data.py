@@ -87,22 +87,51 @@ def test_data_route_completes_without_searching_literature(tmp_path, monkeypatch
     from tests.data_meaning_fixtures import with_positive_meaning_review
 
     original_run = wildfire.run
+
     def guarded_run(scope, directory, **kwargs):
         if kwargs.get("execute_script", True):
             raise ValueError("Legacy publication bypassed measurement review")
         return original_run(scope, directory, **kwargs)
+
     monkeypatch.setattr(wildfire, "run", guarded_run)
     original_execute = workflow.execute
+
     def execute(question, strategy, directory, **kwargs):
         def model(prompt, schema):
             if "adapter" in schema["properties"]:
-                return dict(adapter="effis", download_link_index=-1, reason="Official workbook",
-                            definition_quote="", license_note="Unknown", covered_measurements=strategy["measurements"])
-            return dict(action="stop", source_index=-1, link_index=-1, query="", measurements=[], reason="Done")
-        return original_execute(question, strategy, directory, **kwargs,
-            search=lambda *a, **k: {"candidates": [dict(url=wildfire.SOURCE_URL, title="EFFIS", publisher="JRC")]},
-            fetch=lambda url: (body, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", url),
-            complete=with_positive_meaning_review(model))
+                return dict(
+                    adapter="effis",
+                    download_link_index=-1,
+                    reason="Official workbook",
+                    definition_quote="",
+                    license_note="Unknown",
+                    covered_measurements=strategy["measurements"],
+                )
+            return dict(
+                action="stop",
+                source_index=-1,
+                link_index=-1,
+                query="",
+                measurements=[],
+                reason="Done",
+            )
+
+        return original_execute(
+            question,
+            strategy,
+            directory,
+            **kwargs,
+            search=lambda *a, **k: {
+                "candidates": [dict(url=wildfire.SOURCE_URL, title="EFFIS", publisher="JRC")]
+            },
+            fetch=lambda url: (
+                body,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                url,
+            ),
+            complete=with_positive_meaning_review(model),
+        )
+
     monkeypatch.setattr(workflow, "execute", execute)
 
     class NoLiterature:

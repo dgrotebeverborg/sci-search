@@ -80,9 +80,7 @@ def test_semantic_answer_withheld_overrides_source_adequacy_without_losing_findi
         "question": "Q",
         "answer_summary": "Rejected overall conclusion.",
         "summary_evidence_ids": ["e1"],
-        "synthesis": {
-            "claims": [{"text": "Unreviewed extraction.", "evidence_ids": ["e1"]}]
-        },
+        "synthesis": {"claims": [{"text": "Unreviewed extraction.", "evidence_ids": ["e1"]}]},
         "evidence": [{"id": "e1", "publication_id": "p1"}],
         "answer_adequacy": {
             "status": "adequate",
@@ -129,9 +127,9 @@ def test_semantic_review_does_not_repopulate_rejected_findings(answer_withheld):
         "synthesis": {"claims": [rejected]},
         "ai_analysis": {
             "status": "coverage_limited" if answer_withheld else "complete",
-            "answer": None if answer_withheld else {
-                "text": "Accepted answer.", "evidence_ids": ["e1"]
-            },
+            "answer": None
+            if answer_withheld
+            else {"text": "Accepted answer.", "evidence_ids": ["e1"]},
             "answer_withheld": answer_withheld,
             "claims": [],
             "semantic_review": {"status": "complete"},
@@ -153,8 +151,10 @@ def test_unavailable_semantic_review_keeps_source_evidence_without_promoting_fin
         "findings": [{"text": "Unreviewed finding.", "evidence_ids": ["e1"]}],
         "answer_adequacy": {"can_answer_overall_question": True},
         "ai_analysis": {
-            "status": "unavailable", "answer_withheld": True,
-            "semantic_review": {"status": "unavailable"}, "claims": [],
+            "status": "unavailable",
+            "answer_withheld": True,
+            "semantic_review": {"status": "unavailable"},
+            "claims": [],
         },
     }
     dashboard = build_dashboard(payload, run_id="r", revision=1)

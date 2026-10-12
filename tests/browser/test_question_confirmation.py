@@ -139,12 +139,18 @@ def test_data_question_shows_why_approval_is_blocked(live_browser_url, chromium_
     page = chromium_browser.new_page()
     question = "How has burned area changed in Portugal?"
     brief = {
-        "original_question": question, "interpreted_question": question,
-        "objective": "Compare burned area", "ambiguity": "material",
+        "original_question": question,
+        "interpreted_question": question,
+        "objective": "Compare burned area",
+        "ambiguity": "material",
         "clarification_question": "Which years should be compared?",
-        "data_research": {"adapter": "discovered_data_v1", "route": "data",
-                          "measurements": ["burned area"], "geography": "Portugal",
-                          "rationale": "Official annual observations"},
+        "data_research": {
+            "adapter": "discovered_data_v1",
+            "route": "data",
+            "measurements": ["burned area"],
+            "geography": "Portugal",
+            "rationale": "Official annual observations",
+        },
     }
     try:
         page.route("**/runs/interpret", lambda route: route.fulfill(json=brief))

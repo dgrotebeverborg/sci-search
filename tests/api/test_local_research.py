@@ -19,11 +19,21 @@ def test_local_research_completes_and_exports_real_pipeline_output(monkeypatch, 
             self.progress_callback = callback
 
         def run_sync(self, question, *, limits):
-            self.progress_callback({
-                "stage": "acquiring", "message": "Inspecting the downloaded workbook",
-                "started_at": "2026-10-09T10:00:00Z", "updated_at": "2026-10-09T10:00:01Z",
-                "counters": {}, "events": [{"at": "2026-10-09T10:00:01Z", "message": "Inspecting the downloaded workbook"}],
-            })
+            self.progress_callback(
+                {
+                    "stage": "acquiring",
+                    "message": "Inspecting the downloaded workbook",
+                    "started_at": "2026-10-09T10:00:00Z",
+                    "updated_at": "2026-10-09T10:00:01Z",
+                    "counters": {},
+                    "events": [
+                        {
+                            "at": "2026-10-09T10:00:01Z",
+                            "message": "Inspecting the downloaded workbook",
+                        }
+                    ],
+                }
+            )
             calls.append(question)
             assert release.wait(5)
             return {

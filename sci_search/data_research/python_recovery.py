@@ -103,6 +103,7 @@ def recover(
     last_error = reason
     reflection = []
     extraction_scope = dict(scope)
+    number = 0
     for number in range(1, 4):
         check_cancelled()
         progress(f"Asking the model to write Python extraction code, attempt {number} of 3.")
@@ -134,6 +135,7 @@ def recover(
         record = run_python(code, {"source.bin": body}, attempt, check_cancelled=check_cancelled)
         (attempt / "proposal.json").write_text(json.dumps(draft, indent=2))
         semantic_failure = False
+        semantic_review = {}
         try:
             if record["status"] != "succeeded":
                 raise ValueError(record.get("error", "Python extraction failed"))

@@ -296,16 +296,20 @@ def analyse(records: list[dict], *, countries: list[str], start: int, end: int) 
     }
 
 
-def run(scope: dict, directory: Path, *, fetch=None, execute_script=True, check_cancelled=lambda: None) -> dict:
+def run(
+    scope: dict, directory: Path, *, fetch=None, execute_script=True, check_cancelled=lambda: None
+) -> dict:
     scope = validate_scope(scope)
     if fetch is None:
 
-        def fetch():
+        def download():
             with urllib.request.urlopen(SOURCE_URL, timeout=45) as response:
                 body = response.read(2_000_001)
                 if len(body) > 2_000_000:
                     raise ValueError("Source download exceeds size limit")
                 return body
+
+        fetch = download
 
     body = fetch()
     records = parse_workbook(body)
@@ -389,7 +393,11 @@ def export(result: dict, directory: Path, *, bundle: bool = False):
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(directory.rglob("*")):
-                if path.is_file() and not path.is_symlink() and path.name not in {"reproduce.py", "README.txt"}:
+                if (
+                    path.is_file()
+                    and not path.is_symlink()
+                    and path.name not in {"reproduce.py", "README.txt"}
+                ):
                     archive.write(path, str(path.relative_to(directory)))
             archive.writestr("wildfire.py", Path(__file__).read_text())
             archive.writestr(

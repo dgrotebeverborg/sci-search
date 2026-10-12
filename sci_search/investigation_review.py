@@ -163,9 +163,9 @@ def review_investigation(
             )
             accepted = []
             rejected = 0
-            raw_findings = findings.get('findings')
+            raw_findings = findings.get("findings")
             if not isinstance(raw_findings, list):
-                raise ValueError('Partial evidence review must return a findings array')
+                raise ValueError("Partial evidence review must return a findings array")
             for finding in raw_findings[:8]:
                 entry = (
                     passages.get(finding.get("passage_id")) if isinstance(finding, dict) else None

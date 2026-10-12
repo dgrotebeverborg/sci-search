@@ -44,9 +44,10 @@ def test_benchmark_has_honest_provenance_and_contrasting_judgments(benchmark):
 @pytest.mark.parametrize("case_index", range(5))
 def test_confirmed_scientific_scope_survives_query_planning(benchmark, case_index):
     case = benchmark["cases"][case_index]
-    plan = plan_from_brief(case["question"], {
-        "original_question": case["question"], "research_plan": case["research_plan"]
-    })
+    plan = plan_from_brief(
+        case["question"],
+        {"original_question": case["question"], "research_plan": case["research_plan"]},
+    )
     actual_plan, queries = plan_search_queries(case["question"], plan=plan)
     assert actual_plan.intent == case["research_plan"]["intent"], case["id"]
     texts = [query.text.casefold() for query in queries]
@@ -55,21 +56,28 @@ def test_confirmed_scientific_scope_survives_query_planning(benchmark, case_inde
     for term in case["research_plan"]["geography_terms"]:
         assert any(term.casefold() in text for text in texts), (case["id"], term, texts)
     assert any(case["expected_query_purpose"] == query.purpose for query in queries), (
-        case["id"], [(query.text, query.purpose) for query in queries]
+        case["id"],
+        [(query.text, query.purpose) for query in queries],
     )
 
 
 @pytest.mark.parametrize("case_index", range(5))
 def test_full_text_scientific_inclusion_decisions(benchmark, case_index):
     case = benchmark["cases"][case_index]
-    plan = plan_from_brief(case["question"], {
-        "original_question": case["question"], "research_plan": case["research_plan"]
-    })
+    plan = plan_from_brief(
+        case["question"],
+        {"original_question": case["question"], "research_plan": case["research_plan"]},
+    )
     failures = []
     for source in case["sources"]:
         candidate = PublicationCandidate(
-            id=source["id"], title=source["title"], abstract=source["abstract"],
-            year=None, doi=None, authors=(), publication_type="synthetic_vignette",
+            id=source["id"],
+            title=source["title"],
+            abstract=source["abstract"],
+            year=None,
+            doi=None,
+            authors=(),
+            publication_type="synthetic_vignette",
             source_url=None,
         )
         result = screen_full_text(case["question"], plan, candidate, source["full_text"])

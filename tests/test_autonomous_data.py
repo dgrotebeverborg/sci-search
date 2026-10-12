@@ -445,14 +445,16 @@ def test_broader_europe_does_not_become_eu_from_negated_description(tmp_path):
                 "https://data.effis.emergency.copernicus.eu/report.xlsx",
             )
         ),
-        complete=with_positive_meaning_review(lambda *a: dict(
-            adapter="effis",
-            download_link_index=0,
-            reason="Country totals",
-            definition_quote="Country totals: fires and burned area",
-            license_note="Official terms",
-            covered_measurements=scope["measurements"],
-        )),
+        complete=with_positive_meaning_review(
+            lambda *a: dict(
+                adapter="effis",
+                download_link_index=0,
+                reason="Country totals",
+                definition_quote="Country totals: fires and burned area",
+                license_note="Official terms",
+                covered_measurements=scope["measurements"],
+            )
+        ),
     )
     assert len(result["analyses"][0]["requested_countries"]) == 46
 

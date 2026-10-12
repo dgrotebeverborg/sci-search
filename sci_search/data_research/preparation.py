@@ -188,6 +188,7 @@ def prepare_delimited(body, selection=None):
     lines = text.splitlines(keepends=True)
     metadata += "\n" + "".join(lines[: header_row - 1])
     end_row = selection.get("end_row")
+    boundary = []
     if end_row is not None:
         if type(end_row) is not int or not header_row < end_row <= len(lines):
             raise ValueError("Invalid table section boundary")

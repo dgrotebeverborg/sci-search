@@ -144,13 +144,25 @@ def execute(
     retained = {}
 
     def review_source(index, measurements, link_index, round_number):
-        outcome = reassess_source(index, measurements, link_index, round_number,
-            retained=retained, result=result, question=question, scope=strategy,
-            directory=directory, fetch=fetch, complete=complete, progress=progress,
-            check_cancelled=check_cancelled)
-        covered.update(s['label'] for a in result['analyses'] for s in a.get('series', []))
-        save(directory / 'analysis.json', result)
+        outcome = reassess_source(
+            index,
+            measurements,
+            link_index,
+            round_number,
+            retained=retained,
+            result=result,
+            question=question,
+            scope=strategy,
+            directory=directory,
+            fetch=fetch,
+            complete=complete,
+            progress=progress,
+            check_cancelled=check_cancelled,
+        )
+        covered.update(s["label"] for a in result["analyses"] for s in a.get("series", []))
+        save(directory / "analysis.json", result)
         return outcome
+
     for index, candidate in enumerate(
         research_candidates(
             question,
@@ -175,7 +187,7 @@ def execute(
         folder.mkdir(exist_ok=True)
         progress(f"Checking dataset {index + 1}: {candidate['title'][:120]}")
         stage = "access"
-        data, source, body = None, None, None
+        data, source, body, url = None, None, None, candidate["url"]
         page = {"text": "", "links": []}
         try:
             body, content_type, url = fetch_scoped(
@@ -217,7 +229,9 @@ def execute(
                 statistical_preview = inspect_if_statistics(body)
             except (ValueError, UnicodeError) as inspection_error:
                 statistical_preview = None
-                page["text"] += "\nStatistical reader needs Python inspection: " + str(inspection_error)
+                page["text"] += "\nStatistical reader needs Python inspection: " + str(
+                    inspection_error
+                )
             if statistical_preview:
                 page["text"] = json.dumps(statistical_preview, ensure_ascii=False)[:60000]
             assessment["recovery_links"] = page["links"][:80]
@@ -341,7 +355,10 @@ def execute(
                 }
             check_cancelled()
             stage = "download"
-            progress(("Reading downloaded dataset: " if target == url else "Downloading dataset: ") + candidate["title"][:120])
+            progress(
+                ("Reading downloaded dataset: " if target == url else "Downloading dataset: ")
+                + candidate["title"][:120]
+            )
             data, data_type, final_url = (
                 (body, content_type, url)
                 if target == url
@@ -374,7 +391,10 @@ def execute(
                     )
                 )[:100]
             stage = "parse"
-            progress("Inspecting the data structure and available measurements: " + candidate["title"][:120])
+            progress(
+                "Inspecting the data structure and available measurements: "
+                + candidate["title"][:120]
+            )
             source = {
                 "title": candidate["title"],
                 "url": final_url,
@@ -403,9 +423,16 @@ def execute(
             if choice["adapter"] == "python":
                 stage = "python"
                 analysis = recover_python(
-                    question, strategy, data, source, folder, complete=complete,
-                    reason=choice["reason"], metadata=page["text"],
-                    check_cancelled=check_cancelled, progress=progress,
+                    question,
+                    strategy,
+                    data,
+                    source,
+                    folder,
+                    complete=complete,
+                    reason=choice["reason"],
+                    metadata=page["text"],
+                    check_cancelled=check_cancelled,
+                    progress=progress,
                 )
                 selected_measures = [s["label"] for s in analysis["series"]]
             elif choice["adapter"] == "effis":
@@ -428,7 +455,9 @@ def execute(
                     "start_year": strategy["start_year"] or 1980,
                     "end_year": strategy["end_year"] or datetime.now(UTC).year - 1,
                 }
-                analysis = wildfire.run(scope, folder, fetch=lambda data=data: data, execute_script=False)
+                analysis = wildfire.run(
+                    scope, folder, fetch=lambda data=data: data, execute_script=False
+                )
                 # Observed edition, never pretend discovery used the frozen pilot URL.
                 analysis["source"].update(source)
                 last = max(r["year"] for r in wildfire.parse_workbook(data))
@@ -579,6 +608,8 @@ def execute(
                             )
                             if attempt == 1:
                                 raise
+                    else:
+                        raise first_error
                 assessment["preparation_checks"] = preparation.get("checks", {})
                 save(folder / "preparation.json", preparation)
                 if preparation["format"] != "csv":
@@ -713,20 +744,35 @@ def execute(
                             analysis["limitations"] += measurement_preparation.get(
                                 "limitations", []
                             )
-                            progress("Checking source definitions, units, geography, time and calculation rules.")
-                            documents = {"metadata": measurement_metadata,
-                                         "table_sample": json.dumps(measurement_sample, ensure_ascii=False)}
+                            progress(
+                                "Checking source definitions, units, geography, time and calculation rules."
+                            )
+                            documents = {
+                                "metadata": measurement_metadata,
+                                "table_sample": json.dumps(measurement_sample, ensure_ascii=False),
+                            }
                             semantic_review = semantics.assess(
-                                question=question, scope=strategy, analysis=analysis,
-                                documents=documents, complete=complete,
+                                question=question,
+                                scope=strategy,
+                                analysis=analysis,
+                                documents=documents,
+                                complete=complete,
                             )
                             assessment.setdefault("semantic_reviews", []).append(semantic_review)
-                            save(folder / f"semantic-review-{len(assessment['semantic_reviews'])}.json",
-                                 {"review": semantic_review, "evidence_documents": documents})
+                            save(
+                                folder
+                                / f"semantic-review-{len(assessment['semantic_reviews'])}.json",
+                                {"review": semantic_review, "evidence_documents": documents},
+                            )
                             if not semantic_review["accepted"]:
-                                gap = semantic_review["reason"] + " Follow-up: " + "; ".join(semantic_review["followup_questions"])
+                                gap = (
+                                    semantic_review["reason"]
+                                    + " Follow-up: "
+                                    + "; ".join(semantic_review["followup_questions"])
+                                )
                                 assessment.setdefault("mapping_gaps", []).append(
-                                    {"measurement": measurement, "reason": gap})
+                                    {"measurement": measurement, "reason": gap}
+                                )
                                 progress("Measurement meaning not confirmed: " + gap[:250])
                                 break
                             analysis["semantic_review"] = semantic_review
@@ -840,12 +886,17 @@ def execute(
                 progress("Checking the workbook's measurement definitions before publication.")
                 documents = {"metadata": page["text"]}
                 semantic_review = semantics.assess(
-                    question=question, scope=strategy, analysis=analysis,
-                    documents=documents, complete=complete,
+                    question=question,
+                    scope=strategy,
+                    analysis=analysis,
+                    documents=documents,
+                    complete=complete,
                 )
                 assessment.setdefault("semantic_reviews", []).append(semantic_review)
-                save(folder / "semantic-review.json",
-                     {"review": semantic_review, "evidence_documents": documents})
+                save(
+                    folder / "semantic-review.json",
+                    {"review": semantic_review, "evidence_documents": documents},
+                )
                 if not semantic_review["accepted"]:
                     raise ValueError("Measurement meaning unresolved: " + semantic_review["reason"])
                 analysis["semantic_review"] = semantic_review
@@ -877,40 +928,72 @@ def execute(
             )
             if data is not None and source is not None and stage in {"parse", "mapping"}:
                 try:
-                    progress("The standard reader could not use this source. Trying Python extraction.")
+                    progress(
+                        "The standard reader could not use this source. Trying Python extraction."
+                    )
                     analysis = recover_python(
-                        question, strategy, data, source, folder, complete=complete,
-                        reason=str(exc), metadata=page["text"],
-                        check_cancelled=check_cancelled, progress=progress,
+                        question,
+                        strategy,
+                        data,
+                        source,
+                        folder,
+                        complete=complete,
+                        reason=str(exc),
+                        metadata=page["text"],
+                        check_cancelled=check_cancelled,
+                        progress=progress,
                     )
                     analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
                     save(folder / "analysis.json", analysis)
                     result["analyses"].append(analysis)
                     covered.update(s["label"] for s in analysis["series"])
-                    assessment.update(decision="analysed", reason="Recovered with executed Python extraction", source=analysis["source"])
+                    assessment.update(
+                        decision="analysed",
+                        reason="Recovered with executed Python extraction",
+                        source=analysis["source"],
+                    )
                     assessment.pop("availability", None)
-                    progress("Python extraction succeeded. Validated and retained dataset: " + candidate["title"][:120])
+                    progress(
+                        "Python extraction succeeded. Validated and retained dataset: "
+                        + candidate["title"][:120]
+                    )
                 except (OSError, ValueError, KeyError, TypeError, StopIteration) as recovery_error:
                     assessment["python_error"] = str(recovery_error)[:1000]
             if assessment["decision"] == "blocked":
-                progress("Could not validate this source; checking alternative sources: " + candidate["title"][:120])
+                progress(
+                    "Could not validate this source; checking alternative sources: "
+                    + candidate["title"][:120]
+                )
         finally:
             if data is not None and source is not None:
-                retained[index] = {'body': data, 'source': source, 'metadata': page['text']}
+                retained[index] = {"body": data, "source": source, "metadata": page["text"]}
             elif body is not None:
-                retained[index] = {'body': body, 'metadata': page['text'], 'source': {
-                    'title': candidate['title'], 'url': url, 'landing_url': candidate['url'],
-                    'publisher': candidate.get('publisher', ''), 'definition': '',
-                    'license_note': 'Not yet established', 'sha256': hashlib.sha256(body).hexdigest(),
-                }}
-            assessment['execution_review'] = execution_summary(folder)
-            assessment['execution_review']['source_preview'] = page['text'][:8000]
-            assessment['execution_review']['retained_bytes'] = len(retained[index]['body']) if index in retained else 0
-            inspection = assessment['execution_review'].get('inspection', '')
+                retained[index] = {
+                    "body": body,
+                    "metadata": page["text"],
+                    "source": {
+                        "title": candidate["title"],
+                        "url": url,
+                        "landing_url": candidate["url"],
+                        "publisher": candidate.get("publisher", ""),
+                        "definition": "",
+                        "license_note": "Not yet established",
+                        "sha256": hashlib.sha256(body).hexdigest(),
+                    },
+                }
+            assessment["execution_review"] = execution_summary(folder)
+            assessment["execution_review"]["source_preview"] = page["text"][:8000]
+            assessment["execution_review"]["retained_bytes"] = (
+                len(retained[index]["body"]) if index in retained else 0
+            )
+            inspection = assessment["execution_review"].get("inspection", "")
             documented_links = re.findall(r'https?://[^\s<>"\\]+', inspection)
-            assessment['recovery_links'] = list(dict.fromkeys(
-                assessment.get('recovery_links', []) + [u.rstrip('.,;)') for u in documented_links]
-            ))[:100]
+            assessment["recovery_links"] = list(
+                dict.fromkeys(
+                    assessment.get("recovery_links", [])
+                    + [u.rstrip(".,;)") for u in documented_links]
+                )
+            )[:100]
             save(folder / "assessment.json", assessment)
     missing = [m for m in strategy["measurements"] if m not in covered]
     result["uncovered_measurements"] = missing

@@ -128,8 +128,11 @@ def configured_analyzer() -> ModelAnalyzer | None:
         from sci_search.codex_provider import available, complete_json
 
         return (
-            ModelAnalyzer("", provider=profile, model=configured_model(profile), complete_json=complete_json)
-            if available() else None
+            ModelAnalyzer(
+                "", provider=profile, model=configured_model(profile), complete_json=complete_json
+            )
+            if available()
+            else None
         )
     key = _provider_key(profile)
     return ModelAnalyzer(key, provider=profile, model=configured_model(profile)) if key else None

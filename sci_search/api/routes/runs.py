@@ -106,7 +106,9 @@ def get_run(
 ) -> RunResponse:
     run = service.get_run(principal.user_id, project_id, run_id)
     get_progress = getattr(service, "get_run_progress", None)
-    progress = get_progress(principal.user_id, project_id, run_id) if callable(get_progress) else None
+    progress = (
+        get_progress(principal.user_id, project_id, run_id) if callable(get_progress) else None
+    )
     return _response(run, progress)
 
 
