@@ -23,9 +23,9 @@ def dataset_from_url(url):
 
 
 def _register():
-    from sci_search.data_research.connectors import eurostat
+    from sci_search.data_research.connectors import cbs, eurostat
 
-    CONNECTORS.update({eurostat.NAME: eurostat})
+    CONNECTORS.update({eurostat.NAME: eurostat, cbs.NAME: cbs})
 
 
 _register()
