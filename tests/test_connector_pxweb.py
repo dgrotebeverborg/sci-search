@@ -227,3 +227,66 @@ def test_mapping_uses_series_mapping():
     table = b"Year,Series,Value,Unit,Status\n2020,value,1.5,CSEK,\n2021,value,:,CSEK,\n"
     result = pxweb.mapping(table, {}, {}, "price")
     assert result["unit"] == "CSEK" and result["missing_values"] == [":"]
+
+
+def test_a_v1_table_is_analysed_end_to_end_from_a_posted_jsonstat_query(tmp_path):
+    from sci_search.data_research.connectors import stage
+    from tests.data_meaning_fixtures import with_positive_meaning_review
+    from tests.test_jsonstat import dataset
+
+    meta = {
+        "title": "08307: Electricity",
+        "variables": [
+            {"code": "Region", "text": "region", "values": ["SE1", "SE2"], "valueTexts": ["North", "South"]},
+            {"code": "ContentsCode", "text": "contents", "values": ["EL01"], "valueTexts": ["Electricity use"]},
+            {"code": "Tid", "text": "year", "values": ["2020", "2021"], "time": True},
+        ],
+    }  # fmt: skip
+    posted = []
+
+    def fetch(url):
+        assert url == "https://data.ssb.no/api/v0/en/table/08307"
+        return json.dumps(meta).encode(), "application/json", url
+
+    def post(url, payload):
+        posted.append((url, payload))
+        return dataset(), "application/json", url
+
+    selection = {
+        "filters": {"Region": ["SE1", "SE2"], "ContentsCode": ["EL01"]},
+        "series_dimensions": ["Region"],
+        "reason": "Both regions",
+    }
+    candidate = base.DatasetCandidate("pxweb", "ssb:08307", "08307: Electricity", "unknown")
+    scope = {
+        "measurements": ["electricity use"],
+        "geography": "Norway",
+        "countries": ["NOR"],
+        "start_year": 2020,
+        "end_year": 2021,
+    }
+    analysis, assessment = stage.analyse_dataset(
+        "Electricity use in Norway",
+        scope,
+        tmp_path,
+        pxweb,
+        candidate,
+        "electricity use",
+        complete=with_positive_meaning_review(lambda prompt, schema: selection),
+        fetch=fetch,
+        post=post,
+        check_cancelled=lambda: None,
+        progress=lambda message: None,
+    )
+    assert assessment["decision"] == "analysed", assessment.get("reason")
+    assert analysis is not None
+    url, payload = posted[0]
+    assert url == "https://data.ssb.no/api/v0/en/table/08307"
+    assert {"code": "Tid", "selection": {"filter": "item", "values": ["2020", "2021"]}} in payload[
+        "query"
+    ]
+    assert analysis["execution"]["status"] == "verified"
+    assert analysis["source"]["connector"]["request"]["method"] == "POST"
+    assert analysis["source"]["download"]["reproducible"] is False
+    assert "POST" in analysis["source"]["download"]["reason"]
+    assert len(analysis["series"]) == 2
