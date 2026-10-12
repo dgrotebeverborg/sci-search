@@ -16,15 +16,19 @@ CATALOGUE = (
     "https://opendata.cbs.nl/ODataCatalog/Tables?$format=json"
     "&$select=Identifier,Title,Frequency,Language,Period,ShortDescription"
 )
-# Catalogue Frequency values; anything else that is present is "other" (e.g. Stopgezet, Eenmalig).
+# Catalogue Frequency values; Stopgezet (discontinued) and Eenmalig (one-off) say nothing about the
+# period type, so they are "unknown" and the package reader decides. Other values are "other".
 FREQUENCY = {
     "Perjaar": "annual",
     "Permaand": "monthly",
     "Perkwartaal": "quarterly",
     "Tweemaalperjaar": "half-yearly",
+    "Stopgezet": "unknown",
+    "Eenmalig": "unknown",
 }
-# Some older catalogue ids are lower case; identifiers are normalised to upper case.
-DATASET = re.compile(r"\d{5}[A-Z]{3}")
+# datasets.cbs.nl is case-sensitive: ids keep the catalogue's casing. Older tables are lower case
+# (80472ned) or have no suffix (03763).
+DATASET = re.compile(r"\d{5}[A-Za-z]{0,3}")
 
 
 def _checked(dataset):
@@ -42,17 +46,17 @@ def dataset_from_url(url):
     if parts.scheme != "https" or parts.hostname not in HOSTS:
         return None
     match = re.search(
-        r"/(?:cijfers/detail|figures/detail|ODataApi/OData|CSV/CBS/[a-z]{2})/(\d{5}[A-Za-z]{3})(?:/|$)",
+        r"/(?:cijfers/detail|figures/detail|ODataApi/OData|CSV/CBS/[a-z]{2})/(\d{5}[A-Za-z]{0,3})(?:/|$)",
         parts.path,
     )
-    return match[1].upper() if match else None
+    return match[1] if match else None
 
 
 def search(terms, scope, *, fetch, cache_dir):
     body, digest = base.catalogue(NAME, CATALOGUE, fetch, cache_dir)
     found = []
     for table in json.loads(body)["value"]:
-        identifier = table.get("Identifier", "").upper()
+        identifier = table.get("Identifier", "")
         if not DATASET.fullmatch(identifier):
             continue
         title = (table.get("Title") or "").strip()
@@ -87,6 +91,10 @@ def describe(candidate, scope, *, fetch):
     try:
         _, preparation = prepare_table(raw)  # validates the package with the existing CBS reader
     except ValueError as exc:  # a malformed or non-annual package, not a transport failure
+        if "non-annual" in str(exc):
+            raise base.DatasetRejected(
+                "dataset is not annual; no aggregation was performed (" + str(exc) + ")"
+            ) from exc
         raise base.DatasetRejected(str(exc)) from exc
     metadata = json.loads(preparation["metadata"])
     measures = {m["Identifier"]: f"{m['Title']} ({m['Unit']})" for m in metadata["measures"]}

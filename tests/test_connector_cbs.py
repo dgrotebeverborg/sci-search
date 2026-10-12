@@ -154,3 +154,35 @@ def test_dataset_from_url():
     assert cbs.dataset_from_url("https://datasets.cbs.nl/CSV/CBS/nl/85929NED") == "85929NED"
     assert cbs.dataset_from_url("https://www.cbs.nl/nl-nl/longread/2025/iets") is None
     assert cbs.dataset_from_url("http://www.cbs.nl/nl-nl/cijfers/detail/82610NED") is None
+
+
+def test_catalogue_ids_keep_their_case_and_five_digit_ids_are_accepted(tmp_path):
+    catalogue = {
+        "value": [
+            {"Identifier": "80472ned", "Title": "Energie tabel", "Frequency": "Perjaar"},
+            {"Identifier": "03763", "Title": "Energie oud", "Frequency": "Stopgezet"},
+            {"Identifier": "../x", "Title": "Energie fout", "Frequency": "Perjaar"},
+        ]
+    }
+
+    def fetch(url):
+        import json
+
+        return json.dumps(catalogue).encode(), "application/json", url
+
+    candidates, _ = cbs.search(["energie"], SCOPE, fetch=fetch, cache_dir=tmp_path)
+    assert sorted(c.dataset for c in candidates) == ["03763", "80472ned"]
+    assert next(c for c in candidates if c.dataset == "03763").frequency == "unknown"
+    assert cbs.package_url("80472ned") == "https://datasets.cbs.nl/CSV/CBS/nl/80472ned"
+    assert cbs.package_url("03763").endswith("/03763")
+    assert cbs.dataset_from_url("https://opendata.cbs.nl/ODataApi/OData/80472ned") == "80472ned"
+
+
+def test_unknown_frequency_package_that_is_not_annual_is_rejected(monkeypatch):
+    def refuse(raw):
+        raise ValueError("CBS package contains non-annual or unknown periods")
+
+    monkeypatch.setattr(cbs, "prepare_table", refuse)
+    unknown = base.DatasetCandidate("cbs", "82610NED", "x", "unknown")
+    with pytest.raises(base.DatasetRejected, match="dataset is not annual; no aggregation"):
+        cbs.describe(unknown, SCOPE, fetch=offline)
