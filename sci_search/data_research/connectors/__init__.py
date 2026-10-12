@@ -20,3 +20,12 @@ def dataset_from_url(url):
         if dataset:
             return name, dataset
     return None
+
+
+def _register():
+    from sci_search.data_research.connectors import eurostat
+
+    CONNECTORS.update({eurostat.NAME: eurostat})
+
+
+_register()
