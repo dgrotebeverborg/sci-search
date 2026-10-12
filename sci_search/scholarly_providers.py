@@ -39,7 +39,7 @@ class OpenAlexProvider:
             "api_key": self.api_key,
             "search": query.text,
             "per_page": str(min(max(limit, 1), 100)),
-            "select": "id,doi,display_name,publication_year,authorships,ids,primary_location,best_oa_location,open_access,has_content,type,is_retracted,cited_by_count,abstract_inverted_index",
+            "select": "id,doi,display_name,publication_year,authorships,ids,primary_location,best_oa_location,locations,open_access,has_content,type,is_retracted,cited_by_count,abstract_inverted_index",
         }
         payload = self.fetch_json(self.base_url, params)
         results = payload.get("results") if isinstance(payload, dict) else []
@@ -58,7 +58,7 @@ class OpenAlexProvider:
             return ()
         per_direction = max(1, min(limit, 100) // 2)
         reference_budget = min(100, max(25, per_direction * 5))
-        select = "id,doi,display_name,publication_year,authorships,ids,primary_location,best_oa_location,open_access,has_content,type,is_retracted,cited_by_count,abstract_inverted_index"
+        select = "id,doi,display_name,publication_year,authorships,ids,primary_location,best_oa_location,locations,open_access,has_content,type,is_retracted,cited_by_count,abstract_inverted_index"
         seed_payload = self.fetch_json(
             f"{self.base_url}/{work_id}", {"api_key": self.api_key, "select": "referenced_works"}
         )
@@ -322,6 +322,17 @@ def _openalex_candidate(item: dict[str, Any], query_id: str) -> PublicationCandi
         publication_type=str(item.get("type") or "article"),
         source_url=openalex_id or str(primary.get("landing_page_url") or "").strip() or None,
         full_text_url=str(best.get("pdf_url") or "").strip() or None,
+        oa_landing_urls=tuple(
+            dict.fromkeys(
+                str(location["landing_page_url"]).strip()
+                for location in [best, primary, *(item.get("locations") or [])]
+                if isinstance(location, dict)
+                and location.get("is_oa") is True
+                and isinstance(location.get("source"), dict)
+                and location["source"].get("type") == "repository"
+                and location.get("landing_page_url")
+            )
+        ),
         author_ids=author_ids,
         institutions=institutions,
         institution_ids=institution_ids,

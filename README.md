@@ -16,9 +16,17 @@ The project includes a three-document synthetic smoke fixture, a ten-document re
 Install the locked development environment before running the local examples:
 
 ```bash
-uv sync --frozen --extra dev --python 3.11
+uv sync --frozen --extra dev --extra data --python 3.11
 source .venv/bin/activate
 ```
+
+Data research now executes and retains a Python script before publishing every new numerical
+result. For unfamiliar downloaded structures, the selected model can write an extraction script,
+run it in isolation and repair it up to three times. The original files, executed scripts, runtime,
+checks and offline replay are included in **Download all**. See [data research](docs/data-research.md).
+This runtime requires Linux, `bubblewrap` (`bwrap`), a non-root account and permission to create
+unprivileged namespaces. If isolation is unavailable, the app reports that limitation and does not
+execute generated code on the host. Existing saved dashboards remain readable.
 
 ## Online scientific search
 
@@ -33,10 +41,26 @@ provider's key is missing or a request fails, the deterministic extractive answe
 reason. `OPENAI_API_KEY` is never read from sci-graph. Stored results record the provider and model,
 and cached analyses are not shared between providers.
 
+For a personal local workspace, you can use **Codex (ChatGPT login)** instead of an API key.
+Install the Codex CLI, run `codex login` using ChatGPT, and confirm `codex login status` says
+`Logged in using ChatGPT`. In `.env.local`, set `SCI_SEARCH_CODEX_ENABLED=1` and
+`SCI_SEARCH_ANALYSIS_PROVIDER=codex`, then restart the app. `SCI_SEARCH_CODEX_MODEL` defaults to
+`gpt-6-sol`; `gpt-6-luna` is also offered. This uses your ChatGPT/Codex allowance and still
+requires internet access. API-key-only Codex logins are not accepted by this provider.
+
+Codex handles interpretation, evidence screening, claim support and dataset web discovery through
+the existing validators. Each call uses an empty temporary read-only workspace, structured JSON,
+disabled shell tools, no inherited API keys, a four-minute timeout, and at most five search calls.
+Only URLs observed in web-tool results qualify as discovered sources. Runs record the provider
+and model; there is no automatic switch to API billing if Codex fails. Cancellation takes effect
+between model calls; an active call finishes or reaches its timeout. The provider is opt-in and
+disabled when `SCI_SEARCH_ENVIRONMENT=production`; it is intended for the owner's local workspace,
+not a shared server using a personal login.
+
 In the web workspace, choose **Analysis model** below **Review depth** before reviewing a question.
 The menu offers each provider's configured model (`MISTRAL_MODEL` / `OPENAI_MODEL`); providers
 without a key are disabled. Administrators can add approved model IDs with
-`SCI_SEARCH_ANALYSIS_MODELS`, a JSON object mapping `mistral` and/or `openai` to lists of model IDs.
+`SCI_SEARCH_ANALYSIS_MODELS`, a JSON object mapping `mistral`, `openai`, or `codex` to lists of model IDs.
 Additional models must support this application's structured-output requests. Configure the same
 provider credentials on the web service and workers; `MISTRAL_API_KEY_FILE` and
 `OPENAI_API_KEY_FILE` are also supported. The browser never receives credentials.

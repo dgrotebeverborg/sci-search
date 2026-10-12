@@ -11,6 +11,7 @@ from typing import Any
 from sci_search.domain.contradictions import SEVERITY_RULES_VERSION, assess_severity
 from sci_search.pdf_report import markdown_to_pdf
 from sci_search.research_landscape import build_research_landscape
+from sci_search.result_quality import result_quality
 
 
 def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
@@ -80,37 +81,52 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
             "qualification": str(value.get("qualification") or "").strip(),
         }
 
-    ai = (
-        investigation.get("ai_analysis")
-        if isinstance(investigation.get("ai_analysis"), dict)
-        else {}
-    )
+    raw_ai = investigation.get("ai_analysis")
+    ai = raw_ai if isinstance(raw_ai, dict) else {}
     ai_complete = ai.get("status") in {"complete", "coverage_limited"}
-    overall_answer_supported = bool(
-        (investigation.get("answer_adequacy") or {}).get("can_answer_overall_question")
+    answer_withheld = ai.get("answer_withheld") is True
+    overall_answer_supported = (
+        bool((investigation.get("answer_adequacy") or {}).get("can_answer_overall_question"))
+        and not answer_withheld
     )
-    executive = assertion(ai.get("answer"), category="executive_summary") if ai_complete else None
+    executive = (
+        assertion(ai.get("answer"), category="executive_summary")
+        if ai_complete and not answer_withheld
+        else None
+    )
     if executive is None:
         executive = {
             "text": str(
-                investigation.get("answer_summary")
+                (
+                    ai.get("answer_withheld_reason")
+                    or "The overall answer did not pass the support review."
+                )
+                if answer_withheld
+                else investigation.get("answer_summary")
                 or "The available evidence did not support a summary conclusion."
             ),
             "category": "executive_summary",
             "evidence_ids": [
                 str(item)
                 for item in investigation.get("summary_evidence_ids", [])
-                if str(item) in evidence_by_id
+                if str(item) in evidence_by_id and not answer_withheld
             ],
             "citations": sorted(
                 {
                     reference_number[str(evidence_by_id[str(item)].get("publication_id"))]
                     for item in investigation.get("summary_evidence_ids", [])
                     if str(item) in evidence_by_id
+                    and not answer_withheld
                     and str(evidence_by_id[str(item)].get("publication_id")) in reference_number
                 }
             ),
-            "qualification": "Deterministic extractive summary.",
+            "qualification": (
+                "AI was used to review the available evidence; an overall answer is withheld."
+                if ai_complete and not overall_answer_supported
+                else "Summary from retained evidence; AI was used in this review."
+                if ai_complete
+                else "Deterministic extractive summary."
+            ),
         }
 
     findings: list[dict[str, Any]] = []
@@ -122,7 +138,11 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
             converted = assertion(item, category=category)
             if converted and converted not in findings:
                 findings.append(converted)
-    if not findings and overall_answer_supported:
+    if (
+        not findings
+        and overall_answer_supported
+        and not isinstance(ai.get("semantic_review"), dict)
+    ):
         for item in investigation.get("findings", []):
             converted = assertion(item, category="finding")
             if converted:
@@ -256,6 +276,7 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         "question": question,
         "question_interpretation": question_brief,
         "answer_adequacy": investigation.get("answer_adequacy"),
+        "result_quality": result_quality(investigation),
         "run_id": run.get("run_id"),
         "executive_summary": executive,
         "scope": {
@@ -287,6 +308,9 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
                 "provider": ai.get("provider"),
                 "name": ai.get("model"),
                 "method": ai.get("method"),
+                "status": ai.get("status"),
+                "answer_withheld": ai.get("answer_withheld"),
+                "answer_withheld_reason": ai.get("answer_withheld_reason"),
                 "validation": ai.get("validation"),
             },
             "coverage_search": run.get("coverage_search"),
@@ -348,6 +372,11 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         ],
         "conclusion": executive,
         "references": references,
+        **(
+            {"data_analysis": investigation["data_analysis"]}
+            if investigation.get("data_analysis")
+            else {}
+        ),
         "appendices": {
             "search_queries": queries,
             "excluded_records": [
@@ -382,14 +411,25 @@ def render_review_markdown(report: dict[str, Any]) -> str:
         f"**Generated:** {report['generated_at']}",
         "",
     ]
+    quality = report.get("result_quality") or result_quality({"literature_review_report": report})
+    lines += [
+        "**Processing:** Processing complete.  ",
+        f"**Evidence:** {quality['label']}.  ",
+        quality["explanation"],
+        quality["validation_note"],
+        "",
+    ]
+    model_status = (report.get("methodology") or {}).get("model", {}).get("status")
+    if model_status in {"complete", "coverage_limited"}:
+        lines += ["AI was used to review the available evidence.", ""]
     lines += ["## Executive summary", "", _cited(report["executive_summary"]), ""]
     adequacy = report.get("answer_adequacy") or {}
     if adequacy:
         lines += [
             "## Answer adequacy",
             "",
-            f"**Decision:** {_label(str(adequacy.get('status') or 'unknown'))}.  ",
-            str(adequacy.get("decision") or "No adequacy decision was recorded."),
+            f"**Decision:** {quality['label']}.  ",
+            quality["explanation"],
             "",
         ]
         if adequacy.get("missing_requirements"):
@@ -672,6 +712,10 @@ def render_review_markdown(report: dict[str, Any]) -> str:
             ]
     if not cards:
         lines += ["No question-specific study cards were recorded.", ""]
+    if report.get("data_analysis"):
+        from sci_search.data_research.reporting import markdown_appendix
+
+        lines.append(markdown_appendix(report["data_analysis"]))
     return "\n".join(lines).strip() + "\n"
 
 

@@ -1,0 +1,397 @@
+{
+  "version": 1,
+  "reference_status": "AI-authored silver reference, fixed before testing",
+  "scoring": "Automated role-specific concept checks allow listed synonyms. All outputs also reviewed blind against question meaning; equivalent phrasing must not be treated as a scientific error. Bare word matches are diagnostic, not a definitive semantic score.",
+  "notes": [
+    "The app cannot represent an RCT-only filter; it must request clarification rather than silently broaden.",
+    "A cause/effect question requests investigation; it does not establish causality.",
+    "The higher/lower risk pair must preserve identical neutral outcome/exposure filters.",
+    "Measurements may be embedded in the subject; blind review can accept faithful equivalent structures even when automatic field check flags them."
+  ],
+  "cases": [
+    {
+      "id": "language",
+      "question": "The role of social and biophysical factors in the evolution of linguistic diversity in South America",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "influence"
+        ],
+        "geography_terms": [
+          [
+            "South America"
+          ]
+        ],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "linguistic diversity",
+            "language diversity"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "social"
+          ],
+          [
+            "biophysical"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "green_risk",
+      "question": "Is neighborhood green space associated with a lower risk of type 2 diabetes?",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "association"
+        ],
+        "geography_terms": [],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [
+          [
+            "risk",
+            "incidence"
+          ]
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "type 2 diabetes",
+            "type ii diabetes"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "green space",
+            "greenspace"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "green_scoped",
+      "question": "Is neighborhood green space associated with type 2 diabetes in adults in Europe between 2010 and 2020?",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "association"
+        ],
+        "geography_terms": [
+          [
+            "Europe",
+            "European"
+          ]
+        ],
+        "population_terms": [
+          [
+            "adults",
+            "adult"
+          ]
+        ],
+        "time_terms": [
+          [
+            "2010"
+          ],
+          [
+            "2020"
+          ]
+        ],
+        "outcome_measure_terms": [],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "type 2 diabetes",
+            "type ii diabetes"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "green space",
+            "greenspace"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "green_opposite",
+      "question": "Is neighborhood green space associated with a higher risk of type 2 diabetes?",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "association"
+        ],
+        "geography_terms": [],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [
+          [
+            "risk",
+            "incidence"
+          ]
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "type 2 diabetes",
+            "type ii diabetes"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "green space",
+            "greenspace"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "salinity",
+      "question": "How does salinity affect tomato germination?",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "influence"
+        ],
+        "geography_terms": [],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "tomato germination",
+            "germination"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "salinity",
+            "salt"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "biochar",
+      "question": "How does biochar application affect crop yield, and why do results differ between studies?",
+      "expected": {
+        "intent": [
+          "relationship"
+        ],
+        "relationship_type": [
+          "influence"
+        ],
+        "geography_terms": [],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [
+          [
+            "yield"
+          ]
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "crop yield",
+            "yield"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "biochar"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "comparison",
+      "question": "How do lithium-ion and iron-air batteries compare in round-trip efficiency?",
+      "expected": {
+        "intent": [
+          "comparison"
+        ],
+        "relationship_type": [
+          "unspecified"
+        ],
+        "geography_terms": [],
+        "population_terms": [],
+        "time_terms": [],
+        "outcome_measure_terms": [
+          [
+            "round trip efficiency",
+            "efficiency"
+          ]
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "lithium ion"
+          ],
+          [
+            "iron air"
+          ]
+        ],
+        "driver_terms": []
+      }
+    },
+    {
+      "id": "trend",
+      "question": "How has glacier mass in Greenland changed between 2000 and 2020?",
+      "expected": {
+        "intent": [
+          "temporal_trend"
+        ],
+        "relationship_type": [
+          "unspecified"
+        ],
+        "geography_terms": [
+          [
+            "Greenland"
+          ]
+        ],
+        "population_terms": [],
+        "time_terms": [
+          [
+            "2000"
+          ],
+          [
+            "2020"
+          ]
+        ],
+        "outcome_measure_terms": [
+          [
+            "mass"
+          ]
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ],
+        "subject_terms": [
+          [
+            "glacier mass",
+            "glaciers",
+            "ice mass",
+            "ice sheet"
+          ]
+        ],
+        "driver_terms": []
+      }
+    },
+    {
+      "id": "ambiguous",
+      "question": "Does it help?",
+      "expected": {
+        "ambiguity": [
+          "material"
+        ]
+      }
+    },
+    {
+      "id": "rct_only",
+      "question": "Using randomized controlled trials only, does neighborhood green space reduce the risk of type 2 diabetes?",
+      "expected": {
+        "ambiguity": [
+          "material"
+        ],
+        "subject_terms": [
+          [
+            "type 2 diabetes",
+            "type ii diabetes"
+          ]
+        ],
+        "driver_terms": [
+          [
+            "green space",
+            "greenspace"
+          ]
+        ],
+        "outcome_measure_terms": [
+          [
+            "risk",
+            "incidence"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "hydrogen_background_benefit",
+      "question": "Off-grid hydrogen supply from solar or wind sources to hydrogen-based steelmaking can reduce CO₂ emissions. However, the techno-economic feasibility of different supply chain configurations remains uncertain.",
+      "expected": {
+        "intent": [
+          "comparison"
+        ],
+        "relationship_type": [
+          "unspecified"
+        ],
+        "outcome_measure_terms": [
+          [
+            "techno-economic feasibility",
+            "technoeconomic feasibility"
+          ]
+        ],
+        "driver_terms": [],
+        "geography_terms": [],
+        "exclusion_terms": [],
+        "ambiguity": [
+          "clear",
+          "minor"
+        ]
+      },
+      "review_notes": "CO2 reduction is background motivation, not an additional requested outcome. Reject briefs that invent an emissions comparison or require emissions measurements."
+    }
+  ]
+}

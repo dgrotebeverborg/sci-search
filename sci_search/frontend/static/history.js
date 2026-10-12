@@ -1,4 +1,4 @@
-import {request, setStatus} from './api.js';
+import {request, setStatus, currentUserId} from './api.js';
 import {currentProject, onProjectChange, loadProjects} from './projects.js';
 import {renderDashboard, element} from './dashboard.js';
 import {selectRun, clearRun} from './runs.js';
@@ -86,6 +86,15 @@ export async function openDashboard(projectId, runId, revision = null, {navigate
     } else setStatus(error.message, 'error');
   }
 }
+function hiddenHistoryKey(projectId) {
+  return `sci-search:hidden-history:${JSON.stringify([currentUserId(), projectId])}`;
+}
+function hiddenRuns(projectId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(hiddenHistoryKey(projectId)) || '[]');
+    return new Set(Array.isArray(value) ? value.filter(id => typeof id === 'string') : []);
+  } catch { return new Set(); }
+}
 export async function loadHistory(projectId, {query = '', cursor: next = null} = {}) {
   const token = ++historyGeneration;
   historyProject = projectId;
@@ -95,15 +104,33 @@ export async function loadHistory(projectId, {query = '', cursor: next = null} =
   try {
     const data = await request(`/api/v1/projects/${encodeURIComponent(projectId)}/runs?${params}`);
     if (token !== historyGeneration || currentProject()?.id !== projectId) return;
+    const hidden = hiddenRuns(projectId);
+    const showHidden = document.getElementById('history-show-hidden').checked;
     for (const run of data.items || []) {
+      if (hidden.has(run.id) && !showHidden) continue;
       const item = element('li');
       const link = element('a', run.question); link.dataset.runId = run.id;
       link.href = `/app?${new URLSearchParams({project: projectId, run: run.id})}`;
       link.onclick = event => { if (event.ctrlKey || event.metaKey || event.shiftKey) return; event.preventDefault(); selectRun(run); openDashboard(projectId, run.id); };
-      item.append(link, element('span', (run.status || 'saved').replaceAll('_', ' '), 'history-status')); list.append(item);
+      const hide = element('button', hidden.has(run.id) ? 'Restore' : 'Hide', 'history-hide button button-quiet');
+      hide.type = 'button';
+      hide.setAttribute('aria-label', `${hidden.has(run.id) ? 'Restore' : 'Hide'} search: ${run.question}`);
+      hide.title = 'Changes history visibility in this browser. Research data and project memory are kept.';
+      hide.onclick = () => {
+        const updated = hiddenRuns(projectId);
+        const wasHidden = updated.has(run.id);
+        if (wasHidden) updated.delete(run.id); else updated.add(run.id);
+        try { localStorage.setItem(hiddenHistoryKey(projectId), JSON.stringify([...updated])); }
+        catch { setStatus('This browser could not save your history preference.', 'error'); return; }
+        if (!wasHidden && selectedRun === run.id) beginNewSearch(projectId);
+        setStatus(wasHidden ? 'Search restored to history.' : 'Search hidden in this browser. Use Show hidden searches to restore it. Research data is kept.');
+        refreshHistory();
+      };
+      item.append(link, element('span', `${(run.status || 'saved').replaceAll('_', ' ')}${hidden.has(run.id) ? ' · hidden' : ''}`, 'history-status'), hide); list.append(item);
     }
     cursor = data.next_cursor; document.getElementById('history-more').hidden = !cursor;
     document.getElementById('history-empty').hidden = Boolean(list.children.length);
+    document.getElementById('history-empty').textContent = hidden.size ? 'No visible searches on this page. Show hidden searches or load more.' : 'Saved research will appear here.';
   } catch (error) {
     if (token !== historyGeneration) return;
     document.getElementById('history-empty').textContent = error.status === 404 ? 'Saved research will appear here.' : `History unavailable: ${error.message}`;
@@ -124,6 +151,7 @@ export function initializeHistory() {
       openDashboard(project.id, runId, url.searchParams.has('revision') ? Number(url.searchParams.get('revision')) : null, {navigate: false});
     } else if (historyProject && url.searchParams.has('project')) updateUrl(project.id, null, null);
   });
+  document.getElementById('history-show-hidden').onchange = () => refreshHistory();
   let searchTimer;
   document.getElementById('history-search').oninput = event => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { if (currentProject()) loadHistory(currentProject().id, {query: event.target.value}); }, 200); };
   document.getElementById('history-more').onclick = () => loadHistory(currentProject().id, {query: document.getElementById('history-search').value, cursor});

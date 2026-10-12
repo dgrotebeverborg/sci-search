@@ -31,6 +31,14 @@ class QuestionInterpretationTests(unittest.TestCase):
                                 "evidence_scope": ["field experiments", "observational studies"],
                                 "assumptions": ["Foraging includes diet selection and movement."],
                                 "exclusions": ["Studies without goats."],
+                                "research_plan": {
+                                    "intent": "relationship",
+                                    "subject_terms": ["goat foraging behaviour"],
+                                    "driver_terms": ["vegetation structure"],
+                                    "geography_terms": [],
+                                    "evidence_preferences": [],
+                                    "exclusion_terms": [],
+                                },
                                 "ambiguity": "minor",
                                 "clarification_question": "Should diet selection or movement receive priority?",
                             }

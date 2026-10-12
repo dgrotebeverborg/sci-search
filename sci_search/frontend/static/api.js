@@ -1,4 +1,7 @@
 let csrfToken = null;
+export const providerLabel = provider => ({openai: 'OpenAI', mistral: 'Mistral', codex: 'Codex (ChatGPT login)'})[provider] || provider;
+let sessionUserId = null;
+export function currentUserId() { return sessionUserId; }
 let signingOut = false;
 const pendingRequests = new Set();
 
@@ -20,6 +23,7 @@ export class ApiError extends Error {
 export async function initializeSession() {
   const session = await request('/api/v1/session');
   csrfToken = session.csrf_token;
+  sessionUserId = session.user_id;
   return session;
 }
 

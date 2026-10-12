@@ -1,4 +1,4 @@
-import {request, setStatus} from './api.js';
+import {request, setStatus, providerLabel} from './api.js';
 import {currentProject, onProjectChange} from './projects.js';
 import {openDashboard, refreshHistory, clearDashboard, beginNewSearch} from './history.js';
 import {loadEvidence} from './evidence.js';
@@ -11,8 +11,56 @@ let questionBrief = null;
 let interpretationVersion = 0;
 let modelsLoaded = false;
 let modelLoadVersion = 0;
+let activityTimer = null;
+const activeStatuses = ['queued', 'running', 'cancel_requested'];
+const stageLabels = {queued: 'Waiting for a research worker', planning: 'Preparing the research', discovering: 'Finding sources', screening: 'Checking relevance', acquiring: 'Collecting and processing sources', coverage_search: 'Looking for missing evidence', analyzing: 'Analysing the evidence', complete: 'Research finished', failed: 'Research stopped', cancelled: 'Research cancelled'};
+const counterLabels = {queries_planned: 'Search queries', records_retrieved: 'Search results', unique_candidates: 'Publications found', selected_candidates: 'Publications selected', full_texts_acquired: 'Full texts acquired', full_texts_included: 'Studies included', acquisition_attempts: 'Download attempts'};
+function approvalStatus(message, kind = 'info') {
+  const target = document.getElementById('approval-status');
+  target.textContent = message;
+  target.classList.toggle('error', kind === 'error');
+}
+function duration(milliseconds) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+function updateActivityTiming() {
+  if (!activeRun) return;
+  const progress = activeRun.progress || {};
+  const started = Date.parse(progress.started_at || activeRun.created_at);
+  const now = activeStatuses.includes(activeRun.status) ? Date.now() : Date.parse(activeRun.updated_at) || Date.now();
+  const updated = Date.parse(progress.updated_at);
+  let text = Number.isFinite(started) ? `Elapsed: ${duration(now - started)}.` : '';
+  if (Number.isFinite(updated) && activeStatuses.includes(activeRun.status)) {
+    text += ` Last activity update ${duration(Date.now() - updated)} ago.`;
+    if (Date.now() - updated > 30000) text += ' Waiting for the current operation to report its outcome.';
+  }
+  document.getElementById('run-timing').textContent = text;
+}
+function renderActivity(run) {
+  const progress = run.progress || {};
+  document.getElementById('run-stage').textContent = stageLabels[progress.stage] || '';
+  const activity = document.getElementById('run-activity');
+  activity.replaceChildren();
+  for (const event of (progress.events || []).slice(-12).reverse()) {
+    const row = document.createElement('li');
+    const time = new Date(event.at);
+    row.textContent = `${Number.isNaN(time.getTime()) ? '' : time.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}) + ' · '}${event.message}`;
+    activity.append(row);
+  }
+  document.getElementById('run-activity-details').hidden = !activity.children.length;
+  const counters = document.getElementById('run-counters'); counters.replaceChildren();
+  for (const [key, label] of Object.entries(counterLabels)) {
+    if (typeof progress.counters?.[key] !== 'number') continue;
+    const item = document.createElement('span'); item.textContent = `${label}: ${progress.counters[key]}`;
+    counters.append(item);
+  }
+  updateActivityTiming();
+  clearInterval(activityTimer);
+  if (activeStatuses.includes(run.status)) activityTimer = setInterval(updateActivityTiming, 1000);
+}
 
-const modelLabel = choice => choice ? `${choice.provider === 'openai' ? 'OpenAI' : 'Mistral'} · ${choice.model}` : 'Not recorded';
+const modelLabel = choice => choice ? `${providerLabel(choice.provider)} · ${choice.model}` : 'Not recorded';
 function selectedModel() {
   const value = document.getElementById('analysis-model').value;
   return value ? JSON.parse(value) : null;
@@ -41,8 +89,9 @@ async function loadModels(project) {
       option.disabled = !item.available;
       select.append(option);
     }
-    const candidates = [previous, JSON.stringify(catalog.default), ...available.map(item => JSON.stringify({provider: item.provider, model: item.model})), ''];
-    select.value = candidates.find(value => [...select.options].some(option => option.value === value && !option.disabled)) ?? '';
+    const preferredCodex = catalog.default.provider === 'codex' ? [JSON.stringify(catalog.default)] : [];
+    const candidates = [previous, ...preferredCodex, JSON.stringify({provider: 'openai', model: 'gpt-6-sol'}), JSON.stringify(catalog.default), ...available.map(item => JSON.stringify({provider: item.provider, model: item.model})), ''];
+    select.value = candidates.find(value => [...select.options].some(option => option.value === value && (!option.disabled || (value && JSON.parse(value).provider === 'codex')))) ?? '';
     document.getElementById('analysis-model-help').textContent = available.length
       ? 'Used for question interpretation and research analysis. Your choice is saved with this review.'
       : 'No AI provider is configured. Research will use extractive analysis.';
@@ -67,7 +116,10 @@ export function currentRun() { return activeRun; }
 export function clearRun() {
   clearBrief();
   clearTimeout(pollTimer);
+  clearInterval(activityTimer);
   activeRun = null;
+  document.getElementById('research').hidden = false;
+  document.getElementById('run-connection').textContent = '';
   document.getElementById('run-panel').hidden = true;
   document.getElementById('research-question').value = '';
   loadEvidence(null); loadValidation(null); loadExports(null);
@@ -76,7 +128,12 @@ export function clearRun() {
 export function configureRunPermissions(project) {
   const allowed = !document.getElementById('workspace-preview-notice') &&
     Boolean(project && ['owner', 'editor'].includes(project.role));
-  document.querySelector('#question-form button[type="submit"]').disabled = !allowed || !modelsLoaded;
+  const model = document.getElementById('analysis-model');
+  const unavailable = Boolean(model.selectedOptions[0]?.disabled);
+  document.querySelector('#question-form button[type="submit"]').disabled = !allowed || !modelsLoaded || unavailable;
+  if (modelsLoaded && unavailable && selectedModel()?.provider === 'codex') {
+    document.getElementById('analysis-model-help').textContent = 'Codex is unavailable. Sign in with ChatGPT using codex login, then refresh, or explicitly choose another provider.';
+  }
   document.getElementById('analysis-model').disabled = !allowed || !modelsLoaded;
   document.getElementById('research-question').disabled = !allowed;
   document.getElementById('review-depth').disabled = !allowed;
@@ -86,6 +143,11 @@ function renderRun(run, loadDashboard = true) {
   const previousStatus = activeRun?.status;
   const previousId = activeRun?.id;
   activeRun = run;
+  document.getElementById('research').hidden = true;
+  if (run.status !== 'completed') {
+    document.body.classList.remove('dashboard-open', 'compose-open');
+    document.getElementById('dashboard-panel').hidden = true;
+  }
   if (run.id !== previousId || run.status !== previousStatus) {
     if (run.status !== 'completed') {
       loadEvidence(null);
@@ -106,15 +168,16 @@ function renderRun(run, loadDashboard = true) {
   document.getElementById('run-panel').hidden = false;
   document.getElementById('run-question').textContent = run.question;
   document.getElementById('run-model').textContent = `Selected model: ${modelLabel(run.analysis_selection)}`;
-  document.getElementById('run-status').textContent = run.status.replaceAll('_', ' ');
-  document.getElementById('run-progress').textContent = {
+  document.getElementById('run-status').textContent = run.status === 'completed' ? 'Processing complete' : run.status.replaceAll('_', ' ');
+  document.getElementById('run-progress').textContent = (run.status === 'running' && run.progress?.message) || {
     queued: 'The review is queued for analysis.',
     running: 'Sci-Search is discovering, acquiring, and analyzing evidence.',
-    completed: 'The review is complete. Inspect the evidence and download the research package.',
+    completed: 'Processing is complete. Check the evidence assessment to see whether the findings answer your question.',
     failed: 'The review stopped after an error. You can retry it safely.',
     cancel_requested: 'Cancellation requested. The worker will stop at the next safe checkpoint.',
     cancelled: 'The review was cancelled.',
   }[run.status] || `Review status: ${run.status}`;
+  renderActivity(run);
   document.getElementById('cancel-run').hidden = !['queued', 'running'].includes(run.status);
   document.getElementById('retry-run').hidden = run.status !== 'failed';
 }
@@ -123,15 +186,22 @@ async function pollRun(delay = 1500) {
   if (!activeRun || !['queued', 'running', 'cancel_requested'].includes(activeRun.status)) return;
   clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
+    const project = currentProject();
+    const runId = activeRun?.id;
+    if (!project || !runId) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const project = currentProject();
-      if (!project) return;
-      const runId = activeRun.id;
-      const run = await request(`/api/v1/projects/${project.id}/runs/${runId}`);
+      const run = await request(`/api/v1/projects/${project.id}/runs/${runId}`, {signal: controller.signal});
       if (currentProject()?.id !== project.id || activeRun?.id !== runId) return;
       renderRun(run);
-      pollRun(Math.min(delay * 1.5, 10000));
-    } catch (error) { setStatus(error.message, 'error'); }
+      document.getElementById('run-connection').textContent = 'Status connection active.';
+      pollRun(2500);
+    } catch (error) {
+      if (currentProject()?.id !== project.id || activeRun?.id !== runId) return;
+      document.getElementById('run-connection').textContent = 'The latest status could not be retrieved. Retrying automatically; the research may still be running.';
+      pollRun(5000);
+    } finally { clearTimeout(timeout); }
   }, delay);
 }
 
@@ -144,17 +214,15 @@ export function selectRun(run, {loadDashboard = false} = {}) {
 export async function startRun(question, reviewDepth, brief = null) {
   const project = currentProject();
   if (!project) throw new Error('Create or select a project first');
-  document.body.classList.remove('compose-open');
-  clearDashboard();
-  loadEvidence(null);
-  loadExports(null);
-  loadValidation(null);
   const run = await request(`/api/v1/projects/${project.id}/runs`, {
     method: 'POST',
     body: {question, question_brief: brief, review_depth: reviewDepth, analysis_selection: selectedModel(), idempotency_key: crypto.randomUUID()},
   });
   if (currentProject()?.id !== project.id) return;
+  clearDashboard();
   renderRun(run);
+  document.getElementById('run-panel').scrollIntoView({block: 'start', behavior: 'smooth'});
+  document.getElementById('run-panel').focus({preventScroll: true});
   refreshHistory();
   setStatus(document.getElementById('local-research-notice')
     ? 'Review started. Your search is saved; real research can take several minutes.'
@@ -163,23 +231,31 @@ export async function startRun(question, reviewDepth, brief = null) {
 }
 
 export function initializeRuns() {
-  document.getElementById('new-search').onclick = () => {
+  const newSearch = () => {
     const project = currentProject();
     if (!project) return;
     beginNewSearch(project.id);
     document.getElementById('research').scrollIntoView({block: 'start'});
     document.getElementById('research-question').focus();
   };
-  window.addEventListener('workspace-logout', () => { clearBrief(); clearTimeout(pollTimer); activeRun = null; });
+  document.getElementById('new-search').onclick = newSearch;
+  document.getElementById('run-new-search').onclick = newSearch;
+  window.addEventListener('workspace-logout', clearRun);
   onProjectChange((project) => {
     clearBrief();
     loadModels(project);
     clearTimeout(pollTimer);
+    clearInterval(activityTimer);
     activeRun = null;
+    document.getElementById('research').hidden = false;
     document.getElementById('run-panel').hidden = true;
   });
   document.getElementById('research-question').addEventListener('input', clearBrief);
-  document.getElementById('analysis-model').addEventListener('change', clearBrief);
+  document.getElementById('analysis-model').addEventListener('change', () => {
+    clearBrief();
+    document.getElementById('analysis-model-help').textContent = 'Used for question interpretation and research analysis. Your choice is saved with this review.';
+    configureRunPermissions(currentProject());
+  });
   document.getElementById('question-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
@@ -200,8 +276,70 @@ export function initializeRuns() {
         : 'Automatic research brief — AI interpretation is unavailable; check the scope before approving.';
       const details = document.getElementById('brief-details');
       details.replaceChildren();
-      for (const [label, values] of [
-        ['Evidence scope', brief.evidence_scope], ['Assumptions', brief.assumptions],
+      if (brief.data_research?.adapter === 'discovered_data_v1') {
+        const scope = brief.data_research;
+        const controls = document.createElement('div'); controls.className = 'data-plan-controls';
+        const field = document.createElement('label'); field.textContent = 'Research approach';
+        const select = document.createElement('select'); select.setAttribute('aria-label', 'Research approach');
+        for (const [value, text] of [['data', 'Find and analyse datasets'], ['both', 'Datasets and literature'], ['literature', 'Literature review']]) select.append(new Option(text, value));
+        if (!scope.measurements.length) { for (const option of select.options) if (option.value !== 'literature') option.disabled = true; }
+        select.value = scope.route; select.onchange = () => { scope.route = select.value; };
+        field.append(select); controls.append(field);
+        const rationale = document.createElement('p'); rationale.textContent = scope.rationale; controls.append(rationale);
+        for (const [label, value] of [['Requested measurements', scope.measurements.join(', ') || 'None specified'], ['Geography', scope.geography || 'Not restricted'], ['Search period', !scope.start_year && !scope.end_year ? 'Longest comparable historical series (no dates specified)' : [scope.start_year || 'earliest comparable year', scope.end_year || 'latest available year'].join('–')]]) {
+          const item = document.createElement('p'); item.textContent = label + ': ' + value; controls.append(item);
+        }
+        const note = document.createElement('p');
+        const updateApproachNote = () => { note.textContent = scope.route === 'literature'
+          ? 'After approval, the app searches publications, checks relevance and available full texts, and reports supported findings and evidence gaps.'
+          : 'After approval, the app searches for datasets, checks definitions and coverage, and calculates from downloaded files. It shows sources it cannot use and any unanswered parts. AI plans and assesses sources; calculations use recorded data.'; };
+        select.onchange = () => { scope.route = select.value; updateApproachNote(); };
+        updateApproachNote();
+        controls.append(note); details.append(controls);
+      } else if (brief.data_research) {
+        document.getElementById('brief-method').textContent = 'Suggested approach: analyse official data. Calculations use a verified source adapter, not model-generated numbers.';
+        const scope = brief.data_research;
+        const controls = document.createElement('div'); controls.className = 'data-plan-controls';
+        for (const [key, label, choices] of [
+          ['route', 'Research approach', [['data', 'Data analysis — EFFIS pilot'], ['literature', 'Literature review']]],
+          ['geography', 'Country scope', [['europe', 'Broader Europe — listed country set, including Türkiye and Cyprus'], ['eu27', 'EU-27 — fixed membership']]],
+        ]) {
+          const field = document.createElement('label'); field.textContent = label;
+          const select = document.createElement('select'); select.setAttribute('aria-label', label);
+          for (const [value, text] of choices) select.append(new Option(text, value));
+          select.value = scope[key]; select.onchange = () => { scope[key] = select.value; };
+          field.append(select); controls.append(field);
+        }
+        for (const [key, label] of [['start_year', 'First year'], ['end_year', 'Last year']]) {
+          const field = document.createElement('label'); field.textContent = label;
+          const input = document.createElement('input'); input.type = 'number'; input.min = '1980'; input.max = String(new Date().getFullYear()); input.required = true; input.value = scope[key]; input.setAttribute('aria-label', label);
+          input.oninput = () => { scope[key] = Number(input.value); document.getElementById('approve-question').disabled = ![...controls.querySelectorAll('input')].every(i => i.checkValidity()) || scope.start_year > scope.end_year; };
+          field.append(input); controls.append(field);
+        }
+        const note = document.createElement('p'); note.textContent = 'Measures: nationally reported forest-fire counts and burned area in km². This source edition ends in 2024. Missing years and country coverage will be shown; no causal explanation is inferred.';
+        controls.append(note); details.append(controls);
+      }
+      const plan = brief.research_plan;
+      const relationship = plan?.intent === 'relationship';
+      const unresolvedRoles = relationship && (!plan.subject_terms?.length || !plan.driver_terms?.length);
+      const needsClarification = brief.ambiguity === 'material' || unresolvedRoles;
+      const outcomes = plan?.outcome_measure_terms?.length
+        ? [`${plan.subject_terms.join(', ')} (${plan.outcome_measure_terms.join(', ')})`]
+        : plan?.subject_terms;
+      const specified = values => values == null ? ['Not resolved automatically — check your question']
+        : values.length ? values : ['Not specified — no restriction'];
+      if (!brief.data_research || brief.data_research.route === 'literature') for (const [label, values] of [
+        ['Factor being studied', relationship ? (plan.driver_terms?.length ? plan.driver_terms : ['Not identified — clarify the question']) : []],
+        [relationship ? 'Outcome being studied' : plan?.intent === 'comparison' ? 'What is being compared' : 'Topic being studied', outcomes],
+        ['Relationship to investigate', relationship ? [plan.relationship_type === 'association'
+          ? 'Whether the factor and outcome are associated. An association alone does not establish cause and effect.'
+          : 'How the proposed factors relate to the outcome; their effects are not assumed.'] : []],
+        ['People or study subjects', specified(plan?.population_terms)],
+        ['Location', specified(plan?.geography_terms)],
+        ['Time period', specified(plan?.time_terms)],
+        ['Automatic evidence filters', brief.research_plan?.evidence_preferences?.map(value => value.replaceAll('_', ' '))],
+        ['Excluded terms used in screening', brief.research_plan?.exclusion_terms],
+        ['Evidence to look for', brief.evidence_scope], ['Assumptions to check', brief.assumptions],
         ['Exclusions', brief.exclusions], ['Clarification', brief.clarification_question ? [brief.clarification_question] : []],
       ]) {
         if (!values?.length) continue;
@@ -210,21 +348,31 @@ export function initializeRuns() {
         for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); }
         details.append(heading, list);
       }
-      document.getElementById('approve-question').disabled = false;
+      document.getElementById('approve-question').disabled = needsClarification;
+      approvalStatus(needsClarification
+        ? (brief.clarification_question || 'Identify both the factor and the outcome in your question, then review it again.')
+        : 'Ready to start. Approve this interpretation to begin the research.', needsClarification ? 'error' : 'info');
       document.getElementById('question-brief').hidden = false;
-      setStatus('Review the interpretation below. Research starts only when you approve.');
+      setStatus(needsClarification
+        ? 'Clarify the question above and review it again before starting.'
+        : 'Review the interpretation below. Research starts only when you approve.');
     } catch (error) { setStatus(error.message, 'error'); }
   });
   document.getElementById('approve-question').addEventListener('click', async () => {
-    if (!questionBrief) return;
+    if (!questionBrief) {
+      approvalStatus('The interpretation has expired. Click Review question again before starting.', 'error');
+      return;
+    }
     const button = document.getElementById('approve-question');
     button.disabled = true;
+    button.textContent = 'Starting research…';
+    approvalStatus('Submitting your research. Waiting for the server to confirm the start…');
     const brief = questionBrief;
     try {
       await startRun(brief.original_question, document.getElementById('review-depth').value, brief);
       if (questionBrief === brief) clearBrief();
-    } catch (error) { setStatus(error.message, 'error'); }
-    finally { button.disabled = false; }
+    } catch (error) { approvalStatus(error.message, 'error'); setStatus(error.message, 'error'); }
+    finally { button.disabled = false; button.textContent = 'Approve and start review'; }
   });
   document.getElementById('cancel-run').addEventListener('click', async () => {
     const project = currentProject();

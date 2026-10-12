@@ -15,7 +15,15 @@ def test_local_research_completes_and_exports_real_pipeline_output(monkeypatch, 
     release = Event()
 
     class Manager:
+        def set_progress_callback(self, callback):
+            self.progress_callback = callback
+
         def run_sync(self, question, *, limits):
+            self.progress_callback({
+                "stage": "acquiring", "message": "Inspecting the downloaded workbook",
+                "started_at": "2026-10-09T10:00:00Z", "updated_at": "2026-10-09T10:00:01Z",
+                "counters": {}, "events": [{"at": "2026-10-09T10:00:01Z", "message": "Inspecting the downloaded workbook"}],
+            })
             calls.append(question)
             assert release.wait(5)
             return {
@@ -56,6 +64,13 @@ def test_local_research_completes_and_exports_real_pipeline_output(monkeypatch, 
         assert first.status_code == 201
         run_id = first.json()["id"]
         assert client.post(url + "/runs", json=body, headers=headers).json()["id"] == run_id
+        for _ in range(100):
+            running = client.get(url + "/runs/" + run_id).json()
+            if running.get("progress"):
+                break
+            time.sleep(0.02)
+        assert running["progress"]["message"] == "Inspecting the downloaded workbook"
+        assert client.get(f"/api/v1/projects/missing/runs/{run_id}").status_code == 404
         release.set()
         for _ in range(100):
             run = client.get(url + "/runs/" + run_id).json()
@@ -174,3 +189,85 @@ def test_starting_another_question_hides_previous_results(monkeypatch, tmp_path)
         assert service.list_exports("user", "p") == []
     finally:
         service.close()
+
+
+def test_cooperative_cancel_releases_worker_for_queued_run(monkeypatch, tmp_path):
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from sci_search.application.projects import (
+        InMemoryProjectRepository,
+        Membership,
+        Project,
+        ProjectRole,
+        Workspace,
+    )
+    from sci_search.infrastructure import local_research
+    from sci_search.research_runs import ResearchRunManager
+
+    now = datetime.now(UTC)
+    projects = InMemoryProjectRepository()
+    projects.add_workspace(Workspace("w", "Workspace", "user", True, now))
+    projects.add_project(Project("p", "w", "Project", "user", True, now))
+    projects.add_membership(Membership("m", "user", ProjectRole.OWNER, True, now, project_id="p"))
+    started = [Event(), Event()]
+    release = [Event(), Event()]
+    calls = [0, 0]
+    managers = []
+
+    class Provider:
+        name = "test"
+
+        def __init__(self, index):
+            self.index = index
+
+        def search(self, query, *, limit):
+            calls[self.index] += 1
+            started[self.index].set()
+            assert release[self.index].wait(5)
+            return ()
+
+    def manager(root):
+        result = ResearchRunManager(
+            root, providers=(Provider(len(managers)),), openalex_api_key="test"
+        )
+        managers.append(result)
+        return result
+
+    monkeypatch.setattr(local_research, "_manager", manager)
+    service = local_research.LocalResearchService(
+        projects, root=tmp_path, clock=lambda: datetime.now(UTC), id_source=lambda: str(uuid4())
+    )
+    monkeypatch.setattr(service, "_attach_memory", lambda *args: None)
+    question = "How does rainfall affect crop yield?"
+    try:
+        first = service.start_run(
+            "user",
+            "p",
+            question=question,
+            review_depth="focused",
+            question_brief={"original_question": question},
+            idempotency_key="first",
+        )
+        assert started[0].wait(5)
+        second = service.start_run(
+            "user",
+            "p",
+            question=question,
+            review_depth="focused",
+            question_brief={"original_question": question},
+            idempotency_key="second",
+        )
+        service.cancel_run("user", "p", first.id)
+        release[0].set()
+        assert started[1].wait(5)
+        assert service.get_run("user", "p", first.id).status == "cancelled"
+        service.cancel_run("user", "p", second.id)
+        release[1].set()
+    finally:
+        for event in release:
+            event.set()
+        service.close()
+    assert calls == [1, 1]
+    assert service.get_run("user", "p", second.id).status == "cancelled"
+    assert service.list_exports("user", "p") == []

@@ -1,6 +1,8 @@
+import {providerLabel} from './api.js';
+import {renderDataResearch} from './data_research.js';
 import {request} from './api.js';
 import {articleControls} from './article_feedback.js';
-import {renderLandscape} from './landscape.js';
+import {renderLandscape, renderCoverageNotice} from './landscape.js';
 
 export function element(tag, text = '', className = '') {
   const node = document.createElement(tag);
@@ -181,11 +183,24 @@ function reviewBlock(data, parent) {
   parent.append(expandable('Review coverage and quality notes', {review_type: data.review_type, corpus_overview: data.corpus_overview, quality: data.quality}));
   if (data.appendices) parent.append(expandable('Search queries and rejected model records', {search_queries: data.appendices.search_queries, rejected_model_records: data.appendices.rejected_model_records}));
 }
+function evidenceQuality(snapshot) {
+  return snapshot.result_quality || {
+    label: 'Evidence adequacy not recorded',
+    explanation: 'Evidence adequacy was not recorded for this saved result.',
+    validation_note: 'Source traceability and automated checks do not constitute expert scientific validation.',
+  };
+}
 function overview(snapshot, root) {
   const blocks = Object.fromEntries((snapshot.blocks || []).map(block => [block.id, block.data]));
+  if (blocks.answer?.data_analysis) {
+    const d = blocks.answer.data_analysis;
+    const stats = element('p', d.kind === 'discovered' ? `${d.analyses.length} datasets analysed · ${d.status === 'blocked' ? 'Numerical answer unavailable' : 'Inspect coverage and source decisions'}` : `${d.available_years.length} available years · ${d.panel_countries.length} countries in fixed panel · Official country-reported data`, 'dashboard-overview data-overview section-intro');
+    root.append(stats);
+    if (d.strategy?.route !== 'both' && d.literature_status !== 'complete') return;
+  }
   const paperCount = blocks.studies?.studies?.length ?? blocks.landscape?.coverage?.records ?? 0;
   const stats = element('div', '', 'dashboard-overview'); stats.setAttribute('aria-label', 'Research overview');
-  for (const [value, title, note] of [[paperCount, 'Studies discovered', 'The literature in this search'], [(blocks.evidence || []).length, 'Evidence passages', 'Retained with source provenance'], [(blocks.references || []).length, 'Listed publications', 'Sources retained with this review'], [label(blocks.answer?.answer_adequacy?.status || 'Not assessed'), 'Evidence coverage', 'Adequacy for this question']]) {
+  for (const [value, title, note] of [[paperCount, 'Studies discovered', 'The literature in this search'], [(blocks.evidence || []).length, 'Evidence passages', 'Retained with source provenance'], [(blocks.references || []).length, 'Listed publications', 'Sources retained with this review'], [evidenceQuality(snapshot).label, 'Evidence coverage', 'Adequacy for this question']]) {
     const card = element('div', '', 'dashboard-stat'); card.append(element('strong', String(value)), element('span', title), element('small', note)); stats.append(card);
   }
   root.append(stats);
@@ -265,12 +280,21 @@ export function renderDashboard(snapshot, context = {}) {
   const retained = snapshot.blocks?.find(block => block.id === 'methods')?.data?.methodology?.model || {};
   const provider = analysis.provider || retained.provider;
   const model = analysis.model || retained.name;
-  const actual = provider && model ? `${provider === 'openai' ? 'OpenAI' : provider === 'mistral' ? 'Mistral' : provider} · ${model}` : null;
+  const actual = provider && model ? `${providerLabel(provider)} · ${model}` : null;
   const method = analysis.method || retained.method;
-  const usedFallback = Boolean(analysis.fallback_reason || method === 'deterministic_extractive_fallback' || (analysis.status && !['complete', 'coverage_limited'].includes(analysis.status)) || (analysis.status === 'coverage_limited' && !actual));
+  const usedFallback = Boolean(analysis.fallback_reason || method === 'deterministic_extractive_fallback' || (analysis.status && !['complete', 'coverage_limited'].includes(analysis.status)));
   const selected = analysis.selection;
-  const fallback = usedFallback ? `Extractive analysis${selected ? ` · selected: ${selected.provider === 'openai' ? 'OpenAI' : 'Mistral'} · ${selected.model}` : ''}${analysis.fallback_reason ? ` — ${analysis.fallback_reason}` : ''}` : null;
-  document.getElementById('dashboard-model').textContent = fallback || (actual ? `Analysis model: ${actual}` : 'Analysis model: not recorded for this saved result');
+  const fallback = usedFallback ? `Extractive analysis${selected ? ` · selected: ${providerLabel(selected.provider)} · ${selected.model}` : ''}${analysis.fallback_reason ? ` — ${analysis.fallback_reason}` : ''}` : null;
+  document.getElementById('dashboard-model').textContent = fallback || (actual ? `Analysis model: ${actual}` : ['complete', 'coverage_limited'].includes(analysis.status) ? 'AI was used · model not recorded' : 'Analysis model: not recorded for this saved result');
+  const dataset = snapshot.blocks?.find(b => b.data?.data_analysis)?.data.data_analysis;
+  const combined = dataset?.strategy?.route === 'both' || dataset?.literature_status === 'complete';
+  if (dataset) {
+    const discovery = dataset.discovery;
+    document.getElementById('dashboard-model').textContent = discovery
+      ? `Source discovery and assessment: ${discovery.provider} · ${discovery.model} · Calculations from downloaded data${combined && actual ? ' · Literature: ' + actual : ''}`
+      : dataset.kind === 'discovered' ? 'Dataset discovery unavailable — see the recorded reason'
+      : 'Reproducible data calculations · no AI-generated numerical values';
+  }
   document.getElementById('download-all')?.remove();
   const artifacts = snapshot.artifacts || snapshot.blocks?.find(block => block.id === 'downloads')?.data || [];
   const bundle = artifacts.find(item => item.url && (item.content_type === 'application/zip' || /\.zip$/i.test(item.filename || '')));
@@ -287,6 +311,7 @@ export function renderDashboard(snapshot, context = {}) {
 
   const nav = document.getElementById('dashboard-navigation'); nav.replaceChildren();
   for (const [view, [title]] of Object.entries(views)) {
+    if (dataset && !combined && !['overview', 'methods'].includes(view)) continue;
     const link = element('a', title); link.href = `#dashboard-${view}`; link.dataset.view = view;
     link.onclick = event => { event.preventDefault(); showView(view); };
     nav.append(link);
@@ -294,6 +319,7 @@ export function renderDashboard(snapshot, context = {}) {
   const titles = {scope: 'Question and scope', answer: 'What the evidence tells us', literature_review: 'Literature review', findings: 'Key findings', comparisons: 'Study comparisons', landscape: 'Research landscape', studies: 'Studies and article relevance', gaps: 'Gaps and limitations', methods: 'Methods and selection', evidence: 'Source evidence', validation: 'Validation', references: 'References', downloads: 'Downloads'};
   const order = ['answer', 'scope', 'gaps', 'literature_review', 'landscape', 'findings', 'comparisons', 'studies', 'evidence', 'validation', 'methods', 'references', 'downloads'];
   for (const block of [...(snapshot.blocks || [])].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))) {
+    if (dataset && !combined && !['answer', 'scope', 'methods', 'validation', 'downloads'].includes(block.id)) continue;
     const section = element('section', '', 'panel dashboard-block');
     section.dataset.dashboardBlock = block.id;
     section.id = `dashboard-${block.id}`;
@@ -312,10 +338,30 @@ export function renderDashboard(snapshot, context = {}) {
         if (scope.dimensions?.length) section.append(dataTable(scope.dimensions, [['label', 'Scope dimension'], ['kind', 'Type'], ['required', 'Required']]));
         section.append(expandable('Full question interpretation and search plan', {research_scope: scope, plan}));
       } else if (block.id === 'answer') {
+        renderCoverageNotice(snapshot.blocks.find(item => item.id === 'landscape')?.data?.papers || [], section);
+        if (data.data_analysis) renderDataResearch(data.data_analysis, section);
+        if (data.investigation_review) {
+          const review = data.investigation_review;
+          const details = element('details'); details.open = Boolean(review.partial_findings?.length);
+          details.append(element('summary', 'Investigation review and partial evidence'));
+          details.append(element('p', review.qualification));
+          for (const finding of review.partial_findings || []) {
+            details.append(element('h3', finding.subject), element('p', finding.title),
+              element('blockquote', finding.quote), element('p', finding.qualification));
+            if (finding.doi) details.append(safeLink('Source publication', 'https://doi.org/' + finding.doi));
+          }
+          for (const step of review.steps || []) {
+            details.append(element('p', `${step.decision?.reason || 'Review attempt'} · ${step.outcome?.status || 'stopped'}`));
+          }
+          details.append(element('p', review.stop_reason)); section.append(details);
+        }
         const narrative = element('div', '', 'answer-narrative'); fields(data.executive_summary, narrative); section.append(narrative);
         const adequacy = data.answer_adequacy || {};
         if (adequacy.decision) section.append(element('p', adequacy.decision, 'adequacy-decision'));
-        if (adequacy.status) section.append(element('p', `Evidence coverage: ${label(adequacy.status)}`, 'status-badge'));
+        const quality = evidenceQuality(snapshot);
+        section.append(element('p', `Processing complete · ${quality.label}`, 'status-badge'));
+        section.append(element('p', quality.explanation, 'adequacy-decision'));
+        section.append(element('p', quality.validation_note, 'section-intro'));
         contestNote(data.answer_contest, section);
         if (adequacy.missing_requirements?.length) { section.append(element('h3', 'What is still missing')); fields(adequacy.missing_requirements, section); }
         section.append(expandable('Evidence adequacy checks', Object.fromEntries(Object.entries(adequacy).filter(([key]) => !['decision', 'status', 'missing_requirements'].includes(key)))));

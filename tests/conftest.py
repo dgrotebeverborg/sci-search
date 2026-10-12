@@ -5,6 +5,14 @@ from __future__ import annotations
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_cli_configuration(monkeypatch):
+    """CLI tests must never import the developer's live provider credentials."""
+    # Both contract tests and investigation tests invoke main(), even --help
+    # loads .env.local before parsing. Test configuration explicitly instead.
+    monkeypatch.setattr("sci_search.cli.load_env_file", lambda path: ())
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--run-retained-corpus",

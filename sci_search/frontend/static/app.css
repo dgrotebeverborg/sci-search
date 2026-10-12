@@ -111,6 +111,12 @@ h1 { max-width: 900px; margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 5rem
 .history-panel { margin: 1.5rem 0; }
 .history-panel summary { cursor: pointer; font-weight: 650; margin-bottom: 1rem; }
 #research-history { list-style: none; padding: 0; max-height: 55vh; overflow-y: auto; }
+#run-panel { scroll-margin-top: 1rem; }
+#run-progress { font-size: 1.12rem; line-height: 1.6; overflow-wrap: anywhere; }
+.run-counters { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 1rem 0; font-size: .88rem; }
+#run-activity-details { margin: 1.25rem 0; }
+#run-activity { padding-left: 1.25rem; max-height: 20rem; overflow-y: auto; }
+#run-activity li { padding: .4rem 0; line-height: 1.5; overflow-wrap: anywhere; }
 #research-history li { border-bottom: 1px solid var(--border, #d9e0dd); padding: .75rem .25rem; }
 #research-history a { display: block; overflow-wrap: anywhere; line-height: 1.4; }
 #research-history a[aria-current="page"] { font-weight: 700; color: #195e4b; }
@@ -360,3 +366,36 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 .contest-note { margin: .6rem 0; padding: .5rem .7rem; border-left: 3px solid #8a1c10; background: #fdf4f2; }
 .contest-note a { display: block; }
 .contradiction-studies { margin: .3rem 0 0; font-size: .85rem; color: #4d5a53; }
+
+/* Keep study titles flexible without crushing the year and screening status. */
+#dashboard-landscape .landscape-study-table table { table-layout: fixed; width: 100%; min-width: 36rem; }
+#dashboard-landscape .landscape-study-table th:first-child,
+#dashboard-landscape .landscape-study-table td:first-child { width: auto; }
+#dashboard-landscape .landscape-study-table th:nth-child(2),
+#dashboard-landscape .landscape-study-table td:nth-child(2) { width: 5rem; white-space: nowrap; overflow-wrap: normal; }
+#dashboard-landscape .landscape-study-table th:nth-child(3),
+#dashboard-landscape .landscape-study-table td:nth-child(3) { width: 18rem; overflow-wrap: normal; word-break: normal; }
+.landscape-screening-detail { margin-top: .5rem; }
+.landscape-screening-detail summary { cursor: pointer; font-size: .75rem; color: #294f40; }
+.landscape-screening-detail p { font-size: .75rem; margin: .5rem 0 0; }
+.landscape-shared-reason { padding: .8rem 1rem; margin: .7rem 0; background: #f5f7f2; border-radius: 6px; }
+.landscape-shared-reason summary { cursor: pointer; font-size: .8rem; }
+@media (max-width: 700px) {
+  #dashboard-landscape .landscape-study-table th:nth-child(3),
+  #dashboard-landscape .landscape-study-table td:nth-child(3) { width: 13rem; }
+}
+
+.history-hidden-toggle { display: flex; align-items: center; gap: .4rem; font-size: .75rem; margin: .6rem 0; }
+.history-hidden-toggle input { width: auto; margin: 0; }
+.history-hide { padding: .2rem .45rem; margin: .2rem 0 .5rem; font-size: .7rem; }
+
+.data-plan-controls { display: grid; gap: .8rem; }
+.data-plan-controls label { display: flex; flex-direction: column; gap: .3rem; }
+.data-plan-controls select, .data-plan-controls input { max-width: 100%; padding: .6rem; }
+.data-charts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1.2rem; }
+.data-chart { min-width: 0; }
+.data-chart svg { width: 100%; height: auto; }
+.data-source-hash { overflow-wrap: anywhere; }
+@media(max-width:800px) { .data-charts { grid-template-columns:1fr; } }
+
+.dashboard-overview.data-overview { display: block; padding: 1rem; }

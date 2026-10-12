@@ -87,7 +87,7 @@ class MembershipListResponse(ApiSchema):
 
 
 class AnalysisSelection(ApiSchema):
-    provider: Literal["mistral", "openai"]
+    provider: Literal["mistral", "openai", "codex"]
     model: str = Field(min_length=1, max_length=200)
 
 
@@ -105,6 +105,7 @@ class RunCreate(ApiSchema):
 
 
 class RunResponse(ApiSchema):
+    progress: dict[str, object] | None = None
     analysis_selection: AnalysisSelection | None = None
     id: str
     project_id: str

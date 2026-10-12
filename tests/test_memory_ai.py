@@ -13,6 +13,7 @@ from sci_search.mistral_analysis import MistralAnalyzer, _validate_answer_respon
 from sci_search.question_planning import plan_question
 from sci_search.research_runs import ResearchLimits, ResearchRunManager
 from sci_search.scientific_memory import ScientificMemory
+from tests.semantic_review_fixtures import reviewed_response
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -443,7 +444,9 @@ class MistralAnalysisTests(unittest.TestCase):
             "usage": {"total_tokens": 123},
         }
         analyzer = MistralAnalyzer(
-            "secret", model="test-model", complete_json=lambda body, headers: response
+            "secret",
+            model="test-model",
+            complete_json=lambda body, headers: reviewed_response(body, response),
         )
         result = analyzer.analyze("How does vegetation affect goat foraging?", self.evidence)
         self.assertEqual(result["status"], "complete")
@@ -484,11 +487,13 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         with self.assertRaises(ValueError):
             analyzer.analyze("Question", self.evidence)
 
-    def test_rejects_a_passage_quote_outside_the_selected_result_statement(self) -> None:
+    def test_semantic_review_rejects_projection_presented_as_observation(self) -> None:
         evidence = [
             {
                 **self.evidence[0],
@@ -532,9 +537,39 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
-        with self.assertRaisesRegex(ValueError, "selected result statement"):
-            analyzer.analyze("Question", evidence)
+
+        def complete(body, headers):
+            if body["response_format"]["json_schema"]["name"] == "scientific_analysis":
+                return response
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "judgments": [
+                                        {
+                                            "id": "answer",
+                                            "entailed": False,
+                                            "causal_direction_valid": True,
+                                            "geographic_scope_valid": True,
+                                            "relevant": True,
+                                            "reason": "A future projection does not establish an observed change.",
+                                        }
+                                    ]
+                                }
+                            )
+                        }
+                    }
+                ],
+            }
+
+        analyzer = MistralAnalyzer("secret", complete_json=complete)
+        result = analyzer.analyze("Question", evidence)
+        self.assertIsNone(result["answer"])
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["semantic_review"]["rejected_records"], 1)
+        self.assertEqual(result["rejected_records"][0]["stage"], "semantic_support")
 
     def test_uses_first_grounded_claim_when_summary_declines_to_answer(self) -> None:
         grounded = {
@@ -574,7 +609,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         result = analyzer.analyze("Question", self.evidence)
         self.assertEqual(result["status"], "complete")
         self.assertTrue(result["answer"]["derived_from_grounded_claim"])
@@ -618,7 +655,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         with self.assertRaisesRegex(ValueError, "answer-level claim"):
             analyzer.analyze("Question", self.evidence)
 
@@ -661,9 +700,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        result = MistralAnalyzer("secret", complete_json=lambda body, headers: response).analyze(
-            "Question", self.evidence
-        )
+        result = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        ).analyze("Question", self.evidence)
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(result["claims"]), 1)
         self.assertEqual(result["validation"]["rejected_model_records"], 1)

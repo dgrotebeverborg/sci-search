@@ -60,6 +60,16 @@ def _unchanged(body: dict[str, Any]) -> dict[str, Any]:
 
 def _openai_prepare(body: dict[str, Any]) -> dict[str, Any]:
     prepared = copy.deepcopy(body)
+    if prepared.get("model", "").startswith("gpt-6-"):
+        legacy_limit = prepared.pop("max_tokens", None)
+        # The benchmarked budget includes reasoning as well as visible JSON.
+        prepared["max_completion_tokens"] = max(
+            8000, prepared.get("max_completion_tokens") or legacy_limit or 8000
+        )
+        prepared.setdefault("reasoning_effort", "medium")
+        if prepared["reasoning_effort"] != "none":
+            for parameter in ("temperature", "top_p", "logprobs", "top_logprobs"):
+                prepared.pop(parameter, None)
     holder = (prepared.get("response_format") or {}).get("json_schema")
     if isinstance(holder, dict) and isinstance(holder.get("schema"), dict):
         holder["schema"] = openai_strict_schema(holder["schema"])
@@ -85,6 +95,15 @@ PROFILES: dict[str, ProviderProfile] = {
         model_variable="OPENAI_MODEL",
         prepare=_openai_prepare,
     ),
+    "codex": ProviderProfile(
+        name="codex",
+        display_name="Codex (ChatGPT login)",
+        endpoint="",
+        default_model="gpt-6-sol",
+        key_variable="",
+        model_variable="SCI_SEARCH_CODEX_MODEL",
+        prepare=_unchanged,
+    ),
 }
 
 
@@ -96,7 +115,7 @@ def selected_profile() -> ProviderProfile:
         else os.environ.get(PROVIDER_VARIABLE, "").strip().lower() or "mistral"
     )
     if value not in PROFILES:
-        raise ValueError(f"{PROVIDER_VARIABLE} must be one of: mistral, openai")
+        raise ValueError(f"{PROVIDER_VARIABLE} must be one of: mistral, openai, codex")
     return PROFILES[value]
 
 
@@ -105,6 +124,13 @@ def configured_analyzer() -> ModelAnalyzer | None:
     from sci_search.mistral_analysis import ModelAnalyzer
 
     profile = selected_profile()
+    if profile.name == "codex":
+        from sci_search.codex_provider import available, complete_json
+
+        return (
+            ModelAnalyzer("", provider=profile, model=configured_model(profile), complete_json=complete_json)
+            if available() else None
+        )
     key = _provider_key(profile)
     return ModelAnalyzer(key, provider=profile, model=configured_model(profile)) if key else None
 
@@ -142,18 +168,25 @@ def analysis_choices() -> dict[str, Any]:
         raise ValueError("SCI_SEARCH_ANALYSIS_MODELS must map providers to model-name lists")
     items = []
     for profile in PROFILES.values():
-        models = extra.get(profile.name, [])
+        builtins = ["gpt-6-sol", "gpt-6-luna"] if profile.name in {"openai", "codex"} else []
+        models = extra.get(profile.name, builtins)
         if not isinstance(models, list) or any(
             not isinstance(model, str) or not model.strip() or len(model) > 200 for model in models
         ):
             raise ValueError("SCI_SEARCH_ANALYSIS_MODELS must map providers to model-name lists")
         default = os.environ.get(profile.model_variable) or profile.default_model
+        if profile.name == "codex":
+            from sci_search.codex_provider import available
+
+            enabled = available()
+        else:
+            enabled = bool(_provider_key(profile))
         for model in dict.fromkeys([default, *(m.strip() for m in models)]):
             items.append(
                 {
                     "provider": profile.name,
                     "model": model,
-                    "available": bool(_provider_key(profile)),
+                    "available": enabled,
                 }
             )
     profile = selected_profile()

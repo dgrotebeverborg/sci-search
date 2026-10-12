@@ -41,6 +41,7 @@
         <summary>Saved scientific dashboards</summary>
         <label for="history-search">Find a search</label>
         <input id="history-search" type="search" placeholder="Search your questions">
+        <label class="history-hidden-toggle"><input id="history-show-hidden" type="checkbox"> Show hidden searches</label>
         <p class="help" id="history-empty">Saved research will appear here.</p>
         <ol id="research-history"></ol>
         <button id="history-more" class="button button-quiet" type="button" hidden>Load more searches</button>
@@ -83,7 +84,7 @@
             <label for="review-depth">Review depth</label>
             <select disabled id="review-depth">
               <option value="focused">Focused review</option>
-              <option value="deep">Deep review</option>
+              <option value="deep" selected>Deep review</option>
             </select>
           </div>
           <div class="review-setting">
@@ -100,21 +101,31 @@
           <p id="brief-objective"></p>
           <div id="brief-details"></div>
           <p>Edit your research question above and review it again to correct the interpretation or answer a clarification.</p>
-          <button class="button button-primary" id="approve-question" type="button">Approve and start review</button>
+          <p class="status" id="approval-status" role="status" aria-live="polite"></p>
+          <button class="button button-primary" id="approve-question" type="button" aria-describedby="approval-status">Approve and start review</button>
         </section>
-        <div class="status" id="global-status" aria-live="polite"></div>
       </section>
+      <div class="status" id="global-status" aria-live="polite"></div>
 
-      <section class="panel" id="run-panel" hidden>
+      <section class="panel" id="run-panel" hidden aria-labelledby="run-question" tabindex="-1">
         <div class="section-heading">
           <div><p class="eyebrow">Current review</p><h2 id="run-question"></h2></div>
           <span class="status-badge" id="run-status"></span>
         </div>
         <p id="run-model" class="help"></p>
-        <p id="run-progress">Preparing the research workflow…</p>
+        <p id="run-stage" class="eyebrow"></p>
+        <p id="run-progress" role="status" aria-live="polite">Preparing the research workflow…</p>
+        <p id="run-timing" class="help"></p>
+        <p id="run-connection" class="help" role="status"></p>
+        <div id="run-counters" class="run-counters"></div>
+        <details id="run-activity-details" open>
+          <summary>Recent activity</summary>
+          <ol id="run-activity"></ol>
+        </details>
         <div class="button-row">
           <button class="button button-secondary" id="cancel-run" type="button">Cancel review</button>
           <button class="button button-secondary" id="retry-run" type="button" hidden>Retry review</button>
+          <button class="button button-quiet" id="run-new-search" type="button">New research question</button>
         </div>
       </section>
 

@@ -13,6 +13,7 @@ from sci_search.fulltext_acquisition import AcquisitionOutcome
 from sci_search.mistral_analysis import MistralAnalyzer
 from sci_search.research_runs import ResearchLimits, ResearchRunManager
 from sci_search.scientific_memory import ScientificMemory
+from tests.semantic_review_fixtures import reviewed_response
 
 QUESTION = "How does vegetation structure affect goat foraging behaviour?"
 TEXTS = {
@@ -56,6 +57,8 @@ def acquire(item, corpus: Path) -> AcquisitionOutcome:
 
 
 def complete_json(body: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+    if body["response_format"]["json_schema"]["name"] == "scientific_claim_support":
+        return reviewed_response(body, {})
     evidence = json.loads(body["messages"][1]["content"])["evidence"]
     by_publication: dict[str, dict[str, Any]] = {}
     for item in evidence:

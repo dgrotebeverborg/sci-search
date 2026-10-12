@@ -15,6 +15,7 @@ from sci_search.api.dependencies import (
 )
 from sci_search.api.schemas import QuestionInterpretationCreate, RunCreate, RunResponse
 from sci_search.application.research_api import ResearchApiService, ResearchRunRecord
+from sci_search.question_planning import plan_from_brief
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/runs", tags=["research runs"])
 Principal = Annotated[AuthenticatedPrincipal, Depends(require_principal)]
@@ -22,7 +23,7 @@ CsrfPrincipal = Annotated[AuthenticatedPrincipal, Depends(require_csrf)]
 ResearchService = Annotated[ResearchApiService, Depends(research_service)]
 
 
-def _response(run: ResearchRunRecord) -> RunResponse:
+def _response(run: ResearchRunRecord, progress: dict | None = None) -> RunResponse:
     return RunResponse(
         id=run.id,
         project_id=run.project_id,
@@ -33,6 +34,7 @@ def _response(run: ResearchRunRecord) -> RunResponse:
         updated_at=run.updated_at,
         version=run.version,
         analysis_selection=run.analysis_selection,
+        progress=progress,
     )
 
 
@@ -75,6 +77,11 @@ def start_run(
             detail="Research execution is disabled in the temporary workspace preview. "
             "Use the configured database and worker service for live reviews.",
         )
+    brief = asdict(body.question_brief) if body.question_brief else None
+    try:
+        plan_from_brief(body.question, brief)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _response(
         service.start_run(
             principal.user_id,
@@ -83,7 +90,7 @@ def start_run(
             analysis_selection=body.analysis_selection.model_dump()
             if body.analysis_selection
             else None,
-            question_brief=asdict(body.question_brief) if body.question_brief else None,
+            question_brief=brief,
             review_depth=body.review_depth,
             idempotency_key=body.idempotency_key,
         )
@@ -97,7 +104,10 @@ def get_run(
     principal: Principal,
     service: ResearchService,
 ) -> RunResponse:
-    return _response(service.get_run(principal.user_id, project_id, run_id))
+    run = service.get_run(principal.user_id, project_id, run_id)
+    get_progress = getattr(service, "get_run_progress", None)
+    progress = get_progress(principal.user_id, project_id, run_id) if callable(get_progress) else None
+    return _response(run, progress)
 
 
 @router.post("/{run_id}/cancel", response_model=RunResponse)

@@ -1,0 +1,140 @@
+{
+  "id": "language",
+  "version": 1,
+  "question": "The role of social and biophysical factors in the evolution of linguistic diversity in South America",
+  "evidence": [
+    {
+      "id": "language-1",
+      "publication_id": "publication:5a8fd24d9a34dbf595fd",
+      "publication_title": "Gradient in grammatical structure of indigenous languages reflects pathway of human expansion in the Americas",
+      "doi": "10.1038/s41598-025-86265-8",
+      "source_url": "https://www.nature.com/articles/s41598-025-86265-8",
+      "passage": "The settlement of the Americas is one of the major episodes of prehistoric human dispersal, and involved multiple temporally and geographically uneven demographic events that continued into the Holocene. Here we suggest the possibility that these complex dynamics are reflected in the spatial structure of Indigenous linguistic diversity. On the basis of newly collated data, we find more pronounced spatial structure in linguistic diversity in North America than in South America after known genealogy and language contact are accounted for. Furthermore, we report a continent-wide gradient in aspects of sound systems and grammatical structure that mirrors early north–south dispersal paths, and that is not explained by local language contact and known phylogenetic relationships.",
+      "statement": "we find more pronounced spatial structure in linguistic diversity in North America than in South America after known genealogy and language contact are accounted for.",
+      "evidence_type": "empirical",
+      "study_design": "Observational comparative analysis of linguistic features and spatial structure",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [
+        "North America",
+        "South America"
+      ],
+      "time_mentions": [
+        "Holocene"
+      ]
+    },
+    {
+      "id": "language-2",
+      "publication_id": "publication:93ea7401d80a6b822f6a",
+      "publication_title": "Toward a Mechanistic Understanding of Linguistic Diversity",
+      "doi": "10.1525/bio.2013.63.7.6",
+      "source_url": "https://doi.org/10.1525/bio.2013.63.7.6",
+      "passage": "Our species displays remarkable linguistic diversity.Although the uneven distribution of this diversity demands explanation, the drivers of these patterns have not been conclusively determined.We address this issue in two steps: First, we review previous empirical studies whose authors have suggested environmental, geographical, and sociocultural drivers of linguistic diversification.However, contradictory results and methodological variation make it difficult to draw general conclusions.Second, we outline a program for future research.We suggest that future analyses should account for interactions among causal factors, the lack of spatial and phylogenetic independence of the data, and transitory patterns.Recent analytical advances in biogeography and evolutionary biology, such as simulation modeling of diversity patterns, hold promise for testing four key mechanisms of language diversification proposed here: neutral change, population movement, contact, and selection.Future modeling approaches should also evaluate how the outcomes of these processes are influenced by demography, environmental heterogeneity, and time.",
+      "statement": "contradictory results and methodological variation make it difficult to draw general conclusions.",
+      "evidence_type": "review",
+      "study_design": "Narrative review and proposed mechanistic research framework",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [],
+      "time_mentions": []
+    },
+    {
+      "id": "language-3",
+      "publication_id": "publication:233cc622d0303c5d1ff6",
+      "publication_title": "Biodiversity drives the choice; linguistic diversity fine-tunes the direction: Ethnofloral megadiversity in the Mexican ethnobotany",
+      "doi": "10.1371/journal.pone.0347334",
+      "source_url": "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0347334",
+      "passage": "People around the world have developed distinctive sets of useful plants, known as ethnofloras, which comprise a significant portion of Earth’s biodiversity. However, little is known about the factors that determine the composition of these collections and how different groups use plants. These differences may increase with geographic distance and linguistic separation due to barriers to communication and a lack of similarity in locally-available species. Using published ethnobotanical information, we analyzed the divergence in the composition of wild-species and the ways plants are used among 22 Mexican ethnic groups that use 2,855 species. We standardized plant use into ten categories and recorded them for each plant species and ethnic group. Each ethnic group uses a very large number of species (α-diversity), but few species are shared with other groups. Consequently, species turnover (β-diversity) between ethnic groups is very high. As expected, geographic distance fostered high differentiation in species composition of ethnofloras, probably reflecting differences in wild floras. Linguistic proximity promoted ethnoflora composition similarity, suggesting that communication plays a role in shaping the set of plants that are used. Geographic proximity also promotes similarity in how plants are used, though it is unclear whether language also plays a role. This suggests that language barriers are quite permeable. Social interactions and the use of Spanish as a lingua franca may favor the convergence of uses. This study provides a novel analysis of ethnofloras. It emphasizes the value of cultural and biological diversity and their importance in shaping ethnobotanical heritage.",
+      "statement": "Linguistic proximity promoted ethnoflora composition similarity, suggesting that communication plays a role in shaping the set of plants that are used.",
+      "evidence_type": "empirical",
+      "study_design": "Observational comparative analysis of published ethnobotanical data for 22 ethnic groups",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [
+        "Mexico"
+      ],
+      "time_mentions": []
+    }
+  ],
+  "expected_relevance": {
+    "language-1": {
+      "relevance": "direct",
+      "reason": "Measures linguistic structure in the Americas, explicitly including South America; relevant to dispersal history, not a test of every biophysical driver."
+    },
+    "language-2": {
+      "relevance": "contextual",
+      "reason": "Review of linguistic diversification mechanisms without South America-specific causal estimates."
+    },
+    "language-3": {
+      "relevance": "irrelevant",
+      "reason": "Wrong outcome (ethnoflora composition and plant use) and wrong geography (Mexico); language is an explanatory variable, not the diversification outcome."
+    }
+  },
+  "expected_supported_findings": [
+    {
+      "evidence_ids": [
+        "language-1"
+      ],
+      "finding": "The comparative study reports weaker spatial structure in South American than North American linguistic diversity after accounting for known genealogy and contact."
+    },
+    {
+      "evidence_ids": [
+        "language-1"
+      ],
+      "finding": "A continent-wide gradient in sound and grammatical features mirrors early north-south dispersal routes and is not explained by known phylogenetic relationships or local contact in the reported analysis; this is consistent with historical dispersal, not proof of a particular causal mechanism."
+    },
+    {
+      "evidence_ids": [
+        "language-2"
+      ],
+      "finding": "The review proposes neutral change, population movement, contact, and selection as mechanisms to test, with demography, environmental heterogeneity, and time potentially influencing outcomes. It emphasizes conflicting evidence and methodological limitations."
+    },
+    {
+      "evidence_ids": [
+        "language-1",
+        "language-2"
+      ],
+      "finding": "These excerpts provide partial evidence and a framework, but cannot establish the relative causal contributions of social and biophysical factors to South American language diversity."
+    }
+  ],
+  "prohibited_conclusions": [
+    "Treating Mexican ethnoflora similarity as direct evidence that biodiversity or language contact causes linguistic diversification in South America.",
+    "Claiming the proposed mechanisms in the review were experimentally established.",
+    "Claiming rainfall, rivers, mountains, productivity, or biodiversity were demonstrated to cause South American language richness by these excerpts.",
+    "Equating structural linguistic variation with the number of languages, or interpreting an observational spatial gradient as definitive causation."
+  ],
+  "limitations": [
+    "Three deliberately selected abstract excerpts, not a systematic or representative evidence base.",
+    "No direct South America-specific estimate of biophysical effects is supplied.",
+    "The empirical linguistic outcome is structural/spatial variation, not simply language counts.",
+    "The review is global and proposes a research agenda."
+  ],
+  "provenance": {
+    "prepared_on": "2026-09-28",
+    "method": "Independent reading of retained original XML abstracts; discovery metadata used only to identify publications. No ai_analysis, synthesized assertions, or tested-model outputs used.",
+    "passage_extraction": "Exact contiguous substrings of XML element itertext; XML inline markup removed. Existing TEI punctuation/spacing retained. Abstract heading omitted for ethnoflora.",
+    "sources": [
+      {
+        "evidence_id": "language-1",
+        "local_source": "data/local_research_runs/97671a6f-e81b-40a0-b589-98d873689ce8/59b58382-3abc-468c-9fcf-120273b381b2/attempts/aaf8a85bf7704029902ee373bc6a2670/20260928T164200Z-609d0f8b/corpus/papers/memory-1fdbd41bd237fc635c230c90169e23ac8c7576a9ab53ba5a0ffcfec94b7e0671.xml",
+        "sha256": "1fdbd41bd237fc635c230c90169e23ac8c7576a9ab53ba5a0ffcfec94b7e0671"
+      },
+      {
+        "evidence_id": "language-2",
+        "local_source": "data/local_research_runs/97671a6f-e81b-40a0-b589-98d873689ce8/59b58382-3abc-468c-9fcf-120273b381b2/attempts/aaf8a85bf7704029902ee373bc6a2670/20260928T164200Z-609d0f8b/corpus/papers/publication-93ea7401d80a6b822f6a.xml",
+        "sha256": "b5bb3e04e22e545656706767d2d1275db41f438a4c35a1caefd65e98508c1f71"
+      },
+      {
+        "evidence_id": "language-3",
+        "local_source": "data/local_research_runs/97671a6f-e81b-40a0-b589-98d873689ce8/59b58382-3abc-468c-9fcf-120273b381b2/attempts/aaf8a85bf7704029902ee373bc6a2670/20260928T164200Z-609d0f8b/corpus/papers/memory-69de83bbb78636e8544787f0338dca617b53c3cad024686911b691cccb2288ac.xml",
+        "sha256": "69de83bbb78636e8544787f0338dca617b53c3cad024686911b691cccb2288ac"
+      }
+    ],
+    "web_verification": [
+      "https://www.nature.com/articles/s41598-025-86265-8",
+      "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0347334",
+      "https://pure.mpg.de/pubman/item/item_1752631_6/component/file_1835066/Gavin_2013_bioscience.pdf"
+    ],
+    "expected_overall_adequacy": "partial / insufficient for comprehensive causal answer"
+  }
+}

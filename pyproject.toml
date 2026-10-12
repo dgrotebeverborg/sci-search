@@ -48,6 +48,10 @@ dev = [
   "ruff>=0.12,<1",
   "httpx2>=2,<3",
 ]
+data = [
+    "openpyxl>=3.1,<4",
+    "pandas>=2.2,<3",
+]
 
 [project.scripts]
 sci-search = "sci_search.cli:main"

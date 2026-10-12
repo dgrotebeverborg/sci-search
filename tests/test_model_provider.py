@@ -23,6 +23,7 @@ from sci_search.model_provider import (
 from sci_search.question_interpretation import QUESTION_BRIEF_SCHEMA, interpret_question
 from sci_search.research_runs import ResearchRunManager
 from sci_search.study_matrix import ADJUDICATION_SCHEMA, adjudicate_uncertain_studies
+from tests.semantic_review_fixtures import reviewed_response
 
 
 def _schema() -> dict:
@@ -189,7 +190,9 @@ class _Recorder:
 
     def __call__(self, body: dict, headers: dict) -> dict:
         self.bodies.append(body)
-        return {"choices": [{"message": {"content": json.dumps(_payload())}}], "usage": {}}
+        return reviewed_response(
+            body, {"choices": [{"message": {"content": json.dumps(_payload())}}], "usage": {}}
+        )
 
 
 def test_openai_analyzer_sends_converted_schema_and_records_provider(
@@ -199,7 +202,8 @@ def test_openai_analyzer_sends_converted_schema_and_records_provider(
     recorder = _Recorder()
     analyzer = ModelAnalyzer("key", provider=PROFILES["openai"], complete_json=recorder)
     result = analyze_evidence("Question", _evidence(), {}, MistralAnalysisProvider(analyzer))
-    [body] = recorder.bodies
+    [body, review_body] = recorder.bodies
+    assert review_body["model"] == body["model"]
     assert body["model"] == "gpt-4.1-mini"
     schema = body["response_format"]["json_schema"]["schema"]
     assert schema["$defs"]["assertion"]["properties"]["qualification"]["anyOf"][1] == {
@@ -219,7 +223,8 @@ def test_default_analyzer_keeps_the_mistral_body_unchanged(monkeypatch: pytest.M
     recorder = _Recorder()
     analyzer = MistralAnalyzer("key", complete_json=recorder)
     analyzer.analyze("Question", _evidence())
-    [body] = recorder.bodies
+    [body, review_body] = recorder.bodies
+    assert review_body["model"] == body["model"]
     assert body["model"] == "mistral-small-latest"
     assert body["response_format"]["json_schema"]["schema"] == ANALYSIS_SCHEMA
     assert analyzer.endpoint == "https://api.mistral.ai/v1/chat/completions"
@@ -270,6 +275,14 @@ def test_question_interpretation_records_openai_provider() -> None:
         {
             "interpreted_question": "How does salinity affect tomato germination?",
             "objective": "Summarize salinity effects on germination.",
+            "research_plan": {
+                "intent": "relationship",
+                "subject_terms": ["tomato seed germination"],
+                "driver_terms": ["salinity"],
+                "geography_terms": [],
+                "evidence_preferences": [],
+                "exclusion_terms": [],
+            },
             "evidence_scope": [],
             "assumptions": [],
             "exclusions": [],
@@ -357,9 +370,9 @@ def _fingerprint(tmp_path: Path, analyzer: ModelAnalyzer) -> str:
     return memory.keys[0]
 
 
-def test_mistral_fingerprint_is_unchanged(tmp_path: Path) -> None:
+def test_semantic_review_invalidates_pre_review_cached_analysis(tmp_path: Path) -> None:
     analyzer = MistralAnalyzer("k", model="mistral-small-latest", complete_json=lambda b, h: {})
-    assert _fingerprint(tmp_path, analyzer) == MISTRAL_FINGERPRINT
+    assert _fingerprint(tmp_path, analyzer) != MISTRAL_FINGERPRINT
 
 
 def test_openai_fingerprint_differs_even_with_the_same_model_name(tmp_path: Path) -> None:

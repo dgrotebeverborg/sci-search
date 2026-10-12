@@ -8,6 +8,7 @@ from sci_search.application.analysis import (
 )
 from sci_search.mistral_analysis import MistralAnalyzer
 from sci_search.research.model_evidence import select_model_evidence
+from tests.semantic_review_fixtures import reviewed_response
 
 
 def _evidence() -> list[dict[str, object]]:
@@ -56,7 +57,7 @@ def _provider(payload: object) -> MistralAnalysisProvider:
     analyzer = MistralAnalyzer(
         "secret",
         model="mistral-contract-test",
-        complete_json=lambda body, headers: _response(payload),
+        complete_json=lambda body, headers: reviewed_response(body, _response(payload)),
     )
     return MistralAnalysisProvider(analyzer)
 

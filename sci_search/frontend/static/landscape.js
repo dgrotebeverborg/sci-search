@@ -1,6 +1,24 @@
 import {element, fields, dataTable, safeLink} from './dashboard.js';
 
 const humanize = value => String(value || 'Not assessed').replaceAll('_', ' ');
+function assessment(paper) {
+  const fullText = paper.screening || {};
+  if (fullText.decision) {
+    const labels = {included: 'Included after full-text review', include: 'Included after full-text review', excluded: 'Excluded after full-text review', exclude: 'Excluded after full-text review', uncertain: 'Full-text relevance uncertain', remain_uncertain: 'Full-text relevance uncertain', background: 'Background evidence'};
+    return {decision: labels[fullText.decision] || humanize(fullText.decision), reason: fullText.reason || 'No full-text assessment reason was saved.'};
+  }
+  const labels = {
+    uncertain: 'Needs further assessment',
+    excluded: 'Excluded at title/abstract screening',
+    unavailable: 'Full text unavailable',
+    not_selected: 'Not selected for full-text retrieval',
+    selected: 'Selected; no full-text assessment recorded',
+  };
+  return {
+    decision: labels[paper.screening_status] || 'Assessment not recorded',
+    reason: paper.screening_reason || 'No assessment reason was saved for this study.',
+  };
+}
 function card(title, note = '') {
   const node = element('section', '', 'landscape-card');
   node.append(element('h3', title));
@@ -25,9 +43,24 @@ function ranking(title, rows, name = 'name') {
   return node;
 }
 
+export function renderCoverageNotice(papers, parent) {
+  if (papers.some(p => ['excluded', 'uncertain', 'not_selected', 'unavailable'].includes(p.screening_status) || ['uncertain', 'remain_uncertain'].includes(p.screening?.decision))) {
+    const warning = element('aside', '', 'landscape-shared-reason');
+    warning.setAttribute('role', 'note');
+    warning.append(element('strong', 'Literature coverage is not verified'));
+    warning.append(element('p', 'Potentially relevant studies may have been excluded by automated screening, left unresolved, or unavailable in full text. The included count describes this review—not all relevant research.'));
+    const unresolved = papers.filter(p => p.screening_status === 'uncertain' || ['uncertain', 'remain_uncertain'].includes(p.screening?.decision)).length;
+    const unavailable = papers.filter(p => p.screening_status === 'unavailable').length;
+    const limited = papers.filter(p => p.screening_status === 'not_selected').length;
+    warning.append(element('p', `${unresolved} need further assessment · ${unavailable} without an accessible full text · ${limited} not selected within the run limit`, 'landscape-note'));
+    parent.append(warning);
+  }
+}
+
 export function renderLandscape(data, parent) {
   parent.append(element('p', 'Explore when research was published, who contributed, and which topics appear in this search. Discovery counts describe this search, not the entire field.', 'section-intro'));
   const papers = data.papers || [];
+  renderCoverageNotice(papers, parent);
   const included = papers.filter(p => ['include', 'included'].includes(p.screening?.decision));
   const years = (data.publication_timeline || []).map(row => Number(row.year)).filter(Number.isFinite);
   const stats = element('div', '', 'landscape-metrics');
@@ -58,7 +91,7 @@ export function renderLandscape(data, parent) {
     }
     topics.append(tiles); parent.append(topics);
   }
-  const browser = card('Explore the studies');
+  const browser = card('Explore the studies', 'Status shows where each study reached in the review. Reasons are the recorded screening decisions; an exclusion does not mean the study has no scientific value.');
   const search = element('input'); search.type = 'search'; search.placeholder = 'Find a title or author'; search.setAttribute('aria-label', 'Search landscape studies');
   const resultCount = element('p', '', 'landscape-note'); resultCount.setAttribute('role', 'status');
   const paperList = element('div');
@@ -71,7 +104,32 @@ export function renderLandscape(data, parent) {
     const filtered = pool.filter(p => (selectedYear == null || String(p.year) === String(selectedYear)) && `${p.title || ''} ${JSON.stringify(p.authors || [])}`.toLowerCase().includes(query));
     resultCount.textContent = `${filtered.length} studies${selectedYear ? ` from ${selectedYear}` : ''} · ${population.value === 'included' ? 'Included evidence' : 'All discovered'}${filtered.length > limit ? ` · Showing ${limit}` : ''}`;
     paperList.replaceChildren();
-    if (filtered.length) paperList.append(dataTable(filtered.slice(0, limit).map(p => ({title: p.title || 'Untitled study', year: p.year || 'Unknown', decision: humanize(p.screening?.decision)})), [['title', 'Study'], ['year', 'Year'], ['decision', 'Evidence status']]));
+    if (filtered.length) {
+      const reasons = new Map();
+      for (const paper of filtered) {
+        const reason = assessment(paper).reason;
+        reasons.set(reason, (reasons.get(reason) || 0) + 1);
+      }
+      const shared = [...reasons].filter(([reason, count]) => count > 1 && reason.startsWith('the explanatory subject '));
+      for (const [reason, count] of shared) {
+        const note = element('details', '', 'landscape-shared-reason');
+        note.append(element('summary', `${count} studies excluded by the same metadata-matching rule`));
+        note.append(element('p', 'The saved rule did not find the complete requested subject in the title or abstract. It did not record which individual concepts were missing. This is an automated screening decision, not a full-text relevance assessment.'));
+        note.append(element('p', reason, 'landscape-note'));
+        paperList.append(note);
+      }
+      const shown = filtered.slice(0, limit);
+      const table = dataTable(shown.map(p => ({title: p.title || 'Untitled study', year: p.year || 'Unknown', decision: assessment(p).decision})), [['title', 'Study'], ['year', 'Year'], ['decision', 'Review status']]);
+      table.classList.add('landscape-study-table');
+      table.querySelectorAll('tbody tr').forEach((row, index) => {
+        const reason = assessment(shown[index]).reason;
+        const detail = element('details', '', 'landscape-screening-detail');
+        detail.append(element('summary', 'Screening details'));
+        detail.append(element('p', shared.some(([value]) => value === reason) ? 'Excluded by the shared metadata-matching rule explained above. No paper-specific missing concepts were recorded.' : reason));
+        row.lastElementChild.append(detail);
+      });
+      paperList.append(table);
+    }
     else paperList.append(element('p', 'No studies match these filters.', 'empty-state'));
     more.hidden = filtered.length <= limit;
   }

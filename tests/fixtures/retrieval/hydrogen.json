@@ -1,0 +1,116 @@
+{
+  "question": "Off-grid hydrogen supply from solar or wind sources to hydrogen-based steelmaking can reduce CO₂ emissions. However, the techno-economic feasibility of different supply chain configurations remains uncertain.",
+  "brief": {
+    "original_question": "Off-grid hydrogen supply from solar or wind sources to hydrogen-based steelmaking can reduce CO₂ emissions. However, the techno-economic feasibility of different supply chain configurations remains uncertain.",
+    "interpreted_question": "How does the techno-economic feasibility of different off-grid solar- and/or wind-based hydrogen supply chain configurations for hydrogen-based steelmaking compare, and what CO₂ emissions are reported for them?",
+    "objective": "Compare the techno-economic feasibility of different supply chain configurations while treating reduced CO₂ emissions as a proposed benefit rather than an assumed result.",
+    "profile_id": "generic",
+    "intent": "comparison",
+    "concepts": [
+      "off-grid solar- and/or wind-based hydrogen supply chain configurations for hydrogen-based steelmaking",
+      "techno-economic feasibility",
+      "co₂ emissions"
+    ],
+    "evidence_scope": [
+      "Scientific studies addressing off-grid solar- and/or wind-based hydrogen supply chain configurations for hydrogen-based steelmaking (techno-economic feasibility, co₂ emissions)."
+    ],
+    "comparison_dimensions": [],
+    "assumptions": [],
+    "exclusions": [],
+    "ambiguity": "clear",
+    "clarification_question": null,
+    "method": "openai_structured_question_interpretation_v1",
+    "provider": "openai",
+    "model": "gpt-6-sol",
+    "research_plan": {
+      "intent": "comparison",
+      "relationship_type": "unspecified",
+      "subject_terms": [
+        "off-grid solar- and/or wind-based hydrogen supply chain configurations for hydrogen-based steelmaking"
+      ],
+      "driver_terms": [],
+      "geography_terms": [],
+      "exclusion_terms": [],
+      "population_terms": [],
+      "time_terms": [],
+      "outcome_measure_terms": [
+        "techno-economic feasibility",
+        "CO₂ emissions"
+      ],
+      "evidence_preferences": []
+    }
+  },
+  "candidate": {
+    "id": "publication:a629326dd732e3aa8b24",
+    "title": "Techno-economic assessment of off-grid hydrogen supply from distant solar or wind sources to steelmaking",
+    "abstract": "Off-grid hydrogen supply from solar or wind sources to hydrogen-based steelmaking can reduce CO₂ emissions. However, the techno-economic feasibility of different supply chain configurations remains uncertain. This study evaluates 61 off-grid hydrogen supply chains for a 15 Mt. steel/year plant in 2030, considering renewable energy sources (onshore/offshore wind, solar, and overseas options), transmission technologies (cables, pipelines, trucks, and ships), storage technologies (compressed gaseous hydrogen, liquid hydrogen, ammonia, methanol, and liquid organic hydrogen carriers), and seasonal storage locations (at the energy source or steelmaking plant). Onshore truck transmission of hydrogen is found to be unpromising due to the significantly higher cost compared to alternative transmission technologies. When the transmission technology is not truck, chains with underground compressed hydrogen storage achieve the lowest levelized cost of hydrogen (LCOH) at 3.8–5.6 € 2020 /kg H₂, outperforming other options. When underground hydrogen storage is not feasible, liquid organic hydrogen carriers present the next lowest cost. Chains utilizing ammonia, methanol, and liquid hydrogen exhibit lower efficiency, higher renewables capacity requirement, and consequently higher LCOH, making them less attractive. Electricity transmission lowers the LCOH of compressed hydrogen chains compared to hydrogen pipeline transmission, but for other chains the trend is reversed. Hydrogen storage near the steelmaking plant reduces costs by enabling the reuse of boil-off hydrogen in liquid hydrogen chains, but for other chains storing hydrogen near the renewable energy source lowers the cost. Impacts of input uncertainties on the LCOH, limitations of this study, and suggestions for future studies are also presented. • Techno-economic evaluation of 61 off-grid hydrogen supply chains for steelmaking. • Compressed hydrogen chains with underground storage have the lowest cost. • Liquid organic hydrogen carrier chains have the second lowest cost. • Methanol- or ammonia-based chains are not cost-effective due to low efficiency. • Storage should be near demand in liquid hydrogen chains but near supply in other chains.",
+    "year": 2025,
+    "doi": "10.1016/j.apenergy.2025.125947",
+    "authors": [
+      "Longquan Li",
+      "Purushothaman Vellayani Aravind",
+      "Annika Boldrini",
+      "Machteld A. van den Broek",
+      "Machteld van den Broek"
+    ],
+    "publication_type": "article",
+    "source_url": "https://openalex.org/W4409664854",
+    "full_text_url": null,
+    "document_fingerprint": null,
+    "author_ids": [
+      "https://openalex.org/A5054257296",
+      "https://openalex.org/A5103248078",
+      "https://openalex.org/A5015949261",
+      "https://openalex.org/A5090465058",
+      ""
+    ],
+    "institutions": [
+      "University of Groningen",
+      "Utrecht University",
+      "European Commission",
+      "Joint Research Centre",
+      "Joint Research Centre",
+      "Joint Research Centre",
+      "Delft University of Technology"
+    ],
+    "institution_ids": [
+      "https://ror.org/012p63287",
+      "https://ror.org/04pp8hn57",
+      "https://ror.org/00k4n6c32",
+      "https://ror.org/02qezmz13",
+      "https://ror.org/02ptz5951",
+      "https://ror.org/05wzskb47",
+      "https://ror.org/02e2c7k09"
+    ],
+    "affiliations": [],
+    "openalex_id": "https://openalex.org/W4409664854",
+    "pmcid": null,
+    "cited_by_count": 12,
+    "is_open_access": true,
+    "license": "cc-by",
+    "has_pdf": false,
+    "has_structured_fulltext": false,
+    "has_local_fulltext": false,
+    "is_retracted": false,
+    "providers": [
+      "openalex",
+      "crossref"
+    ],
+    "matched_query_ids": [
+      "query:8f4e5f5b7153",
+      "query:778aa18b02a6",
+      "query:21c97bf0d04a",
+      "query:87d75bfd5982",
+      "query:4ecb0e0e91c5",
+      "query:e8954ba542b9",
+      "query:coverage:b65a32fa408d",
+      "query:coverage:f09c13b32a77",
+      "query:coverage:0a9c26b28729"
+    ],
+    "citation_relations": [],
+    "relevance_score": 0.5041,
+    "concept_coverage": 0.6667,
+    "screening_status": "excluded",
+    "screening_reason": "the explanatory subject 'off-grid solar- and/or wind-based hydrogen supply chain configurations for hydrogen-based steelmaking' is absent from the metadata"
+  }
+}

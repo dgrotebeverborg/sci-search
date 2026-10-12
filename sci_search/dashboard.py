@@ -3,6 +3,8 @@
 from copy import deepcopy
 from typing import Any
 
+from sci_search.result_quality import result_quality
+
 
 def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int) -> dict[str, Any]:
     """Map retained results without inference, model calls, or mutation of evidence."""
@@ -10,6 +12,14 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     review = source.get("literature_review_report") or {}
     if not review and (source.get("literature_review") or {}).get("executive_summary"):
         review = source["literature_review"]
+    ai = source.get("ai_analysis") or {}
+    retained_model = (review.get("methodology") or {}).get("model") or {}
+    analysis = ai or retained_model
+    reviewed_findings = (
+        analysis.get("status") in {"complete", "coverage_limited"}
+        or analysis.get("answer_withheld") is True
+        or isinstance(analysis.get("semantic_review"), dict)
+    )
     run = source.get("research_run") or {}
     synthesis = source.get("synthesis") or {}
     matrix = source.get("study_matrix") or {}
@@ -61,10 +71,18 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     add(
         "answer",
         {
+            "data_analysis": source.get("data_analysis"),
+            "investigation_review": source.get("investigation_review"),
             "answer_adequacy": source.get("answer_adequacy") or review.get("answer_adequacy"),
             "synthesis": synthesis,
             "answer_contest": review.get("answer_contest"),
-            "executive_summary": review.get("executive_summary")
+            "executive_summary": {
+                "text": analysis.get("answer_withheld_reason")
+                or "The overall answer did not pass the support review.",
+                "evidence_ids": [],
+            }
+            if analysis.get("answer_withheld") is True
+            else review.get("executive_summary")
             or (
                 {
                     "text": source["answer_summary"],
@@ -79,7 +97,11 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     add(
         "findings",
         {
-            "claims": synthesis.get("claims") or source.get("findings") or review.get("findings"),
+            # An empty reviewed result is a decision, not permission to restore
+            # findings from the extraction performed before semantic review.
+            "claims": review.get("findings", ai.get("claims", []))
+            if reviewed_findings
+            else synthesis.get("claims") or source.get("findings") or review.get("findings"),
             "thematic_findings": review.get("thematic_findings"),
             "measurements": review.get("measurements"),
         },
@@ -133,14 +155,13 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     )
     add("references", review.get("references") or [])
     add("downloads", source.get("artifacts") or [])
-    ai = source.get("ai_analysis") or {}
-    retained_model = (review.get("methodology") or {}).get("model") or {}
     return {
+        "result_quality": result_quality(source),
         "analysis": {
             "selection": source.get("analysis_selection"),
             "provider": ai.get("provider") or retained_model.get("provider"),
             "model": ai.get("model") or retained_model.get("name"),
-            "status": ai.get("status"),
+            "status": ai.get("status") or retained_model.get("status"),
             "method": ai.get("method") or retained_model.get("method"),
             "fallback_reason": ai.get("fallback_reason") or ai.get("reason"),
         },

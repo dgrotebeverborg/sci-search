@@ -32,6 +32,18 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
     def close(self):
         self._executor.shutdown(wait=True, cancel_futures=True)
 
+    def get_run_progress(self, user_id, project_id, run_id):
+        import copy
+
+        with self._lock:
+            self.get_run(user_id, project_id, run_id)
+            return copy.deepcopy(self._metadata.get((project_id, run_id), {}).get("progress"))
+
+    def _save_progress(self, key, progress):
+        with self._lock:
+            self._metadata[key]["progress"] = progress
+            self._persist_run(key)
+
     def start_run(self, user_id, project_id, **kwargs):
         with self._lock:
             run = super().start_run(user_id, project_id, **kwargs)
@@ -54,6 +66,7 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
     def retry_run(self, user_id, project_id, run_id):
         with self._lock:
             run = super().retry_run(user_id, project_id, run_id)
+            self._metadata[(project_id, run_id)].pop("progress", None)
             self._persist_run((project_id, run_id))
             self._executor.submit(self._execute, project_id, run_id)
             return run
@@ -239,6 +252,17 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
                 if pending_key[0] == project_id and pending.get("memory_status") == "pending":
                     self._recover_memory(*pending_key)
             manager = _manager(work_root)
+            configure_progress = getattr(manager, "set_progress_callback", None)
+            if callable(configure_progress):
+                configure_progress(lambda progress: self._save_progress(key, progress))
+
+            def cancellation_requested():
+                with self._lock:
+                    return self._runs[key].status == "cancel_requested"
+
+            configure_cancellation = getattr(manager, "set_cancellation_check", None)
+            if callable(configure_cancellation):
+                configure_cancellation(cancellation_requested)
             memory = self._attach_memory(manager, project_id, user_id)
             brief = self._metadata[key].get("question_brief")
             state = manager.run_sync(
@@ -246,6 +270,10 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
                 limits=_limits(run.review_depth),
                 **({"question_brief": brief} if brief else {}),
             )
+            if state.get("status") == "cancelled":
+                with self._lock:
+                    self._status(key, "cancelled")
+                return
             if state.get("status") != "complete" or not isinstance(state.get("result"), dict):
                 raise RuntimeError("Research pipeline did not complete")
             with self._lock:

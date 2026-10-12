@@ -7,9 +7,10 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from sci_search.concept_matching import concept_present
 from sci_search.discovery import SearchQuery
 from sci_search.profiles import PROFILES
-from sci_search.question_planning import ResearchPlan
+from sci_search.question_planning import ResearchPlan, plan_focus
 
 _EUROPE = (
     "europe",
@@ -59,7 +60,25 @@ _LOCATIONS: dict[str, tuple[str, ...]] = {
     "africa": ("africa", "african"),
     "asia": ("asia", "asian"),
     "north america": ("north america", "canada", "united states", "usa", "mexico"),
-    "south america": ("south america", "latin america", "brazil", "argentina", "chile"),
+    "south america": (
+        "south america",
+        "south american",
+        "brazil",
+        "argentina",
+        "chile",
+        "uruguay",
+        "paraguay",
+        "bolivia",
+        "peru",
+        "ecuador",
+        "colombia",
+        "venezuela",
+        "guyana",
+        "suriname",
+        "french guiana",
+        "amazonian",
+        "amazonia",
+    ),
     "australia": ("australia", "australian"),
     "global": ("global", "worldwide", "world"),
     "antarctica": ("antarctica", "antarctic"),
@@ -80,6 +99,7 @@ _OUTCOME_ALIASES: dict[str, tuple[str, ...]] = {
     "efficiency": ("efficiency", "round-trip efficiency", "round trip efficiency", "rte"),
     "cost": ("cost", "capex", "opex", "lcos", "capital expenditure"),
     "precipitation": ("precipitation", "rainfall", "snowfall", "rain", "snow accumulation"),
+    "risk": ("risk", "incidence", "incident", "odds", "hazard"),
 }
 _DIRECTION_CUES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("increasing", ("increas", "rising", "growth", "grew", "more frequent", "upward trend")),
@@ -128,11 +148,16 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
     dimensions: list[dict[str, Any]] = []
     task = plan.intent
 
-    locations = [
-        name
-        for name, terms in _LOCATIONS.items()
-        if any(_contains(lowered, term) for term in terms)
-    ]
+    locations = (
+        list(plan.geography_terms)
+        if plan.subject_terms
+        else [
+            name
+            for name, terms in _LOCATIONS.items()
+            if any(_contains(lowered, term) for term in terms)
+        ]
+    )
+    location_groups = {name: _LOCATIONS.get(name, (name,)) for name in locations}
     for name in locations:
         broad_requested = (name == "europe" and bool(re.search(r"\beurope(?:an)?\b", lowered))) or (
             name == "global" and bool(re.search(r"\b(?:global|worldwide|world)\b", lowered))
@@ -142,7 +167,7 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             if name == "europe" and broad_requested
             else ["global", "worldwide", "world"]
             if name == "global" and broad_requested
-            else list(_LOCATIONS[name])
+            else list(location_groups[name])
         )
         dimensions.append(
             {
@@ -157,7 +182,22 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             }
         )
 
-    temporal = _temporal_scope(lowered)
+    for index, population in enumerate(plan.population_terms):
+        dimensions.append(
+            {
+                "id": f"population:{index}",
+                "kind": "population",
+                "label": population,
+                "terms": [population],
+                "required": True,
+                "statement_required": False,
+            }
+        )
+    temporal = _temporal_scope(
+        " ".join(plan.time_terms) if plan.time_terms is not None else lowered
+    )
+    if temporal is None and plan.time_terms:
+        temporal = {"label": ", ".join(plan.time_terms), "terms": list(plan.time_terms)}
     if temporal:
         dimensions.append(
             {
@@ -167,23 +207,28 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 "terms": temporal["terms"],
                 "required": True,
                 "statement_required": task == "temporal_trend",
+                "requires_temporal_comparison": task == "temporal_trend" or plan.time_terms is None,
                 **temporal,
             }
         )
 
-    requested_outcomes = [name for name in _OUTCOME_ALIASES if _term_present(lowered, name)]
+    requested_outcomes = (
+        list(plan.outcome_measure_terms)
+        if plan.outcome_measure_terms is not None
+        else [name for name in _OUTCOME_ALIASES if name != "risk" and _term_present(lowered, name)]
+    )
     for name in requested_outcomes:
         dimensions.append(
             {
                 "id": f"outcome:{name}",
                 "kind": "outcome",
                 "label": name,
-                "terms": list(_OUTCOME_ALIASES[name]),
+                "terms": list(_OUTCOME_ALIASES.get(name, (name,))),
                 "required": True,
             }
         )
 
-    location_terms = {term for name in locations for term in (name, *_LOCATIONS[name])}
+    location_terms = {term for name in locations for term in (name, *location_groups[name])}
     scope_words = (
         location_terms
         | set(requested_outcomes)
@@ -200,7 +245,9 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
         }
     )
     outcome_terms = {
-        term.casefold() for name in requested_outcomes for term in (name, *_OUTCOME_ALIASES[name])
+        term.casefold()
+        for name in requested_outcomes
+        for term in (name, *_OUTCOME_ALIASES.get(name, (name,)))
     }
     subjects = [
         concept
@@ -235,6 +282,10 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             else list(subjects)
         )
     )
+    focus = plan_focus(plan)
+    if focus:
+        primary_subjects = list(plan.subject_terms) or [focus[0]]
+        topic_concepts = list(focus[1])
     dimensions.insert(
         0,
         {
@@ -261,7 +312,7 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             # passage-grounded measurements (for example an RTE sentence following
             # an explicit iron-air introduction). Relationship and contradiction
             # claims remain sentence-strict because cross-topic leakage is riskier.
-            "statement_required": bool(anchors) and task != "comparison",
+            "statement_required": (bool(anchors) or bool(focus)) and task != "comparison",
             "required": True,
         },
     )
@@ -353,6 +404,11 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
         "dimensions": dimensions,
         "subquestions": subquestions,
         "requirements": {
+            "alternative_driver_dimensions": [
+                f"topic:{index}" for index in range(len(topic_concepts))
+            ]
+            if focus and task == "relationship"
+            else [],
             "minimum_independent_publications": 3
             if task == "temporal_trend"
             else 2
@@ -536,15 +592,22 @@ def assess_answer_adequacy(
     diagnostic_publications: set[str] = set()
     temporal_nature_publications: set[str] = set()
     directional_trend_publications: set[str] = set()
+    driver_dimensions = set(
+        decomposition.get("requirements", {}).get("alternative_driver_dimensions", [])
+    )
     required_dimensions = [
         str(item.get("id"))
         for item in decomposition.get("dimensions", [])
-        if item.get("required") and item.get("kind") in {"subject", "geography", "time", "topic"}
+        if item.get("required")
+        and item.get("kind") in {"subject", "geography", "population", "time", "topic"}
+        and item.get("id") not in driver_dimensions
     ]
     statement_required_dimensions = {
         str(item.get("id"))
         for item in decomposition.get("dimensions", [])
-        if item.get("required") and item.get("statement_required")
+        if item.get("required")
+        and item.get("statement_required")
+        and item.get("id") not in driver_dimensions
     }
     outcome_dimensions = {
         str(item.get("id"))
@@ -556,8 +619,11 @@ def assess_answer_adequacy(
         matched = {str(value) for value in item.get("scope_dimension_ids") or []}
         statement_matched = {str(value) for value in item.get("statement_dimension_ids") or []}
         for dimension_id in matched:
-            dimension_publications[str(dimension_id)].add(publication_id)
+            if dimension_id not in driver_dimensions:
+                dimension_publications[str(dimension_id)].add(publication_id)
         complete_scope = all(dimension_id in matched for dimension_id in required_dimensions)
+        if driver_dimensions:
+            complete_scope = complete_scope and bool(driver_dimensions & statement_matched)
         subject_dimensions = {
             str(dimension.get("id"))
             for dimension in decomposition.get("dimensions", [])
@@ -693,6 +759,8 @@ def assess_answer_adequacy(
             and diagnostic_match
         ):
             qualifying_publications.add(publication_id)
+            for dimension_id in driver_dimensions & statement_matched:
+                dimension_publications[dimension_id].add(publication_id)
             if item.get("id"):
                 qualifying_evidence_ids.append(str(item["id"]))
         if (
@@ -1006,8 +1074,12 @@ def gate_model_analysis(analysis: dict[str, Any], assessment: dict[str, Any]) ->
     result = dict(analysis)
     result["answer"] = None
     result["answer_withheld"] = True
-    result["answer_withheld_reason"] = assessment.get("decision")
-    result["status"] = "coverage_limited"
+    result["answer_withheld_reason"] = result.get("answer_withheld_reason") or assessment.get(
+        "decision"
+    )
+    result["coverage_withheld_reason"] = assessment.get("decision")
+    if result.get("status") != "unavailable":
+        result["status"] = "coverage_limited"
     return result
 
 
@@ -1046,8 +1118,10 @@ def _temporal_scope(question: str) -> dict[str, Any] | None:
 def _time_dimension_present(text: str, years: tuple[str, ...], dimension: dict[str, Any]) -> bool:
     start, end = dimension.get("start_year"), dimension.get("end_year")
     if not isinstance(start, int) or not isinstance(end, int):
-        return bool(years)
+        return any(_contains(text, str(term)) for term in dimension.get("terms", []))
     in_range = sorted({int(year) for year in years if start <= int(year) <= end})
+    if dimension.get("requires_temporal_comparison") is False:
+        return bool(in_range)
     label = str(dimension.get("label") or "").casefold()
     if "century" in label:
         number = re.search(r"\b(1[5-9]|20|21)", label)
@@ -1067,7 +1141,7 @@ def _time_dimension_present(text: str, years: tuple[str, ...], dimension: dict[s
 
 
 def _contains(text: str, term: str) -> bool:
-    return bool(re.search(rf"(?<![a-z0-9]){re.escape(term.casefold())}(?![a-z0-9])", text))
+    return concept_present(text, term)
 
 
 def _term_present(text: str, term: str) -> bool:

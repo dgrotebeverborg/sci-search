@@ -477,6 +477,33 @@ def test_memory_recovery_does_not_skip_failed_earlier_revision(monkeypatch, tmp_
         assert service._metadata[key]["memory_revision"] == 0
 
 
+def test_invalid_confirmed_plan_is_rejected_before_scheduling(monkeypatch, tmp_path):
+    with TestClient(application(monkeypatch, tmp_path)) as client:
+        headers = login(client)
+        project = client.get("/api/v1/projects").json()["items"][0]["id"]
+        base = f"/api/v1/projects/{project}/runs"
+        question = "How do energy markets affect household prices in Europe?"
+        brief = client.post(
+            base + "/interpret", headers=headers, json={"question": question}
+        ).json()
+        brief["research_plan"] = {
+            "intent": "relationship",
+            "subject_terms": ["household prices"],
+            "driver_terms": ["energy markets"],
+            "geography_terms": ["Europe"],
+            "evidence_preferences": ["unsupported study filter"],
+            "exclusion_terms": [],
+        }
+        response = client.post(
+            base,
+            headers=headers,
+            json={"question": question, "question_brief": brief, "idempotency_key": "invalid"},
+        )
+        assert response.status_code == 422
+        assert "Unsupported evidence filter" in response.json()["detail"]
+        assert client.get(base).json()["items"] == []
+
+
 def test_approved_question_brief_survives_research_and_restart(monkeypatch, tmp_path):
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     with TestClient(application(monkeypatch, tmp_path)) as client:

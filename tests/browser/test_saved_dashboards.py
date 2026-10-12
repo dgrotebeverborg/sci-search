@@ -726,3 +726,113 @@ def test_v1_dashboard_has_no_disagreement_section(live_browser_url: str, chromiu
     expect(page.locator("#dashboard-question")).to_have_text("Old question")
     expect(page.locator(".contradiction-groups")).to_have_count(0)
     expect(page.locator(".contest-note")).to_have_count(0)
+
+
+def test_landscape_explains_metadata_decisions_in_saved_results(
+    live_browser_url: str, chromium_browser: Browser
+):
+    page = chromium_browser.new_page()
+    snapshot = build_dashboard(
+        {
+            "question": "Screening reasons",
+            "research_landscape": {"coverage": {"records": 4}},
+            "research_run": {
+                "candidates": [
+                    {
+                        "id": "excluded",
+                        "title": "Metadata exclusion",
+                        "screening_status": "excluded",
+                        "screening_reason": "Required subject was not found in metadata.",
+                    },
+                    {
+                        "id": "unavailable",
+                        "title": "Access missing",
+                        "screening_status": "unavailable",
+                        "screening_reason": "No accessible full text was found.",
+                    },
+                    {
+                        "id": "limited",
+                        "title": "Selection limit",
+                        "screening_status": "not_selected",
+                        "screening_reason": "Selection limit reached.",
+                    },
+                    {"id": "unknown", "title": "Legacy record"},
+                ]
+            },
+        },
+        run_id="A",
+        revision=1,
+    )
+    page.route("**/runs?*", lambda route: route.fulfill(json={"items": [], "next_cursor": None}))
+    page.route(
+        "**/runs/A/dashboard**",
+        lambda route: route.fulfill(json={**snapshot, "role": "owner", "current_revision": 1}),
+    )
+    page.route(
+        "**/runs/A/revisions", lambda route: route.fulfill(json={"items": [{"revision": 1}]})
+    )
+    page.request.post(f"{live_browser_url}/auth/development")
+    page.goto(f"{live_browser_url}/app?project=development-project&run=A")
+    page.get_by_role("link", name="Research landscape", exact=True).click()
+    landscape = page.locator("#dashboard-landscape")
+    expect(landscape.get_by_text("Literature coverage is not verified", exact=True)).to_be_visible()
+    expect(
+        landscape.get_by_text("Potentially relevant studies may have been excluded", exact=False)
+    ).to_be_visible()
+    for title, status, reason in [
+        (
+            "Metadata exclusion",
+            "Excluded at title/abstract screening",
+            "Required subject was not found in metadata.",
+        ),
+        ("Access missing", "Full text unavailable", "No accessible full text was found."),
+        ("Selection limit", "Not selected for full-text retrieval", "Selection limit reached."),
+        (
+            "Legacy record",
+            "Assessment not recorded",
+            "No assessment reason was saved for this study.",
+        ),
+    ]:
+        row = landscape.get_by_role("row").filter(
+            has=page.get_by_role("cell", name=title, exact=True)
+        )
+        expect(row).to_contain_text(status)
+        expect(row).to_contain_text(reason)
+    page.close()
+
+
+def test_hide_search_persists_and_can_be_restored(live_browser_url: str, chromium_browser: Browser):
+    context = chromium_browser.new_context()
+    page = context.new_page()
+    page.route(
+        "**/runs?*",
+        lambda route: route.fulfill(
+            json={
+                "items": [
+                    {"id": "hide-me", "question": "A search to hide", "status": "completed"},
+                    {"id": "keep-me", "question": "A search to keep", "status": "completed"},
+                ],
+                "next_cursor": None,
+            }
+        ),
+    )
+    page.request.post(f"{live_browser_url}/auth/development")
+    page.goto(f"{live_browser_url}/app?project=development-project")
+    page.get_by_role("button", name="Hide search: A search to hide", exact=True).click()
+    expect(
+        page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
+    ).to_have_count(0)
+    page.reload()
+    expect(
+        page.locator("#research-history").get_by_role("link", name="A search to keep", exact=True)
+    ).to_be_visible()
+    expect(
+        page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
+    ).to_have_count(0)
+    page.get_by_label("Show hidden searches", exact=True).check()
+    page.get_by_role("button", name="Restore search: A search to hide", exact=True).click()
+    page.get_by_label("Show hidden searches", exact=True).uncheck()
+    expect(
+        page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
+    ).to_be_visible()
+    context.close()

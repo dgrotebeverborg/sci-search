@@ -73,7 +73,7 @@ class MistralAnalysisProvider:
             dict(item) for item in payload.get("rejected_records", []) if isinstance(item, dict)
         )
         return AnalysisResult(
-            status="complete",
+            status=str(payload.get("status") or "complete"),
             analysis=payload,
             provider=self.provider_name,
             model=self.model_name,
@@ -83,6 +83,7 @@ class MistralAnalysisProvider:
             validator_version=VALIDATOR_VERSION,
             usage=dict(payload.get("usage") or {}),
             rejected_records=rejected,
+            fallback_reason=payload.get("fallback_reason"),
             evidence_packet=_packet_record(packet),
         )
 

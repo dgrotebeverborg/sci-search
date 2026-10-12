@@ -15,6 +15,7 @@ from sci_search.discovery import PublicationCandidate, SearchQuery
 from sci_search.fulltext_acquisition import AcquisitionOutcome
 from sci_search.generic_research import GenericResearchEngine
 from sci_search.models import EvidenceType, Publication, ResultNature
+from sci_search.question_interpretation import interpret_question
 from sci_search.question_planning import plan_question
 from sci_search.research_runs import ResearchLimits, ResearchRunManager
 
@@ -263,8 +264,11 @@ class CoverageSearchLoopTests(unittest.TestCase):
                 acquirer=acquire,
                 openalex_api_key="fixture",
             )
+            brief = interpret_question(QUESTION)
+            brief["data_research"]["route"] = "literature"
             state = manager.run_sync(
                 QUESTION,
+                question_brief=brief,
                 limits=ResearchLimits(
                     per_query=5,
                     max_selected=10,
