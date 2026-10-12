@@ -13,6 +13,7 @@ SCHEMA = {
         "measurements": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
         "geography": {"type": "string"},
         "country_scope": {"type": "string", "enum": ["europe", "eu27", "other"]},
+        "countries": {"type": "array", "items": {"type": "string"}, "maxItems": 60},
         "start_year": {"type": ["integer", "null"]},
         "end_year": {"type": ["integer", "null"]},
     },
@@ -26,6 +27,8 @@ PROMPT = (
     "changes, percentages or trends; those are calculations on the same series, not separate datasets. "
     "Set country_scope to europe for broader Europe, eu27 ONLY when EU/European Union is explicitly "
     "requested, and other for other geographies. Do not read a negated EU restriction as EU scope. "
+    "When the geography names specific countries, list them in countries as ISO 3166-1 alpha-3 "
+    "codes; otherwise leave countries empty. "
     "Distinguish Europe from EU; broader Europe includes "
     "explicit coverage gaps. Resolve 'this century' to 2001 through the last complete calendar year. "
     "Use null years when no interval is specified; do not invent a time restriction. "
@@ -58,6 +61,15 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
     if country_scope not in {"europe", "eu27", "other"}:
         raise ValueError("Invalid country scope")
     result["country_scope"] = country_scope
+    countries = value.get("countries") or []
+    if (
+        not isinstance(countries, list)
+        or len(countries) > 60
+        or any(not isinstance(c, str) or not re.fullmatch(r"[A-Za-z]{3}", c) for c in countries)
+        or len({c.upper() for c in countries}) != len(countries)
+    ):
+        raise ValueError("Invalid research country codes")
+    result["countries"] = [c.upper() for c in countries]
     metrics = value.get("measurements")
     if (
         not isinstance(metrics, list)

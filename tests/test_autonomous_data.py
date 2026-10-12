@@ -15,8 +15,8 @@ def strategy(**updates):
             geography="Netherlands",
             start_year=2001,
             end_year=2003,
-            **updates,
         )
+        | updates
     )
 
 
@@ -457,6 +457,83 @@ def test_broader_europe_does_not_become_eu_from_negated_description(tmp_path):
         ),
     )
     assert len(result["analyses"][0]["requested_countries"]) == 46
+
+
+def test_strategy_keeps_named_countries_as_iso_codes():
+    value = strategy(geography="Spanje, Portugal en Griekenland", countries=["esp", "PRT", "GRC"])
+    assert value["countries"] == ["ESP", "PRT", "GRC"]
+    assert strategy()["countries"] == []
+    with pytest.raises(ValueError, match="country codes"):
+        strategy(countries=["Spain"])
+    with pytest.raises(ValueError, match="country codes"):
+        strategy(countries=["ESP", "ESP"])
+
+
+def test_effis_analyses_named_european_countries(tmp_path):
+    from pathlib import Path
+
+    from sci_search.data_research.workflow import execute
+
+    scope = {
+        **strategy(geography="Spanje, Portugal en Griekenland", countries=["ESP", "PRT", "GRC"]),
+        "measurements": ["burned area"],
+    }
+    assert scope["country_scope"] == "other"
+    body = (Path(__file__).parent / "fixtures/data_research/effis_report_2024.xlsx").read_bytes()
+    page = b'<html>Country totals: fires and burned area<a href="/report.xlsx">Data</a></html>'
+    result = execute(
+        "Burned area in Spain, Portugal and Greece",
+        scope,
+        tmp_path,
+        search=lambda *a, **k: {
+            "candidates": [
+                dict(
+                    url="https://forest-fire.emergency.copernicus.eu/page",
+                    title="Dataset",
+                    publisher="EFFIS",
+                    rationale="Official",
+                )
+            ]
+        },
+        fetch=lambda u: (
+            (page, "text/html", u)
+            if u.endswith("/page")
+            else (
+                body,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "https://data.effis.emergency.copernicus.eu/report.xlsx",
+            )
+        ),
+        complete=with_positive_meaning_review(
+            lambda *a: dict(
+                adapter="effis",
+                download_link_index=0,
+                reason="Country totals",
+                definition_quote="Country totals: fires and burned area",
+                license_note="Official terms",
+                covered_measurements=scope["measurements"],
+            )
+        ),
+    )
+    assert result["analyses"], result["assessments"][0]["reason"]
+    assert sorted(result["analyses"][0]["requested_countries"]) == ["ESP", "GRC", "PRT"]
+    assert not any("Broader Europe" in n for n in result["analyses"][0]["limitations"])
+
+
+def test_effis_rejects_countries_outside_its_reporting_set(tmp_path):
+    from sci_search.data_research import wildfire
+
+    with pytest.raises(ValueError, match="EFFIS"):
+        wildfire.validate_scope(
+            {
+                "adapter": "effis_reported_fires_v1",
+                "route": "data",
+                "geography": "countries",
+                "countries": ["ESP", "AUS"],
+                "start_year": 2001,
+                "end_year": 2003,
+            }
+        )
 
 
 def test_csv_units_can_be_documented_in_download_comments(tmp_path):

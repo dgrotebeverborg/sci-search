@@ -446,12 +446,16 @@ def execute(
                     "data.effis.emergency.copernicus.eu",
                 }:
                     raise ValueError("EFFIS workbook must come from its official host")
-                if strategy["country_scope"] not in {"europe", "eu27"}:
-                    raise ValueError("EFFIS panel adapter requires an explicit European scope")
+                if strategy["country_scope"] in {"europe", "eu27"}:
+                    geography = {"geography": strategy["country_scope"]}
+                elif strategy.get("countries"):
+                    geography = {"geography": "countries", "countries": strategy["countries"]}
+                else:
+                    raise ValueError("EFFIS panel adapter requires European countries")
                 scope = {
                     "adapter": "effis_reported_fires_v1",
                     "route": "data",
-                    "geography": strategy["country_scope"],
+                    **geography,
                     "start_year": strategy["start_year"] or 1980,
                     "end_year": strategy["end_year"] or datetime.now(UTC).year - 1,
                 }

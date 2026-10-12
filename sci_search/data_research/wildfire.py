@@ -113,7 +113,16 @@ def validate_scope(scope: dict) -> dict:
         "literature",
     }:
         raise ValueError("Unsupported data-research route")
-    if scope.get("geography") not in {"eu27", "europe"}:
+    if scope.get("geography") == "countries":
+        countries = scope.get("countries")
+        if (
+            not isinstance(countries, list)
+            or not countries
+            or len(set(countries)) != len(countries)
+            or not set(countries) <= set(EUROPE)
+        ):
+            raise ValueError("EFFIS country totals cover only the listed European countries")
+    elif scope.get("geography") not in {"eu27", "europe"}:
         raise ValueError("Choose EU-27 or the listed broader European country set")
     start, end = scope.get("start_year"), scope.get("end_year")
     if (
@@ -313,7 +322,13 @@ def run(
 
     body = fetch()
     records = parse_workbook(body)
-    countries = EU27 if scope["geography"] == "eu27" else EUROPE
+    countries = (
+        scope["countries"]
+        if scope["geography"] == "countries"
+        else EU27
+        if scope["geography"] == "eu27"
+        else EUROPE
+    )
     result = analyse(records, countries=countries, start=scope["start_year"], end=scope["end_year"])
     result.update(
         country_names=COUNTRY_NAMES,
@@ -336,8 +351,14 @@ def run(
         },
         limitations=[
             "Country reporting definitions and practices may differ or change over time. A fixed country panel controls coverage, not measurement consistency.",
-            "The fixed panel is a subset and is not an estimate for all Europe or all EU-27.",
-            "Broader Europe uses the listed country set, including Cyprus and Türkiye; national totals do not separate transcontinental territories.",
+            "The fixed panel is a subset and is not an estimate for all requested countries.",
+            *(
+                [
+                    "Broader Europe uses the listed country set, including Cyprus and Türkiye; national totals do not separate transcontinental territories."
+                ]
+                if scope["geography"] == "europe"
+                else []
+            ),
             "Missing observations are not zero. Available-country totals change coverage and must not be used as a like-for-like trend.",
             "This workbook edition ends in 2024. Later years are not supplied; the current year is incomplete.",
             "Literature-based explanations and causal attribution have not been performed in this data run.",
