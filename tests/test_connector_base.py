@@ -211,3 +211,21 @@ def test_compound_matching_needs_five_characters():
     # A term of five or more characters matches a word ending with it, even a different
     # compound such as "uitstroom" (outflow) for "stroom"; the model then judges relevance.
     assert base.score("Uitstroom uit het onderwijs", ["stroom"]) > 0
+
+
+def test_a_new_catalogue_removes_that_connectors_older_days(tmp_path):
+    def fetch(url):
+        return b"<catalogue/>", "application/xml", url
+
+    for name in ("eurostat-2026-10-10", "eurostat-2026-10-11", "cbs-2026-10-11"):
+        (tmp_path / f"{name}.bin").write_bytes(b"old")
+        (tmp_path / f"{name}.sha256").write_text("0" * 64)
+    (tmp_path / "notes.txt").write_text("kept")
+    base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 12))
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "cbs-2026-10-11.bin",
+        "cbs-2026-10-11.sha256",
+        "eurostat-2026-10-12.bin",
+        "eurostat-2026-10-12.sha256",
+        "notes.txt",
+    ]

@@ -192,7 +192,14 @@ def catalogue(name, url, fetch, cache_dir, today: date | None = None):
         _replace_atomically(path, body)
         _replace_atomically(digest_path, digest.encode())
     except OSError:
-        pass  # an unwritable cache must not fail a successful fetch
+        return body, digest  # an unwritable cache must not fail a successful fetch
+    # Only today's snapshot is ever read; older days of this connector would only grow the cache.
+    for old in cache_dir.glob(f"{name}-????-??-??.*"):
+        if old.suffix in {".bin", ".sha256"} and old.stem != path.stem:
+            try:
+                old.unlink(missing_ok=True)
+            except OSError:
+                pass  # another run may hold or have removed it
     return body, digest
 
 
