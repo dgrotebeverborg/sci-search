@@ -130,9 +130,22 @@ def describe(candidate, scope, *, fetch):
     )
 
 
+def _check_series(selection, description=None):
+    series = selection["series_dimensions"]
+    facts = {"dimensions": [d.id for d in description.dimensions]} if description else {}
+    if len(series) > 1:
+        raise base.SelectionError("CBS selections support at most one series dimension", facts)
+    if "Measure" in series:
+        raise base.SelectionError(
+            "Select one CBS measure; compare measures as separate analyses", facts
+        )
+
+
 def fetch(description, selection, scope, *, fetch, post):
     url = package_url(description.candidate.dataset)
     base.validate_selection(description, selection)
+    # Checked here, the stage returns these limits to the model for a repair.
+    _check_series(selection, description)
     notes = ()
     if description.extra.get("other_countries"):
         notes = (
@@ -149,11 +162,8 @@ def fetch(description, selection, scope, *, fetch, post):
 
 
 def mapping(table, preparation, selection, measurement):
+    _check_series(selection)
     series = selection["series_dimensions"]
-    if len(series) > 1:
-        raise base.SelectionError("CBS selections support at most one series dimension")
-    if "Measure" in series:
-        raise base.SelectionError("Select one CBS measure; compare measures as separate analyses")
     metadata = json.loads(preparation["metadata"])
     measure = selection["filters"]["Measure"][0]
     by_id = {m["Identifier"]: m for m in metadata["measures"]}

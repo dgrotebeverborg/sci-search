@@ -83,6 +83,27 @@ def test_more_than_one_series_dimension_is_refused():
         cbs.mapping(b"", {}, selection, "x")
 
 
+@pytest.mark.parametrize(
+    "series, message",
+    [
+        (["Measure", "BronTechniek"], "one series dimension"),
+        (["Measure"], "Select one CBS measure"),
+    ],
+)
+def test_series_dimension_limits_are_selection_errors_before_the_fetch(series, message):
+    # Raised by fetch, the stage returns them to the model for a repair; from the
+    # mapping they could only reject the dataset.
+    description = cbs.describe(CANDIDATE, SCOPE, fetch=offline)
+    selection = selection_for(description)
+    dims = {d.id: d for d in description.dimensions}
+    for d in series:
+        selection["filters"][d] = list(dims[d].codes)[:2]
+    selection["series_dimensions"] = series
+    with pytest.raises(base.SelectionError, match=message) as raised:
+        cbs.fetch(description, selection, SCOPE, fetch=offline, post=None)
+    assert raised.value.facts
+
+
 def test_series_dimension_entities_are_labels():
     description = cbs.describe(CANDIDATE, SCOPE, fetch=offline)
     selection = selection_for(description)
