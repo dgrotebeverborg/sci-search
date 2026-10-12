@@ -4,6 +4,7 @@ Exact citation checks are deterministic; whether those passages substantiate
 an interpretation remains an explicitly recorded model assessment.
 """
 
+import copy
 import json
 
 ASPECTS = ("definition", "unit", "geography", "time", "calculation")
@@ -48,9 +49,37 @@ MEASUREMENT_SCHEMA = _object(
     }
 )
 SCHEMA = _object({"measurements": {"type": "array", "items": MEASUREMENT_SCHEMA}})
+
+
+def review_schema(measurements):
+    """SCHEMA narrowed to exactly one review per expected measurement; validate() still decides."""
+    names = list(dict.fromkeys(measurements))
+    if not names:
+        return SCHEMA
+    item = copy.deepcopy(MEASUREMENT_SCHEMA)
+    item["properties"]["measurement"] = {"type": "string", "enum": names}
+    checks = item["properties"]["checks"]
+    checks["minItems"] = checks["maxItems"] = len(ASPECTS)
+    # Bounded citations keep the reply short; validate() checks each quote.
+    checks["items"]["properties"]["evidence"]["maxItems"] = 3
+    return _object(
+        {
+            "measurements": {
+                "type": "array",
+                "items": item,
+                "minItems": len(names),
+                "maxItems": len(names),
+            }
+        }
+    )
+
+
 INSTRUCTIONS = (
-    "Independently assess the meaning of every published measurement. Return one entry per "
-    "measurement and exactly one check for each aspect: definition, unit, geography, time, calculation. "
+    "Independently assess the meaning of every published measurement. Return exactly one entry per "
+    "listed measurement, named exactly as listed, and exactly one check for each aspect: definition, "
+    "unit, geography, time, calculation. Countries, sexes, ages or other series of one measurement "
+    "are not separate measurements: mention any series-specific finding inside that one entry's "
+    "checks. Keep each reason under 400 characters and cite at most three short quotes per check. "
     "Cite exact passages from the supplied evidence_documents with their document keys. "
     "Code, assumptions, column names alone, requested scope and earlier model decisions are not "
     "proof of meaning. Inspect definitions for ambiguity and contradictions, including duplicated "
@@ -166,7 +195,7 @@ def assess(*, question, scope, analysis, documents, complete):
             }
         )
     )
-    review = complete(prompt, SCHEMA)
+    review = complete(prompt, review_schema(measurements))
     return validate(review, measurements, documents)
 
 

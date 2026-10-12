@@ -392,3 +392,60 @@ def test_unresolved_measurement_does_not_discard_a_supported_measurement(tmp_pat
     assert [s["label"] for s in result["analyses"][0]["series"]] == ["population"]
     assert result["analyses"][0]["series"][0]["annual"][0]["value"] == 9
     assert [r["accepted"] for r in result["assessments"][0]["semantic_reviews"]] == [True, False]
+
+
+def test_the_review_schema_asks_for_exactly_one_review_per_expected_measurement():
+    schema = semantics.review_schema(["life expectancy at birth", "population"])
+    reviews = schema["properties"]["measurements"]
+    assert reviews["minItems"] == reviews["maxItems"] == 2
+    assert reviews["items"]["properties"]["measurement"]["enum"] == [
+        "life expectancy at birth",
+        "population",
+    ]
+    checks = reviews["items"]["properties"]["checks"]
+    assert checks["minItems"] == checks["maxItems"] == len(semantics.ASPECTS)
+
+
+def test_assess_sends_the_per_call_schema_and_says_series_are_not_measurements():
+    seen = []
+
+    def complete(prompt, schema):
+        seen.append((prompt, schema))
+        return {"measurements": [judgment()]}
+
+    analysis = {"series": [{"label": "population", "entity": e, "annual": []} for e in "AB"]}
+    review = semantics.assess(
+        question="q", scope={}, analysis=analysis, documents=DOCUMENTS, complete=complete
+    )
+    assert review["accepted"] is True
+    prompt, schema = seen[0]
+    assert schema == semantics.review_schema(["population"])
+    assert "not separate measurements" in prompt
+
+
+def test_reviews_split_per_country_are_still_rejected():
+    # A live Mistral reply reviewed "life expectancy at birth for females in Germany" and so on.
+    split = {
+        "measurements": [
+            judgment("population for Germany"),
+            judgment("population for Greece"),
+        ]
+    }
+    result = semantics.validate(split, ["population"], DOCUMENTS)
+    assert result["accepted"] is False
+    assert "Unexpected or duplicate measurement review" in result["reason"]
+    assert "population: measurement review missing" in result["reason"]
+    duplicated = semantics.validate(
+        {"measurements": [judgment(), judgment()]}, ["population"], DOCUMENTS
+    )
+    assert duplicated["accepted"] is False
+
+
+def test_the_python_extraction_review_uses_the_same_per_measurement_schema():
+    from sci_search.data_research import python_recovery
+
+    schema = python_recovery.review_schema(["population"])
+    assert set(schema["properties"]) == set(python_recovery.REVIEW_SCHEMA["properties"])
+    reviews = schema["properties"]["measurements"]
+    assert reviews["items"]["properties"]["measurement"]["enum"] == ["population"]
+    assert reviews["minItems"] == reviews["maxItems"] == 1

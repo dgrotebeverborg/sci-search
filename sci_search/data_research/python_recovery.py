@@ -24,6 +24,17 @@ REVIEW_SCHEMA = {
         "limitations": {"type": "array", "items": {"type": "string"}},
     },
 }
+
+
+def review_schema(measurements):
+    """REVIEW_SCHEMA with exactly one meaning review per expected measurement."""
+    narrowed = semantics.review_schema(measurements)["properties"]["measurements"]
+    return {
+        **REVIEW_SCHEMA,
+        "properties": {**REVIEW_SCHEMA["properties"], "measurements": narrowed},
+    }
+
+
 REFLECTION_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -175,7 +186,7 @@ def recover(
                         "checks": payload.get("checks", []),
                     }
                 ),
-                REVIEW_SCHEMA,
+                review_schema(list(dict.fromkeys(s["label"] for s in analysis["series"]))),
             )
             semantic_review = semantics.validate(
                 review, list(dict.fromkeys(s["label"] for s in analysis["series"])), documents
