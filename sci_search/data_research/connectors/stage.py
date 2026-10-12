@@ -12,6 +12,7 @@ from sci_search.data_research import semantics
 from sci_search.data_research.artifacts import execute_analysis
 from sci_search.data_research.connectors import CONNECTORS, base
 from sci_search.data_research.packages import attach_provenance, prepare_table
+from sci_search.data_research.python_recovery import recover as recover_python
 from sci_search.data_research.tabular import analyse_csv, read_csv
 
 TERMS_SCHEMA = {
@@ -145,6 +146,77 @@ def _download(request):
     return {"reproducible": True}
 
 
+SELECT_PROMPT = (
+    "Choose the codes that answer the requested measurement. Use only listed codes. Fix every "
+    "non-series dimension to one code; series dimensions may have several (e.g. countries, sexes). "
+    "Keep totals and their components apart. If previous_error is present, your last selection "
+    "was rejected; repair it using the listed facts.\n"
+)
+CHOOSE_PROMPT = (
+    "Choose at most 4 datasets that measure the requested measurements. Prefer annual "
+    "series that cover the requested years; do not choose monthly or quarterly datasets.\n"
+)
+REFORMULATE_PROMPT = (
+    "The previous searches did not yield a usable dataset. Using the reasons below, give 2 to 4 "
+    "different short search terms for this measurement. Do not name datasets.\n"
+)
+MAX_REPAIRS = 2
+# Reader messages that say the data is unsuitable rather than unreadable. These go to the
+# next candidate, never to Python extraction, which would bypass the annual, unit and limit
+# checks. The first five are the ruled set; the rest name the same checks in other readers.
+REJECTIONS = (
+    "no aggregation was performed",
+    "exceeds the 5 MB",
+    "no documented unit",
+    "exceeds 60 entities",
+    "duplicate",
+    "unit does not match",
+    "unspecified unit",
+    "size limit",
+    "not in the chart",
+)
+
+
+def _reader_failure(exc):
+    """Classify a reader exception: a content rejection is never handed to Python recovery."""
+    if isinstance(exc, base.SelectionError | base.DatasetRejected) or any(
+        marker in str(exc) for marker in REJECTIONS
+    ):
+        return base.DatasetRejected(str(exc))
+    return base.ReaderError(str(exc))
+
+
+def _transient(exc):
+    if isinstance(exc, base.SelectionError | base.DatasetRejected | base.ReaderError):
+        return False
+    return isinstance(exc, OSError) or (isinstance(exc, ValueError) and "HTTP 5" in str(exc))
+
+
+def _with_retry(step, recovery):
+    """Run step; after a timeout or HTTP 5xx run it exactly once more."""
+    try:
+        return step()
+    except (OSError, ValueError) as exc:
+        if not _transient(exc):
+            raise
+        recovery.append({"class": "transient", "action": "retry", "outcome": str(exc)[:200]})
+    return step()
+
+
+def _facts(value):
+    """Observed codes for a repair prompt; strings that look like URLs are dropped."""
+
+    def url(item):
+        return isinstance(item, str) and "://" in item
+
+    if isinstance(value, dict):
+        return {k: _facts(v) for k, v in value.items() if not url(k) and not url(v)}
+    if isinstance(value, list | tuple | set | frozenset):
+        items = sorted(value, key=str) if isinstance(value, set | frozenset) else value
+        return [_facts(v) for v in items if not url(v)]
+    return value
+
+
 def analyse_dataset(
     question,
     strategy,
@@ -161,6 +233,7 @@ def analyse_dataset(
     catalogue_sha256="",
 ):
     folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
+    recovery = []
     assessment = {
         "title": candidate.title,
         "url": candidate.landing_url,
@@ -169,45 +242,53 @@ def analyse_dataset(
         "dataset": candidate.dataset,
         "measurement": measurement,
         "decision": "blocked",
+        "recovery": recovery,
     }
     stage_name = "connector:describe"
     try:
         check_cancelled()
-        description = connector.describe(candidate, strategy, fetch=fetch)
-        stage_name = "connector:selection"
-        proposal = complete(
-            "Choose the codes that answer the requested measurement. Use only listed codes. Fix every "
-            "non-series dimension to one code; series dimensions may have several (e.g. countries, sexes). "
-            "Keep totals and their components apart.\n"
-            + json.dumps(
-                {
-                    "question": question,
-                    "measurement": measurement,
-                    "scope": strategy,
-                    "dataset": candidate.title,
-                    "dimensions": [
-                        {"id": d.id, "label": d.label, "codes": d.codes}
-                        for d in description.dimensions
-                    ],
-                },
-                ensure_ascii=False,
-            ),
-            selection_schema(description),
+        description = _with_retry(
+            lambda: connector.describe(candidate, strategy, fetch=fetch), recovery
         )
-        selection = base.validate_selection(description, proposal)
+        payload = {
+            "question": question,
+            "measurement": measurement,
+            "scope": strategy,
+            "dataset": candidate.title,
+            "dimensions": [
+                {"id": d.id, "label": d.label, "codes": d.codes} for d in description.dimensions
+            ],
+        }
+        selection = fetched = repaired = None
+        # A SelectionError gets up to MAX_REPAIRS repairs; every repair is validated again.
+        for attempt in range(MAX_REPAIRS + 1):
+            check_cancelled()
+            stage_name = "connector:selection"
+            proposal = complete(
+                SELECT_PROMPT + json.dumps(payload, ensure_ascii=False),
+                selection_schema(description),
+            )
+            try:
+                selection = base.validate_selection(description, proposal)
+                stage_name = "connector:fetch"
+                progress(f"Requesting {candidate.title[:100]} from the {connector.NAME} API.")
+                fetched = _with_retry(
+                    lambda selection=selection: connector.fetch(
+                        description, selection, strategy, fetch=fetch, post=post
+                    ),
+                    recovery,
+                )
+                break
+            except base.SelectionError as exc:
+                if attempt == MAX_REPAIRS:
+                    raise
+                payload["previous_error"] = {"error": str(exc)[:500], "facts": _facts(exc.facts)}
+                repaired = {"class": "selection", "action": "repair", "outcome": str(exc)[:200]}
+                recovery.append(repaired)
+        assert selection is not None and fetched is not None
+        if repaired:
+            repaired["outcome"] = "repaired"
         assessment["selection"] = selection
-        stage_name = "connector:fetch"
-        progress(f"Requesting {candidate.title[:100]} from the {connector.NAME} API.")
-        fetched = connector.fetch(description, selection, strategy, fetch=fetch, post=post)
-        stage_name = "connector:normalize"
-        try:
-            table, preparation = prepare_table(fetched.raw, fetched.selection)
-        except (ValueError, KeyError, TypeError) as exc:
-            raise base.ReaderError(str(exc)) from exc
-        mapping = connector.mapping(table, preparation, selection, measurement)
-        analysis = analyse_csv(table, mapping, strategy)
-        attach_provenance(analysis, preparation)
-        analysis["limitations"] += list(fetched.notes) + preparation.get("limitations", [])
         source = {
             "title": candidate.title,
             "url": fetched.request["url"],
@@ -228,6 +309,50 @@ def analyse_dataset(
                 "selection": selection,
             },
         }
+        stage_name = "connector:normalize"
+        try:
+            table, preparation = prepare_table(fetched.raw, fetched.selection)
+        except (ValueError, KeyError, TypeError) as exc:
+            failure = _reader_failure(exc)
+            if isinstance(failure, base.DatasetRejected):
+                raise failure from exc
+            recovery.append(
+                {"class": "reader", "action": "python_recovery", "outcome": str(exc)[:200]}
+            )
+            stage_name = "connector:python"
+            progress("The connector reader could not read this response. Trying Python extraction.")
+            (folder / fetched.artifact).write_bytes(fetched.raw)
+            # recover_python runs its own semantic review and raises unless it is accepted.
+            analysis = recover_python(
+                question,
+                strategy,
+                fetched.raw,
+                source,
+                folder,
+                complete=complete,
+                reason="Connector reader could not read the response: " + str(exc)[:300],
+                metadata=description.definitions,
+                check_cancelled=check_cancelled,
+                progress=progress,
+            )
+            stage_name = "execution"
+            analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
+            save(folder / "analysis.json", analysis)
+            recovery[-1]["outcome"] = "recovered"
+            assessment.setdefault("semantic_reviews", []).append(analysis["semantic_review"])
+            assessment.update(
+                decision="analysed",
+                reason="Recovered with executed Python extraction",
+                source=analysis["source"],
+            )
+            return analysis, assessment
+        try:
+            mapping = connector.mapping(table, preparation, selection, measurement)
+        except base.SelectionError as exc:
+            raise base.DatasetRejected(str(exc)) from exc
+        analysis = analyse_csv(table, mapping, strategy)
+        attach_provenance(analysis, preparation)
+        analysis["limitations"] += list(fetched.notes) + preparation.get("limitations", [])
         (folder / fetched.artifact).write_bytes(fetched.raw)
         (folder / "source.csv").write_bytes(table)
         analysis = {
@@ -275,39 +400,14 @@ def analyse_dataset(
         return None, assessment
 
 
-def run(
-    question,
-    strategy,
-    directory,
-    *,
-    complete,
-    fetch,
-    post,
-    check_cancelled,
-    progress,
-    connectors=None,
-    cache_dir=None,
-):
-    connectors = CONNECTORS if connectors is None else connectors
-    directory = Path(directory)
-    cache_dir = Path(cache_dir) if cache_dir else directory / "catalogues"
-    result = {
-        "analyses": [],
-        "assessments": [],
-        "covered": [],
-        "search": {"terms": {}, "candidates": [], "catalogues": {}},
-    }
-    terms = _terms(question, strategy, complete)
-    result["search"]["terms"] = terms
+def _search_all(connectors, terms, strategy, fetch, cache_dir, result, *, check_cancelled):
+    """Search every connector catalogue for terms; failures become blocked assessments."""
     found = {}
     for name, connector in connectors.items():
         check_cancelled()
         try:
             candidates, digest = connector.search(
-                sorted({t for ts in terms.values() for t in ts}),
-                strategy,
-                fetch=fetch,
-                cache_dir=cache_dir,
+                sorted(set(terms)), strategy, fetch=fetch, cache_dir=cache_dir
             )
         except (ValueError, KeyError, TypeError, OSError) as exc:
             result["assessments"].append(
@@ -323,20 +423,37 @@ def run(
         result["search"]["catalogues"][name] = digest
         for c in candidates:
             found[f"{name}:{c.dataset}"] = (connector, c)
-    result["search"]["candidates"] = [
+    return found
+
+
+def _choose_and_analyse(
+    question,
+    strategy,
+    directory,
+    found,
+    measurements,
+    result,
+    *,
+    complete,
+    fetch,
+    post,
+    check_cancelled,
+    progress,
+    skipped,
+    recovery=(),
+):
+    """Let the model choose among found candidates for measurements, then analyse each choice."""
+    candidates = [
         {"key": k, "title": c.title, "frequency": c.frequency} for k, (_, c) in found.items()
     ]
-    if not found:
-        return result
     try:
         choice = complete(
-            "Choose at most 4 datasets that measure the requested measurements. Prefer annual "
-            "series that cover the requested years; do not choose monthly or quarterly datasets.\n"
+            CHOOSE_PROMPT
             + json.dumps(
                 {
                     "question": question,
-                    "scope": strategy,
-                    "candidates": result["search"]["candidates"],
+                    "scope": {**strategy, "measurements": measurements},
+                    "candidates": candidates,
                 },
                 ensure_ascii=False,
             ),
@@ -357,16 +474,15 @@ def run(
                 "reason": str(exc)[:500],
             }
         )
-        return result
-    result["search"]["skipped_choices"] = []
+        return
     for item in items:
         problem = ""
         if item["candidate"] not in found:
             problem = "unknown candidate"
-        elif item["measurement"] not in strategy["measurements"]:
+        elif item["measurement"] not in measurements:
             problem = "measurement not requested"
         if problem:
-            result["search"]["skipped_choices"].append(
+            skipped.append(
                 {
                     "candidate": item["candidate"],
                     "measurement": item["measurement"],
@@ -392,8 +508,150 @@ def run(
             catalogue_sha256=result["search"]["catalogues"].get(connector.NAME, ""),
         )
         assessment["choice_reason"] = item["reason"]
+        assessment["recovery"] = [*recovery, *assessment["recovery"]]
         result["assessments"].append(assessment)
         if analysis:
             result["analyses"].append(analysis)
             result["covered"].append(item["measurement"])
+
+
+def _reformulate(question, measurement, previous, reasons, complete):
+    try:
+        reply = complete(
+            REFORMULATE_PROMPT
+            + json.dumps(
+                {
+                    "question": question,
+                    "measurement": measurement,
+                    "previous_terms": previous,
+                    "reasons": reasons,
+                },
+                ensure_ascii=False,
+            ),
+            TERMS_SCHEMA,
+        )
+        terms = next(t["terms"] for t in reply["terms"] if t["measurement"] == measurement)
+        return [t for t in terms if isinstance(t, str) and t.strip()][:4]
+    except (ValueError, KeyError, TypeError, StopIteration):
+        return []
+
+
+def run(
+    question,
+    strategy,
+    directory,
+    *,
+    complete,
+    fetch,
+    post,
+    check_cancelled,
+    progress,
+    connectors=None,
+    cache_dir=None,
+):
+    connectors = CONNECTORS if connectors is None else connectors
+    directory = Path(directory)
+    cache_dir = Path(cache_dir) if cache_dir else directory / "catalogues"
+    result = {
+        "analyses": [],
+        "assessments": [],
+        "covered": [],
+        "search": {
+            "terms": {},
+            "candidates": [],
+            "catalogues": {},
+            "skipped_choices": [],
+            "reformulated_terms": {},
+            "reformulated_skipped_choices": [],
+        },
+    }
+    steps = {
+        "complete": complete,
+        "fetch": fetch,
+        "post": post,
+        "check_cancelled": check_cancelled,
+        "progress": progress,
+    }
+    terms = _terms(question, strategy, complete)
+    result["search"]["terms"] = terms
+    found = _search_all(
+        connectors,
+        [t for ts in terms.values() for t in ts],
+        strategy,
+        fetch,
+        cache_dir,
+        result,
+        check_cancelled=check_cancelled,
+    )
+    result["search"]["candidates"] = [
+        {"key": k, "title": c.title, "frequency": c.frequency} for k, (_, c) in found.items()
+    ]
+    if found:
+        _choose_and_analyse(
+            question,
+            strategy,
+            directory,
+            found,
+            strategy["measurements"],
+            result,
+            skipped=result["search"]["skipped_choices"],
+            **steps,
+        )
+    # One reformulated search per measurement that is still uncovered.
+    for measurement in [m for m in strategy["measurements"] if m not in result["covered"]]:
+        check_cancelled()
+        reasons = [
+            a["reason"]
+            for a in result["assessments"]
+            if a.get("measurement") == measurement and a.get("reason")
+        ]
+        retry_terms = _reformulate(question, measurement, terms[measurement], reasons, complete)
+        result["search"]["reformulated_terms"][measurement] = retry_terms
+        entry = {
+            "class": "search",
+            "action": "reformulate",
+            "outcome": ", ".join(retry_terms)[:200],
+        }
+        tried = {
+            f"{a.get('connector')}:{a.get('dataset')}"
+            for a in result["assessments"]
+            if a.get("measurement") == measurement
+        }
+        found_again = (
+            _search_all(
+                connectors,
+                retry_terms,
+                strategy,
+                fetch,
+                cache_dir,
+                result,
+                check_cancelled=check_cancelled,
+            )
+            if retry_terms
+            else {}
+        )
+        fresh = {k: v for k, v in found_again.items() if k not in tried}
+        if not fresh:
+            result["assessments"].append(
+                {
+                    "title": "Connector search",
+                    "measurement": measurement,
+                    "decision": "blocked",
+                    "failure_stage": "connector:search",
+                    "reason": "No connector dataset found after reformulated search",
+                    "recovery": [entry],
+                }
+            )
+            continue
+        _choose_and_analyse(
+            question,
+            strategy,
+            directory,
+            fresh,
+            [measurement],
+            result,
+            skipped=result["search"]["reformulated_skipped_choices"],
+            recovery=[entry],
+            **steps,
+        )
     return result
