@@ -298,3 +298,26 @@ def test_a_key_combination_without_series_is_a_selection_error_with_published_co
     assert {"freq": "A", "unit": "YR", "sex": "F", "age": "Y_LT1"} in combinations
     # The listing is narrowed to the selected series-dimension codes.
     assert "/data/demo_mlexpec/....NL+DE+EL/" in requested[-1]
+
+
+def test_an_empty_slice_without_published_combinations_rejects_the_dataset():
+    import gzip
+
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    description = eurostat.describe(candidate, SCOPE, fetch=offline)
+    empty = gzip.compress(b"freq,unit,sex,age,geo\\TIME_PERIOD\t2000 \t2001 \r\n")
+
+    def nothing_published(url):
+        if "serieskeysonly" in url:
+            raise ValueError("Dataset server returned HTTP 404")
+        if "/data/demo_mlexpec/" in url:
+            return empty, "text/tab-separated-values", url
+        return offline(url)
+
+    selection = {
+        "filters": {"freq": ["A"], "unit": ["YR"], "sex": ["F"], "age": ["Y_LT1"], "geo": ["NL"]},
+        "series_dimensions": ["geo"],
+        "reason": "Requested",
+    }
+    with pytest.raises(base.DatasetRejected, match="no published series"):
+        eurostat.fetch(description, selection, SCOPE, fetch=nothing_published, post=None)

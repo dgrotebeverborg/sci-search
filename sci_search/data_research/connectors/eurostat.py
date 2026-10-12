@@ -237,6 +237,10 @@ def fetch(description, selection, scope, *, fetch, post):
             combination = {d: c for d, c in row.items() if d not in series}
             if combination not in published:
                 published.append(combination)
+        if not published:
+            raise base.DatasetRejected(
+                "Eurostat has no published series for the selected series codes"
+            ) from exc
         raise base.SelectionError(
             "No published series for this combination of codes; choose a published combination",
             {"published_combinations": published[:30]},
