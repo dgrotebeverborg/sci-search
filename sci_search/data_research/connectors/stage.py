@@ -387,10 +387,18 @@ def analyse_dataset(
             "metadata": description.definitions,
             "table_sample": json.dumps(rows[:12], ensure_ascii=False),
         }
+        # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed
+        # the model's context; the review reads the mapping and a table sample instead.
+        proposal = {
+            **analysis,
+            "preparation": {
+                k: v for k, v in analysis["preparation"].items() if k != "row_provenance"
+            },
+        }
         review = semantics.assess(
             question=question,
             scope=strategy,
-            analysis=analysis,
+            analysis=proposal,
             documents=documents,
             complete=complete,
         )

@@ -338,3 +338,32 @@ def test_a_post_request_is_marked_not_get_reproducible(tmp_path):
     replay = run_download(next(tmp_path.glob("connector-*")), tmp_path)
     assert replay.returncode == 0, replay.stderr
     assert json.loads(replay.stdout)["reproducible"] is False
+
+
+def test_the_meaning_review_prompt_leaves_out_row_provenance(tmp_path):
+    # Row provenance lists every source row; a CBS package made the live prompt 1.4 MB.
+    from sci_search.data_research.connectors import eurostat
+
+    prompts = []
+    reviewed = with_positive_meaning_review(scripted)
+
+    def recording(prompt, schema):
+        if set(schema["properties"]) == {"measurements"}:
+            prompts.append(prompt)
+        return reviewed(prompt, schema)
+
+    result = stage.run(
+        "How has life expectancy changed?",
+        STRATEGY,
+        tmp_path,
+        complete=recording,
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda m: None,
+        connectors={"eurostat": eurostat},
+        cache_dir=tmp_path / "cache",
+    )
+    assert result["covered"] == ["life expectancy at birth"]
+    assert prompts and all("row_provenance" not in p for p in prompts)
+    assert result["analyses"][0]["preparation"]["row_provenance"]
