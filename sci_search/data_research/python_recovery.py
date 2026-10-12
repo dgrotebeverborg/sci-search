@@ -153,6 +153,7 @@ def recover(
             payload = json.loads((attempt / "output/observations.json").read_text())
             analyse_observations(payload, extraction_scope)
             analysis = analyse_observations(payload, scope)
+            labels = list(dict.fromkeys(s["label"] for s in analysis["series"]))
             check_cancelled()
             progress(
                 f"Extracted {len(payload['observations'])} observations. Checking definitions, units and source references."
@@ -176,7 +177,7 @@ def recover(
                         "question": question,
                         "scope": scope,
                         "evidence_documents": documents,
-                        "measurements": list(dict.fromkeys(s["label"] for s in analysis["series"])),
+                        "measurements": labels,
                         "metadata": metadata[:40000],
                         "source_inspection": preview,
                         "code": code,
@@ -186,11 +187,9 @@ def recover(
                         "checks": payload.get("checks", []),
                     }
                 ),
-                review_schema(list(dict.fromkeys(s["label"] for s in analysis["series"]))),
+                review_schema(labels),
             )
-            semantic_review = semantics.validate(
-                review, list(dict.fromkeys(s["label"] for s in analysis["series"])), documents
-            )
+            semantic_review = semantics.validate(review, labels, documents)
             semantic_failure = not semantic_review["accepted"]
             (attempt / "semantic-review.json").write_text(json.dumps(semantic_review, indent=2))
             (attempt / "review.json").write_text(json.dumps(review, indent=2))
