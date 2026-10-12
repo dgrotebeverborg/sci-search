@@ -1,5 +1,11 @@
 # Data connectors acceptance run
 
+The brief expected life expectancy, renewable electricity share and electricity storage to
+succeed through connectors with Mistral; none did in the three runs below. The main remaining
+cause is the meaning reviewer, which rejects on substance (for example Eurostat's age code
+Y_LT1 read as not "at birth") and on quotes that do not match the source text exactly. These runs
+assert gaps for the web-dependent questions; the test now skips those under Mistral.
+
 Run: 2026-10-12T13:42+00:00. Provider: mistral.
 
 | Question | Succeeded | Sources | Connector gaps |
@@ -51,3 +57,9 @@ Run: 2026-10-12T13:06+00:00. Provider: mistral.
 | Electricity storage in the Netherlands | no | - | - |
 | Rhine discharge at Lobith | no | - | - |
 | Coral cover on the Great Barrier Reef | no | - | - |
+
+The first run failed on two connector bugs, since fixed. The meaning-review prompt carried every
+source row's provenance (1.4 MB for a CBS package), so Mistral rejected it with HTTP 400 for
+exceeding its context. CBS selections with more than one series dimension were rejected after the
+download instead of being returned to the model for repair. Search terms also came back in Dutch
+only, and the Eurostat candidates were unrelated.
