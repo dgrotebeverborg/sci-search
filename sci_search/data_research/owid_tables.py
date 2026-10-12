@@ -7,6 +7,14 @@ import json
 import re
 
 
+def _frequency(year):
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", year):
+        return "daily"
+    if re.fullmatch(r"\d{4}-\d{2}", year):
+        return "monthly"
+    return "not annual"
+
+
 def prepare_owid(body, selection):
     if len(body) > 5_000_000:
         raise ValueError("OWID response exceeds the 5 MB analysis limit")
@@ -36,7 +44,7 @@ def prepare_owid(body, selection):
         if row["entity"] not in wanted:
             continue
         if not re.fullmatch(r"-?\d{1,4}", row["year"]):
-            raise ValueError("dataset is not annual; no aggregation was performed")
+            raise ValueError(f"dataset is {_frequency(row['year'])}; no aggregation was performed")
         if (row["entity"], row["year"]) in seen:
             raise ValueError(f"OWID CSV has a duplicate {row['entity']} {row['year']} row")
         seen.add((row["entity"], row["year"]))

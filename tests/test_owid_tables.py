@@ -58,7 +58,7 @@ def test_missing_stays_missing_and_non_annual_year_is_rejected():
     _, rows = read_csv(prepare_table(envelope(csv_text), SELECTION)[0])
     assert rows[1]["Value"] == ":"
     daily = CSV.replace("2001", "2001-02-03")
-    with pytest.raises(ValueError, match="dataset is not annual; no aggregation was performed"):
+    with pytest.raises(ValueError, match="dataset is daily; no aggregation was performed"):
         prepare_table(envelope(daily), SELECTION)
 
 
