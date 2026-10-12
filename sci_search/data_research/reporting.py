@@ -232,6 +232,21 @@ def markdown_appendix(result):
             + " — "
             + cell(item.get("reason"))
         )
+        lines.extend(
+            "- Automatic recovery: "
+            + cell(step.get("class"))
+            + " → "
+            + cell(step.get("action"))
+            + " · "
+            + cell(step.get("outcome"))
+            for step in item.get("recovery", [])
+        )
+    if result.get("connector_gaps"):
+        lines.extend(["", "### Connector gaps", ""])
+        lines.extend(
+            f"- Needs an API connector for {cell(gap['host'])} ({cell(gap['measurement'])})"
+            for gap in result["connector_gaps"]
+        )
     for analysis in result.get("analyses", []):
         source = analysis["source"]
         if analysis.get("execution"):
@@ -252,6 +267,15 @@ def markdown_appendix(result):
                 "",
             ]
         )
+        connector = source.get("connector")
+        if connector:
+            lines.extend(
+                [
+                    f"Queried the {cell(source.get('publisher', connector['name']))} API: dataset {cell(connector['dataset'])}",
+                    "Exact request: " + cell(connector["request"].get("url", "")),
+                    "",
+                ]
+            )
         if analysis["kind"] == "tabular":
             for series in analysis["series"]:
                 lines.extend(

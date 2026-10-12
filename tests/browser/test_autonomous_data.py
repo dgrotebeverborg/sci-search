@@ -360,3 +360,30 @@ def test_unconfirmed_meaning_and_malformed_reviews_remain_visible(
         )
     ).to_be_visible()
     page.close()
+
+
+def test_connector_gaps_and_recovery_are_visible(live_browser_url, chromium_browser):
+    page = chromium_browser.new_page()
+    page.request.post(live_browser_url + "/auth/development")
+    page.goto(live_browser_url + "/app")
+    page.evaluate("""async () => {
+      const {renderDataResearch} = await import('/static/data_research.js');
+      const host = document.createElement('div'); host.id = 'gap-test'; document.body.append(host);
+      renderDataResearch({kind:'discovered', analyses:[], limitations:[],
+        connector_gaps:[{host:'waterinfo.rws.nl', measurement:'river discharge', evidence:'Loading only'},
+          {host:'<img src=x onerror=window.pwned=1>', measurement:'m', evidence:'e'}],
+        assessments:[{title:'Life expectancy', url:'https://ec.europa.eu/x', decision:'blocked', reason:'No published series',
+          connector:'eurostat', recovery:[{class:'selection', action:'repair', outcome:'Unobserved code for sex'}]}]}, host);
+    }""")
+    gap = page.locator("#gap-test")
+    expect(
+        gap.get_by_text("Needs an API connector for waterinfo.rws.nl (river discharge)", exact=True)
+    ).to_be_visible()
+    expect(
+        gap.get_by_text(
+            "Automatic recovery: selection → repair · Unobserved code for sex", exact=True
+        )
+    ).to_be_attached()
+    assert page.locator("#gap-test img").count() == 0
+    assert page.evaluate("window.pwned") is None
+    page.close()

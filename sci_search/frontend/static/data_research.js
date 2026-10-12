@@ -89,6 +89,7 @@ function renderDiscovered(data, parent) {
   parent.append(notice);
   const strategy = data.strategy || {};
   if (data.literature_fallback) parent.append(element('p', data.literature_fallback));
+  for (const gap of data.connector_gaps || []) parent.append(element('p', 'Needs an API connector for ' + gap.host + ' (' + gap.measurement + ')'));
   const process = data.research_process;
   if (process) {
     const details = element('details');
@@ -168,6 +169,7 @@ function renderDiscovered(data, parent) {
     }
     parent.append(element('p', 'Source SHA-256: ' + analysis.source.sha256, 'data-source-hash'));
     parent.append(element('p', 'Licence assessment: ' + analysis.source.license_note));
+    if (analysis.source.connector) parent.append(element('p', 'Queried the ' + analysis.source.publisher + ' API: dataset ' + analysis.source.connector.dataset), safeLink('Exact request', analysis.source.connector.request.url));
     for (const note of analysis.limitations) parent.append(element('p',note));
   }
   const decisions = element('details'); decisions.open = !data.analyses.length;
@@ -175,6 +177,7 @@ function renderDiscovered(data, parent) {
   for (const item of [...(data.assessments || []), ...(data.discovery?.rejected || []), ...(data.followup?.discovery?.rejected || [])]) {
     const article = element('article');
     article.append(safeLink(item.title || item.url, item.url), element('p', ({analysed:'Used for analysis',blocked:'Not analysed',rejected:'Not verified',duplicate:'Already analysed'}[item.decision] || item.decision) + ': ' + item.reason));
+    for (const step of item.recovery || []) article.append(element('p', 'Automatic recovery: ' + step.class + ' → ' + step.action + ' · ' + step.outcome));
     if (item.workbook_inspected) article.append(element('p', 'Workbook sheets and accompanying metadata inspected.'));
     for (const review of item.semantic_reviews || []) meaningDetails(review, article);
     meaningDetails(item.execution_review?.semantic_review, article);
