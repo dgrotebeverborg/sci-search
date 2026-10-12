@@ -143,10 +143,13 @@ def catalogue(name, url, fetch, cache_dir, today: date | None = None):
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = cache_dir / f"{name}-{today.isoformat()}.bin"
     digest_path = path.with_suffix(".sha256")
-    if path.exists() and digest_path.exists():
+    try:
         body = path.read_bytes()
-        if body and hashlib.sha256(body).hexdigest() == digest_path.read_text().strip():
-            return body, digest_path.read_text().strip()
+        stored = digest_path.read_text().strip()
+        if body and hashlib.sha256(body).hexdigest() == stored:
+            return body, stored
+    except (OSError, UnicodeDecodeError):
+        pass
     body, _, _ = fetch(url)
     digest = hashlib.sha256(body).hexdigest()
     path.write_bytes(body)

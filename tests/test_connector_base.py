@@ -94,6 +94,14 @@ def test_catalogue_cache_is_daily_and_refetches_corrupt_files(tmp_path):
     (tmp_path / "eurostat-2026-10-13.sha256").write_text("0" * 64)
     base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 13))
     assert len(calls) == 3
+    # A non-empty body with a wrong digest is refetched.
+    (tmp_path / "eurostat-2026-10-13.bin").write_bytes(b"tampered")
+    base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 13))
+    assert len(calls) == 4
+    # A non-UTF-8 digest file is a cache miss, not a crash.
+    (tmp_path / "eurostat-2026-10-13.sha256").write_bytes(b"\xff\xfe\x00")
+    base.catalogue("eurostat", "https://x/cat", fetch, tmp_path, today=date(2026, 10, 13))
+    assert len(calls) == 5
 
 
 def test_annual_codes_and_scoring():
