@@ -97,9 +97,17 @@ INSTRUCTIONS = (
 )
 
 
+def _spaced(text):
+    return " ".join(text.split())
+
+
 def validate(review, measurements, documents):
-    """Fail closed on omissions, contradictions, unknown sources and invented quotes."""
+    """Fail closed on omissions, contradictions, unknown sources and invented quotes.
+
+    A quote must match its document word for word; only whitespace may differ.
+    """
     problems, questions = [], []
+    spaced = {k: _spaced(v) for k, v in documents.items() if isinstance(v, str)}
     items = review.get("measurements", []) if isinstance(review, dict) else []
     if not isinstance(items, list):
         items = []
@@ -147,10 +155,10 @@ def validate(review, measurements, documents):
                 key, quote = citation.get("document"), citation.get("quote")
                 if (
                     not isinstance(key, str)
-                    or key not in documents
+                    or key not in spaced
                     or not isinstance(quote, str)
                     or len(quote.strip()) < 3
-                    or quote not in documents[key]
+                    or _spaced(quote) not in spaced[key]
                 ):
                     problems.append(f"{name}/{aspect}: quote absent from original source document")
         for aspect in ASPECTS:

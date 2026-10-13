@@ -84,6 +84,19 @@ def test_incomplete_or_fabricated_evidence_cannot_pass(mutation):
     assert not semantics.validate(review, ["population"], DOCUMENTS)["accepted"]
 
 
+def test_a_quote_differing_only_in_whitespace_is_accepted():
+    documents = {"metadata": "Population counts residents\r\nin people   at 1 January."}
+    item = judgment()
+    for check in item["checks"]:
+        check["evidence"] = [
+            {"document": "metadata", "quote": "counts residents in people at 1 January"}
+        ]
+    assert semantics.validate({"measurements": [item]}, ["population"], documents)["accepted"]
+    for check in item["checks"]:
+        check["evidence"] = [{"document": "metadata", "quote": "counts residents in persons"}]
+    assert not semantics.validate({"measurements": [item]}, ["population"], documents)["accepted"]
+
+
 def test_conflicting_component_definitions_block_derived_total():
     item = judgment("total coral cover")
     item["transformation"] = "derived"
