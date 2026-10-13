@@ -160,7 +160,9 @@ def selection_evidence(description, selection):
         f"Publisher: {description.publisher}",
     ]
     if description.years:
-        lines.append(f"Years published: {description.years[0]}-{description.years[-1]}")
+        # Connectors keep only the years inside the requested period in description.years.
+        first, last = description.years[0], description.years[-1]
+        lines.append(f"Years with data in the requested period: {first}-{last}")
     dims = {d.id: d for d in description.dimensions}
     for d, codes in selection["filters"].items():
         lines += [f"{dims[d].label}: {code} = {dims[d].codes[code]}" for code in codes]

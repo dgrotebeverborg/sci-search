@@ -1,6 +1,7 @@
 """Publication requires grounded meaning, independently of successful arithmetic."""
 
 import copy
+import json
 
 import pytest
 
@@ -462,3 +463,21 @@ def test_the_python_extraction_review_uses_the_same_per_measurement_schema():
     reviews = schema["properties"]["measurements"]
     assert reviews["items"]["properties"]["measurement"]["enum"] == ["population"]
     assert reviews["minItems"] == reviews["maxItems"] == 1
+
+
+def test_the_review_sees_both_ends_of_a_long_series():
+    prompts = []
+
+    def complete(prompt, schema):
+        prompts.append(prompt)
+        return {"measurements": [judgment()]}
+
+    annual = [{"year": y, "value": y - 1999} for y in range(2000, 2025)]
+    analysis = {"series": [{"label": "population", "entity": "NL", "annual": annual}]}
+    semantics.assess(
+        question="q", scope={}, analysis=analysis, documents=DOCUMENTS, complete=complete
+    )
+    series = json.loads(prompts[0].split("\n", 1)[1])["proposal"]["series"][0]
+    years = [r["year"] for r in series["annual"]]
+    assert years[0] == 2000 and years[-1] == 2024
+    assert series["annual_years"] == "2000-2024, 25 values; middle years omitted here"

@@ -235,7 +235,7 @@ def test_selection_evidence_names_each_selected_code_under_its_dimension_label()
     text = base.selection_evidence(description(), selection())
     assert "Dataset: Life expectancy (eurostat:demo_mlexpec)" in text
     assert "Publisher: Eurostat" in text
-    assert "Years published: 2000-2024" in text
+    assert "Years with data in the requested period: 2000-2024" in text
     assert "Sex: F = Females" in text and "Sex: M = Males" in text
     assert "Country: NL = Netherlands" in text
     assert "Unit: YR = Year" in text

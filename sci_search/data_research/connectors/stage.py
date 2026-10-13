@@ -325,10 +325,11 @@ def _same_codes(selection, other):
     return key(selection) == key(other)
 
 
-def table_evidence(rows, mapping, sample_size=12):
+def table_evidence(rows, mapping, scope=None, sample_size=12):
     """A per-series summary and a sample from both ends of the selected source rows.
 
-    The first rows alone made the review read a series as ending years early.
+    The first rows alone made the review read a series as ending years early. Like the
+    analysis, the summary and sample keep to the requested period.
     """
     year, value, entity = (
         mapping["year_column"],
@@ -340,6 +341,20 @@ def table_evidence(rows, mapping, sample_size=12):
         filters = {item["column"]: item["value"] for item in filters}
     selected = [r for r in rows if all(r.get(k) == v for k, v in filters.items())]
     lines = [f"Selected rows: {len(selected)} of {len(rows)} table rows"]
+    start, end = (scope or {}).get("start_year"), (scope or {}).get("end_year")
+    if start or end:
+        before = len(selected)
+        selected = [
+            r
+            for r in selected
+            if (y := base.annual(r.get(year, ""))) is None
+            or ((not start or y >= start) and (not end or y <= end))
+        ]
+        period = f"{start or 'first year'}-{end or 'last year'}"
+        lines[0] = (
+            f"Selected rows: {before} of {len(rows)} table rows; "
+            f"{len(selected)} in the requested period {period}"
+        )
     series = {}
     for row in selected:
         series.setdefault(row.get(entity, "") if entity else "", []).append(row)
@@ -538,7 +553,7 @@ def analyse_dataset(
             }
             stage_name = "connector:meaning"
             _, rows = read_csv(table)
-            summary, sample = table_evidence(rows, mapping)
+            summary, sample = table_evidence(rows, mapping, strategy)
             documents = {
                 "metadata": description.definitions,
                 "selection": base.selection_evidence(description, selection),

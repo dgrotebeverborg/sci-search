@@ -141,6 +141,15 @@ def test_table_evidence_summarises_every_selected_series_and_samples_both_ends()
     assert all(r["Measure"] == "kept" for r in json.loads(sample))
 
 
+def test_table_evidence_keeps_to_the_requested_period():
+    rows = [{"Year": str(y), "Series": "A", "Value": str(y - 1999)} for y in range(1990, 2026)]
+    mapping = {"year_column": "Year", "value_column": "Value", "entity_column": "Series"}
+    summary, sample = stage.table_evidence(rows, mapping, {"start_year": 2000, "end_year": 2024})
+    assert "Selected rows: 36 of 36 table rows; 25 in the requested period 2000-2024" in summary
+    assert "Series A: 25 rows, years 2000-2024; first 2000 = 1; last 2024 = 25" in summary
+    assert {r["Year"] for r in json.loads(sample)} <= {str(y) for y in range(2000, 2025)}
+
+
 def test_selection_schema_enumerates_observed_codes():
     description = base.DatasetDescription(
         candidate=base.DatasetCandidate("x", "d", "t", "annual"),

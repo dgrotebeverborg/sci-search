@@ -183,13 +183,26 @@ def validate(review, measurements, documents):
     }
 
 
+def _ends(series, keep=4):
+    """A long series as its first and last years, so the review sees both endpoints."""
+    annual = series["annual"]
+    if len(annual) <= 2 * keep:
+        return series
+    span = f"{annual[0]['year']}-{annual[-1]['year']}, {len(annual)} values"
+    return {
+        **series,
+        "annual": annual[:keep] + annual[-keep:],
+        "annual_years": span + "; middle years omitted here",
+    }
+
+
 def assess(*, question, scope, analysis, documents, complete):
     series = analysis.get("series", [])
     measurements = list(dict.fromkeys(s["label"] for s in series))
     if analysis.get("kind") == "wildfire":
         measurements = ["reported forest fires", "burned area"]
     proposal = {k: v for k, v in analysis.items() if k not in {"series", "components"}}
-    proposal["series"] = [{**s, "annual": s["annual"][:8]} for s in series[:30]]
+    proposal["series"] = [_ends(s) for s in series[:30]]
     prompt = (
         INSTRUCTIONS
         + "\n"
