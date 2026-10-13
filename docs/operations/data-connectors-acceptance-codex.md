@@ -1,5 +1,37 @@
 # Data connectors acceptance run
 
+Run: 2026-10-13T13:27+00:00. Provider: codex.
+
+| Question | Succeeded | Sources | Connector gaps |
+|---|---|---|---|
+| Life expectancy for men and women by European country | yes | Statistics Netherlands (CBS) | - |
+| Renewable electricity share in NL, DE and DK | no | - | - |
+| Burned area in Spain, Portugal and Greece | yes | European Commission Joint Research Centre, EFFIS | - |
+| Annual mean CO2 at Mauna Loa | no | - | - |
+| Electricity storage in the Netherlands | no | - | - |
+| Rhine discharge at Lobith | no | - | rijkswaterstaatdata.nl, waterinfo.rws.nl, ddapi20-waterwebservices.rijkswaterstaat.nl |
+| Coral cover on the Great Barrier Reef | no | - | apps.aims.gov.au |
+
+This run told the re-selection that missing years or countries are no reason to keep the
+rejected codes. Four questions passed: life expectancy, burned area, and the two connector-gap
+questions (Rhine, now also coral cover with apps.aims.gov.au). Re-selection still accepted
+nothing. Of nine re-selections, eight repeated the codes and one changed them and was
+rejected again.
+
+- Most repeats had no better code to choose. Our World in Data allows one indicator per
+  selection, so a female-only or male-only life expectancy chart cannot add the other sex. The
+  burned-area charts hold only land-cover components, and the re-selection moved from forest to
+  croplands. Eurostat `nrg_ind_ured` publishes GWh, not a share.
+- Eurostat `demo_mlexpec` and `tps00205` were rejected again because no source text says age
+  Y_LT1 is life expectancy at birth.
+- Life expectancy passed through the web path on CBS 37360ned, which covers the Netherlands only
+  (2000–2024, men and women). Germany and Greece are missing, but the test counts any analysis.
+- CBS 85929NED (battery storage) was rejected because the passages do not state the geographic
+  coverage, although CBS publishes Dutch statistics only.
+- Burned area passed through EFFIS on the web path, as in the first run.
+
+## Previous run, with re-selection
+
 Run: 2026-10-13T11:36+00:00. Provider: codex.
 
 | Question | Succeeded | Sources | Connector gaps |
