@@ -167,6 +167,16 @@ connector, dataset ID, exact request (URL, and body for POST), the response SHA-
 the catalogue snapshot it was found in, the licence from the metadata, and the model's choices with
 their reasons.
 
+The meaning review of a connector analysis receives the dataset metadata as plain text, a
+`selection` document naming each selected code under its dimension label (for example
+`Age class: Y_LT1 = Less than 1 year`), a per-series summary of years and endpoint values, and a
+sample from both ends of the selected rows. A quote must match its document word for word; only
+whitespace may differ. When the review rejects a selection, the model selects codes in the same
+dataset once more, given the rejected codes and the review's reason. The new selection is fetched
+and reviewed again in full. Repeating the rejected codes ends the dataset without another fetch.
+The rejected review is kept as `semantic-review-rejected-1.json`, and the recovery records the
+outcome: `accepted`, `rejected again` or `no other codes`.
+
 Measurements no connector covered continue to the web-search workflow, restricted to those
 measurements. A web candidate on a connector host whose URL names a dataset enters the connector
 path instead of the scraper. Results that include connector analyses keep the existing status

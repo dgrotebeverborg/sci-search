@@ -204,7 +204,9 @@ SELECT_PROMPT = (
     "Choose the codes that answer the requested measurement. Use only listed codes. Fix every "
     "non-series dimension to one code; series dimensions may have several (e.g. countries, sexes). "
     "Keep totals and their components apart. If previous_error is present, your last selection "
-    "was rejected; repair it using the listed facts.\n"
+    "was rejected; repair it using the listed facts. If previous_rejection is present, the "
+    "meaning review rejected those codes for the stated reason: choose codes that fix it. If no "
+    "listed codes can, repeat the previous selection exactly.\n"
 )
 CHOOSE_PROMPT = (
     "Choose at most 4 datasets that measure the requested measurements. Prefer annual "
@@ -216,6 +218,7 @@ REFORMULATE_PROMPT = (
     "Dutch for Dutch statistics. Do not name datasets.\n"
 )
 MAX_REPAIRS = 2
+MAX_RESELECTIONS = 1
 # Each code becomes an enum value in the selection schema; providers refuse much larger schemas
 # (Eurostat lists about 1500 NUTS regions when no countries are requested).
 MAX_CODES = 1000
@@ -314,6 +317,14 @@ def _facts(value):
     return value
 
 
+def _same_codes(selection, other):
+    def key(value):
+        filters = {d: frozenset(codes) for d, codes in value["filters"].items()}
+        return filters, frozenset(value["series_dimensions"])
+
+    return key(selection) == key(other)
+
+
 def table_evidence(rows, mapping, sample_size=12):
     """A per-series summary and a sample from both ends of the selected source rows.
 
@@ -395,150 +406,184 @@ def analyse_dataset(
                 {"id": d.id, "label": d.label, "codes": d.codes} for d in description.dimensions
             ],
         }
-        selection = fetched = repaired = None
-        # A SelectionError gets up to MAX_REPAIRS repairs; every repair is validated again.
-        for attempt in range(MAX_REPAIRS + 1):
-            check_cancelled()
-            stage_name = "connector:selection"
-            proposal = complete(
-                SELECT_PROMPT + json.dumps(payload, ensure_ascii=False),
-                selection_schema(description),
-            )
-            try:
-                selection = base.validate_selection(description, proposal)
-                stage_name = "connector:fetch"
-                progress(f"Requesting {candidate.title[:100]} from the {connector.NAME} API.")
-                fetched = _with_retry(
-                    lambda selection=selection: connector.fetch(
-                        description, selection, strategy, fetch=fetch, post=post
-                    ),
-                    recovery,
+        rejected = reselected = None
+        # A meaning rejection gets MAX_RESELECTIONS new selections in the same dataset.
+        for round_ in range(MAX_RESELECTIONS + 1):
+            payload.pop("previous_error", None)
+            selection = fetched = repaired = None
+            # A SelectionError gets up to MAX_REPAIRS repairs; every repair is validated again.
+            for attempt in range(MAX_REPAIRS + 1):
+                check_cancelled()
+                stage_name = "connector:selection"
+                proposal = complete(
+                    SELECT_PROMPT + json.dumps(payload, ensure_ascii=False),
+                    selection_schema(description),
                 )
-                break
+                try:
+                    selection = base.validate_selection(description, proposal)
+                    if rejected and _same_codes(selection, rejected["selection"]):
+                        reselected["outcome"] = "no other codes"
+                        raise base.DatasetRejected(
+                            "Measurement meaning not confirmed: " + rejected["reason"]
+                        )
+                    stage_name = "connector:fetch"
+                    progress(f"Requesting {candidate.title[:100]} from the {connector.NAME} API.")
+                    fetched = _with_retry(
+                        lambda selection=selection: connector.fetch(
+                            description, selection, strategy, fetch=fetch, post=post
+                        ),
+                        recovery,
+                    )
+                    break
+                except base.SelectionError as exc:
+                    if attempt == MAX_REPAIRS:
+                        raise
+                    payload["previous_error"] = {
+                        "error": str(exc)[:500],
+                        "facts": _facts(exc.facts),
+                    }
+                    repaired = {"class": "selection", "action": "repair", "outcome": str(exc)[:200]}
+                    recovery.append(repaired)
+            assert selection is not None and fetched is not None
+            if repaired:
+                repaired["outcome"] = "repaired"
+            assessment["selection"] = selection
+            source = {
+                "title": candidate.title,
+                "url": fetched.request["url"],
+                "landing_url": candidate.landing_url,
+                "publisher": description.publisher,
+                "definition": description.definitions[:500],
+                "license_url": description.licence_url,
+                "license_note": "Licence from the dataset metadata: " + description.licence_url,
+                "sha256": hashlib.sha256(fetched.raw).hexdigest(),
+                "retrieved_at": datetime.now(UTC).isoformat(),
+                "artifact": fetched.artifact,
+                "download": _download(fetched.request),
+                "connector": {
+                    "name": connector.NAME,
+                    "dataset": candidate.dataset,
+                    "request": fetched.request,
+                    "catalogue_sha256": catalogue_sha256,
+                    "selection": selection,
+                },
+            }
+            stage_name = "connector:normalize"
+            try:
+                table, preparation = prepare_table(fetched.raw, fetched.selection)
+            except (
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+                zipfile.BadZipFile,
+                csv.Error,
+            ) as exc:
+                failure = _reader_failure(exc)
+                if isinstance(failure, base.DatasetRejected):
+                    raise failure from exc
+                recovery.append(
+                    {"class": "reader", "action": "python_recovery", "outcome": str(exc)[:200]}
+                )
+                stage_name = "connector:python"
+                progress(
+                    "The connector reader could not read this response. Trying Python extraction."
+                )
+                (folder / fetched.artifact).write_bytes(fetched.raw)
+                # recover_python runs its own semantic review and raises unless it is accepted.
+                analysis = recover_python(
+                    question,
+                    {**strategy, "measurements": [measurement]},
+                    fetched.raw,
+                    source,
+                    folder,
+                    complete=complete,
+                    reason="Connector reader could not read the response: " + str(exc)[:300],
+                    metadata=description.definitions,
+                    check_cancelled=check_cancelled,
+                    progress=progress,
+                )
+                if measurement in analysis.get("uncovered_measurements", []):
+                    raise base.DatasetRejected(
+                        "Python extraction did not represent the measurement"
+                    ) from exc
+                stage_name = "execution"
+                analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
+                save(folder / "analysis.json", analysis)
+                recovery[-1]["outcome"] = "recovered"
+                assessment.setdefault("semantic_reviews", []).append(analysis["semantic_review"])
+                assessment.update(
+                    decision="analysed",
+                    reason="Recovered with executed Python extraction",
+                    source=analysis["source"],
+                )
+                return analysis, assessment
+            try:
+                mapping = connector.mapping(table, preparation, selection, measurement)
             except base.SelectionError as exc:
-                if attempt == MAX_REPAIRS:
-                    raise
-                payload["previous_error"] = {"error": str(exc)[:500], "facts": _facts(exc.facts)}
-                repaired = {"class": "selection", "action": "repair", "outcome": str(exc)[:200]}
-                recovery.append(repaired)
-        assert selection is not None and fetched is not None
-        if repaired:
-            repaired["outcome"] = "repaired"
-        assessment["selection"] = selection
-        source = {
-            "title": candidate.title,
-            "url": fetched.request["url"],
-            "landing_url": candidate.landing_url,
-            "publisher": description.publisher,
-            "definition": description.definitions[:500],
-            "license_url": description.licence_url,
-            "license_note": "Licence from the dataset metadata: " + description.licence_url,
-            "sha256": hashlib.sha256(fetched.raw).hexdigest(),
-            "retrieved_at": datetime.now(UTC).isoformat(),
-            "artifact": fetched.artifact,
-            "download": _download(fetched.request),
-            "connector": {
-                "name": connector.NAME,
-                "dataset": candidate.dataset,
-                "request": fetched.request,
-                "catalogue_sha256": catalogue_sha256,
-                "selection": selection,
-            },
-        }
-        stage_name = "connector:normalize"
-        try:
-            table, preparation = prepare_table(fetched.raw, fetched.selection)
-        except (
-            ValueError,
-            KeyError,
-            TypeError,
-            AttributeError,
-            zipfile.BadZipFile,
-            csv.Error,
-        ) as exc:
-            failure = _reader_failure(exc)
-            if isinstance(failure, base.DatasetRejected):
-                raise failure from exc
-            recovery.append(
-                {"class": "reader", "action": "python_recovery", "outcome": str(exc)[:200]}
-            )
-            stage_name = "connector:python"
-            progress("The connector reader could not read this response. Trying Python extraction.")
+                raise base.DatasetRejected(str(exc)) from exc
+            analysis = analyse_csv(table, mapping, strategy)
+            attach_provenance(analysis, preparation)
+            analysis["limitations"] += list(fetched.notes) + preparation.get("limitations", [])
             (folder / fetched.artifact).write_bytes(fetched.raw)
-            # recover_python runs its own semantic review and raises unless it is accepted.
-            analysis = recover_python(
-                question,
-                {**strategy, "measurements": [measurement]},
-                fetched.raw,
-                source,
-                folder,
+            (folder / "source.csv").write_bytes(table)
+            analysis = {
+                **analysis,
+                "components": [copy.deepcopy(analysis)],
+                "kind": "tabular",
+                "source": source,
+                "preparation": {**preparation, "selection": fetched.selection}
+                if fetched.selection
+                else preparation,
+            }
+            stage_name = "connector:meaning"
+            _, rows = read_csv(table)
+            summary, sample = table_evidence(rows, mapping)
+            documents = {
+                "metadata": description.definitions,
+                "selection": base.selection_evidence(description, selection),
+                "table_summary": summary,
+                "table_sample": sample,
+            }
+            # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed
+            # the model's context; the review reads the mapping and a table sample instead.
+            proposal = {
+                **analysis,
+                "preparation": {
+                    k: v for k, v in analysis["preparation"].items() if k != "row_provenance"
+                },
+            }
+            review = semantics.assess(
+                question=question,
+                scope=strategy,
+                analysis=proposal,
+                documents=documents,
                 complete=complete,
-                reason="Connector reader could not read the response: " + str(exc)[:300],
-                metadata=description.definitions,
-                check_cancelled=check_cancelled,
-                progress=progress,
             )
-            if measurement in analysis.get("uncovered_measurements", []):
-                raise base.DatasetRejected(
-                    "Python extraction did not represent the measurement"
-                ) from exc
-            stage_name = "execution"
-            analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
-            save(folder / "analysis.json", analysis)
-            recovery[-1]["outcome"] = "recovered"
-            assessment.setdefault("semantic_reviews", []).append(analysis["semantic_review"])
-            assessment.update(
-                decision="analysed",
-                reason="Recovered with executed Python extraction",
-                source=analysis["source"],
+            assessment.setdefault("semantic_reviews", []).append(review)
+            final = review["accepted"] or round_ == MAX_RESELECTIONS
+            name = (
+                "semantic-review.json" if final else f"semantic-review-rejected-{round_ + 1}.json"
             )
-            return analysis, assessment
-        try:
-            mapping = connector.mapping(table, preparation, selection, measurement)
-        except base.SelectionError as exc:
-            raise base.DatasetRejected(str(exc)) from exc
-        analysis = analyse_csv(table, mapping, strategy)
-        attach_provenance(analysis, preparation)
-        analysis["limitations"] += list(fetched.notes) + preparation.get("limitations", [])
-        (folder / fetched.artifact).write_bytes(fetched.raw)
-        (folder / "source.csv").write_bytes(table)
-        analysis = {
-            **analysis,
-            "components": [copy.deepcopy(analysis)],
-            "kind": "tabular",
-            "source": source,
-            "preparation": {**preparation, "selection": fetched.selection}
-            if fetched.selection
-            else preparation,
-        }
-        stage_name = "connector:meaning"
-        _, rows = read_csv(table)
-        summary, sample = table_evidence(rows, mapping)
-        documents = {
-            "metadata": description.definitions,
-            "selection": base.selection_evidence(description, selection),
-            "table_summary": summary,
-            "table_sample": sample,
-        }
-        # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed
-        # the model's context; the review reads the mapping and a table sample instead.
-        proposal = {
-            **analysis,
-            "preparation": {
-                k: v for k, v in analysis["preparation"].items() if k != "row_provenance"
-            },
-        }
-        review = semantics.assess(
-            question=question,
-            scope=strategy,
-            analysis=proposal,
-            documents=documents,
-            complete=complete,
-        )
-        assessment.setdefault("semantic_reviews", []).append(review)
-        save(folder / "semantic-review.json", {"review": review, "evidence_documents": documents})
-        if not review["accepted"]:
-            raise base.DatasetRejected("Measurement meaning not confirmed: " + review["reason"])
+            save(folder / name, {"review": review, "evidence_documents": documents})
+            if review["accepted"]:
+                if reselected:
+                    reselected["outcome"] = "accepted"
+                break
+            if final:
+                if reselected:
+                    reselected["outcome"] = "rejected again"
+                raise base.DatasetRejected("Measurement meaning not confirmed: " + review["reason"])
+            # The review's reason often names the right code (a total, not a component); ask once.
+            rejected = {"selection": selection, "reason": review["reason"][:1500]}
+            payload["previous_rejection"] = rejected
+            reselected = {
+                "class": "meaning",
+                "action": "reselect",
+                "outcome": review["reason"][:200],
+            }
+            recovery.append(reselected)
+            progress("The meaning check rejected the selected codes. Choosing codes again.")
         analysis["semantic_review"] = review
         stage_name = "execution"
         analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
