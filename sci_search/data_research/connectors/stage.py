@@ -205,8 +205,11 @@ SELECT_PROMPT = (
     "non-series dimension to one code; series dimensions may have several (e.g. countries, sexes). "
     "Keep totals and their components apart. If previous_error is present, your last selection "
     "was rejected; repair it using the listed facts. If previous_rejection is present, the "
-    "meaning review rejected those codes for the stated reason: choose codes that fix it. If no "
-    "listed codes can, repeat the previous selection exactly.\n"
+    "meaning review rejected those codes for the stated reason. Fix what other codes can fix, "
+    "such as a component or single category chosen instead of the total, or the wrong indicator, "
+    "unit, age or measure. Missing years or countries are not fixed by codes and are no reason "
+    "to keep the same codes. Repeat the previous selection exactly only if no listed codes "
+    "measure the requested measurement better.\n"
 )
 CHOOSE_PROMPT = (
     "Choose at most 4 datasets that measure the requested measurements. Prefer annual "
