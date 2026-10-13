@@ -157,3 +157,11 @@ def test_dataset_from_url():
         == "life-expectancy"
     )
     assert owid.dataset_from_url("https://ourworldindata.org/life-expectancy") is None
+
+
+def test_definitions_are_plain_text_indicator_descriptions():
+    description = owid.describe(CANDIDATE, SCOPE, fetch=offline)
+    text = description.definitions
+    assert not text.lstrip().startswith("{")
+    assert "Indicator: Life expectancy" in text
+    assert "Period life expectancy is the number of years the average person born" in text

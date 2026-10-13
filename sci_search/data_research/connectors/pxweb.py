@@ -151,14 +151,14 @@ def describe(candidate, scope, *, fetch, require_annual=True):
                     d, meta["dimension"][d].get("label", d), {c: labels.get(c, c) for c in codes}
                 )
             )
-        definitions = json.dumps(
-            {
-                "label": meta.get("label"),
-                "note": meta.get("note"),
-                "units": {d: meta["dimension"][d]["category"].get("unit") for d in meta["id"]},
-            },
-            ensure_ascii=False,
-        )
+        lines = [f"Title: {meta['label']}"] if meta.get("label") else []
+        lines += [f"Note: {note}" for note in meta.get("note") or [] if isinstance(note, str)]
+        for d in meta["id"]:
+            dimension = meta["dimension"][d]
+            for code, unit in (dimension["category"].get("unit") or {}).items():
+                name = (dimension["category"].get("label") or {}).get(code, code)
+                lines.append(f"{dimension.get('label', d)}: {name} (unit: {unit.get('base', '')})")
+        definitions = "\n".join(lines)
     else:
         body, _, _ = fetch(f"{inst['base']}/{table}")
         meta = json.loads(body)
@@ -171,7 +171,7 @@ def describe(candidate, scope, *, fetch, require_annual=True):
             dims.append(
                 base.Dimension(v["code"], v["text"], dict(zip(v["values"], texts, strict=True)))
             )
-        definitions = json.dumps({"title": meta.get("title")}, ensure_ascii=False)
+        definitions = f"Title: {meta['title']}" if meta.get("title") else ""
     if not time or not time_codes:
         raise base.DatasetRejected("dataset has no time dimension")
     annual = [c for c in time_codes if base.annual(c)]

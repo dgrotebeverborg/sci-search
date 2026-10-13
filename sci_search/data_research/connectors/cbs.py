@@ -80,6 +80,32 @@ def search(terms, scope, *, fetch, cache_dir):
     return candidates, digest
 
 
+def _definitions(metadata):
+    """The package's titles and descriptions as plain text the meaning review can quote."""
+    dataset = metadata["dataset"][0] if metadata["dataset"] else {}
+    lines = [
+        f"{key}: {dataset[key].strip()}"
+        for key in ("Title", "Summary", "Description", "LongDescription")
+        if (dataset.get(key) or "").strip()
+    ]
+    described = set()
+    for m in metadata["measures"]:
+        lines.append(f"Measure: {m['Title']} ({m['Unit']})")
+        about = (m.get("Description") or "").strip()
+        if about and about not in described:  # CBS repeats a description for each unit
+            described.add(about)
+            lines.append(about)
+    for d in metadata["dimensions"]:
+        title = d.get("Title") or d["Identifier"]
+        lines.append(f"Dimension: {title}")
+        if (d.get("Description") or "").strip():
+            lines.append(d["Description"].strip())
+        for code in metadata["codes"].get(d["Identifier"], {}).values():
+            if (code.get("Description") or "").strip():
+                lines.append(f"{title}: {code['Title'].strip()}: {code['Description'].strip()}")
+    return "\n".join(lines)
+
+
 def describe(candidate, scope, *, fetch):
     url = package_url(candidate.dataset)
     countries = list(scope.get("countries") or [])
@@ -137,7 +163,7 @@ def describe(candidate, scope, *, fetch):
         dimensions=tuple(dimensions),
         years=years,
         licence_url=preparation.get("license_url") or LICENCE_URL,
-        definitions=preparation["metadata"][:30000],
+        definitions=_definitions(metadata)[:30000],
         publisher=PUBLISHER,
         payload=raw,
         extra=extra,

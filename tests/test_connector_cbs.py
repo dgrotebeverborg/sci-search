@@ -228,3 +228,17 @@ def test_a_package_without_a_time_dimension_is_a_rejected_dataset(monkeypatch):
     monkeypatch.setattr(cbs, "prepare_table", lambda raw: (b"", untimed))
     with pytest.raises(base.DatasetRejected, match="no time dimension"):
         cbs.describe(CANDIDATE, SCOPE, fetch=offline)
+
+
+def test_definitions_are_plain_text_with_titles_units_and_descriptions():
+    description = cbs.describe(CANDIDATE, SCOPE, fetch=offline)
+    text = description.definitions
+    assert not text.lstrip().startswith("{")
+    assert "Title: Hernieuwbare elektriciteit; productie en vermogen" in text
+    assert "Summary: Production and capacity of renewable energy" in text
+    assert "Measure: Genormaliseerde bruto productie (in % van het verbruik)" in text
+    assert "Bruto productie is de productie inclusief het eigen verbruik." in text
+    assert (
+        "Bron/Techniek: Waterkracht: Energie, opgewekt met behulp van vallend of stromend water."
+        in text
+    )

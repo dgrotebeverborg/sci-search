@@ -478,6 +478,7 @@ def analyse_dataset(
         _, rows = read_csv(table)
         documents = {
             "metadata": description.definitions,
+            "selection": base.selection_evidence(description, selection),
             "table_sample": json.dumps(rows[:12], ensure_ascii=False),
         }
         # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed

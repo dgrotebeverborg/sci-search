@@ -29,12 +29,12 @@ _ISO = (
 ISO3_TO_GEO = dict(zip(_ISO[0::2], _ISO[1::2], strict=True))
 
 
-def _name(node):
-    names = node.findall("c:Name", NS)
+def _name(node, tag="c:Name"):
+    names = node.findall(tag, NS)
     for name in names:
         if name.get(XML_LANG) == "en":
             return name.text or ""
-    return names[0].text if names else ""
+    return (names[0].text or "") if names else ""
 
 
 def _xml(body, message, error):
@@ -86,15 +86,20 @@ def search(terms, scope, *, fetch, cache_dir):
 
 
 def _structure(dataset, fetch):
+    """Dimensions in key order as (id, concept name, codelist description, codes), and the title."""
     _checked(dataset)
     body, _, _ = fetch(
         f"{API}/dataflow/ESTAT/{dataset}?references=descendants&detail=referencepartial"
     )
     root = _xml(body, f"Eurostat structure for {dataset} is not XML", base.DatasetRejected)
     codelists = {
-        cl.get("id"): {code.get("id"): _name(code) for code in cl.findall("s:Code", NS)}
+        cl.get("id"): (
+            _name(cl, "c:Description"),
+            {code.get("id"): _name(code) for code in cl.findall("s:Code", NS)},
+        )
         for cl in root.iter("{%s}Codelist" % NS["s"])
     }
+    concepts = {c.get("id"): _name(c) for c in root.iter("{%s}Concept" % NS["s"])}
     dimensions = []
     for dim in root.iter("{%s}Dimension" % NS["s"]):
         enumeration = dim.find("s:LocalRepresentation/s:Enumeration", NS)
@@ -104,12 +109,15 @@ def _structure(dataset, fetch):
             else []
         )
         codelist = refs[0].get("id") if refs else dim.get("id", "").upper()
-        dimensions.append(
-            (int(dim.get("position", "0")), dim.get("id"), codelists.get(codelist, {}))
-        )
+        identity = dim.find("s:ConceptIdentity", NS)
+        d = dim.get("id")
+        concept = next(iter(identity), None) if identity is not None else None
+        label = concepts.get(concept.get("id") if concept is not None else d) or d
+        about, codes = codelists.get(codelist, ("", {}))
+        dimensions.append((int(dim.get("position", "0")), d, label, about, codes))
     dimensions.sort()
     flow = next(root.iter("{%s}Dataflow" % NS["s"]), None)
-    return [(d, codes) for _, d, codes in dimensions], _name(flow) if flow is not None else dataset
+    return [item[1:] for item in dimensions], _name(flow) if flow is not None else dataset
 
 
 DATASET = re.compile(r"[a-z0-9_]+")
@@ -162,11 +170,11 @@ def _series_keys(dataset, order, filters, scope, fetch):
 
 def describe(candidate, scope, *, fetch):
     order, title = _structure(candidate.dataset, fetch)
-    keys = [d for d, _ in order]
+    keys = [d for d, *_ in order]
     observed = _series_keys(candidate.dataset, keys, {"freq": ["A"]}, scope, fetch)
     if not observed:
         # Name what the dataset does publish, so the rejection states the frequency.
-        labels = dict(order).get("freq", {})
+        labels = next((codes for d, *_, codes in order if d == "freq"), {})
         found = _series_keys(candidate.dataset, keys, {}, scope, fetch).get("freq", set())
         if "A" in found or not found:
             raise base.DatasetRejected(
@@ -186,20 +194,17 @@ def describe(candidate, scope, *, fetch):
         raise base.DatasetRejected(
             "none of the requested countries has published series: " + ", ".join(missing_geo)
         )
-    dimensions = []
-    for d, codes in order:
+    dimensions, lines = [], [title]
+    for d, label, about, codes in order:
         present = observed.get(d, set())
         if d == "geo" and wanted_geo:
             present = present & wanted_geo
-        dimensions.append(base.Dimension(d, d, {c: codes.get(c, c) for c in sorted(present)}))
-    definitions = (
-        title
-        + "\n"
-        + "\n".join(
-            f"{d.id}: " + "; ".join(f"{c}={label}" for c, label in d.codes.items())
-            for d in dimensions
-        )
-    )
+        dimension = base.Dimension(d, label, {c: codes.get(c, c) for c in sorted(present)})
+        dimensions.append(dimension)
+        if about:
+            lines.append(f"{label} ({d}): {about}")
+        lines += [f"{label}: {c} = {name}" for c, name in dimension.codes.items()]
+    definitions = "\n".join(lines)
     return base.DatasetDescription(
         candidate=candidate,
         dimensions=tuple(dimensions),
@@ -207,7 +212,7 @@ def describe(candidate, scope, *, fetch):
         licence_url=LICENCE_URL,
         definitions=definitions[:30000],
         publisher=PUBLISHER,
-        extra={"order": [d for d, _ in order], "missing_geo": missing_geo, "unmapped": unmapped},
+        extra={"order": [d for d, *_ in order], "missing_geo": missing_geo, "unmapped": unmapped},
     )
 
 

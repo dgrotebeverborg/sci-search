@@ -69,6 +69,26 @@ def _frequency(year):
     return "not annual"
 
 
+def _definitions(chart, columns):
+    """Chart and indicator descriptions as plain text the meaning review can quote."""
+    lines = [f"Chart: {chart.get('title', '')}"] if chart.get("title") else []
+    fields = (
+        ("titleLong", "Title"),
+        ("descriptionShort", "Description"),
+        ("descriptionKey", "Key information"),
+        ("descriptionProcessing", "Processing"),
+        ("unit", "Unit"),
+        ("timespan", "Time span"),
+        ("citationLong", "Citation"),
+    )
+    for short, info in columns.items():
+        lines.append(f"Indicator: {info.get('titleShort', short)} ({short})")
+        lines += [
+            f"{label}: {info[key]}" for key, label in fields if isinstance(info.get(key), str)
+        ]
+    return "\n".join(lines)
+
+
 def describe(candidate, scope, *, fetch):
     slug = _checked(candidate.dataset)
     csv_body, _, _ = fetch(_csv_url(slug))
@@ -132,7 +152,7 @@ def describe(candidate, scope, *, fetch):
         ),
         years=tuple(sorted({int(r["year"]) for r in in_period})),
         licence_url=LICENCE_URL,
-        definitions=json.dumps(columns, ensure_ascii=False)[:30000],
+        definitions=_definitions(metadata.get("chart") or {}, columns)[:30000],
         publisher=PUBLISHER,
         payload=envelope,
         extra={

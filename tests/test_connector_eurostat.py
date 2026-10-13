@@ -338,3 +338,13 @@ def test_a_structure_that_is_not_xml_rejects_the_dataset():
         base.DatasetRejected, match="Eurostat structure for demo_mlexpec is not XML"
     ):
         eurostat.describe(candidate, SCOPE, fetch=html)
+
+
+def test_describe_labels_dimensions_with_their_concept_names():
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    description = eurostat.describe(candidate, SCOPE, fetch=offline)
+    labels = {d.id: d.label for d in description.dimensions}
+    assert labels["age"] == "Age class"
+    assert labels["geo"] == "Geopolitical entity (reporting)"
+    assert "Age class: Y_LT1 = Less than 1 year" in description.definitions
+    assert "Age class (age): This code list contains periods of time" in description.definitions

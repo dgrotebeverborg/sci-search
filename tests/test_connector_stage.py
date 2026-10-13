@@ -97,6 +97,28 @@ def test_stage_produces_an_executed_analysis(tmp_path):
     assert result["assessments"][0]["decision"] == "analysed"
 
 
+def test_meaning_review_receives_the_selected_codes_as_plain_text(tmp_path):
+    from sci_search.data_research.connectors import eurostat
+
+    stage.run(
+        "How has life expectancy changed?",
+        STRATEGY,
+        tmp_path,
+        complete=with_positive_meaning_review(scripted),
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda m: None,
+        connectors={"eurostat": eurostat},
+        cache_dir=tmp_path / "cache",
+    )
+    review = next(tmp_path.rglob("semantic-review.json"))
+    selection = json.loads(review.read_text())["evidence_documents"]["selection"]
+    assert "Age class: Y_LT1 = Less than 1 year" in selection
+    assert "Sex: F = Females" in selection
+    assert "Geopolitical entity (reporting): EL = Greece" in selection
+
+
 def test_selection_schema_enumerates_observed_codes():
     description = base.DatasetDescription(
         candidate=base.DatasetCandidate("x", "d", "t", "annual"),

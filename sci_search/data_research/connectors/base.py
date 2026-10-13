@@ -152,6 +152,21 @@ def validate_selection(description, selection, *, max_entities=60):
     }
 
 
+def selection_evidence(description, selection):
+    """The selected codes as plain-text lines the meaning review can quote exactly."""
+    candidate = description.candidate
+    lines = [
+        f"Dataset: {candidate.title} ({candidate.connector}:{candidate.dataset})",
+        f"Publisher: {description.publisher}",
+    ]
+    if description.years:
+        lines.append(f"Years published: {description.years[0]}-{description.years[-1]}")
+    dims = {d.id: d for d in description.dimensions}
+    for d, codes in selection["filters"].items():
+        lines += [f"{dims[d].label}: {code} = {dims[d].codes[code]}" for code in codes]
+    return "\n".join(lines)
+
+
 def series_mapping(table, label):
     _, rows = read_csv(table)
     units = {r["Unit"] for r in rows}

@@ -290,3 +290,12 @@ def test_a_v1_table_is_analysed_end_to_end_from_a_posted_jsonstat_query(tmp_path
     assert analysis["source"]["download"]["reproducible"] is False
     assert "POST" in analysis["source"]["download"]["reason"]
     assert len(analysis["series"]) == 2
+
+
+def test_v2_definitions_are_plain_text_with_notes_and_units():
+    candidate = base.DatasetCandidate("pxweb", "scb:TAB4311", "Electricity prices", "other")
+    text = pxweb.describe(candidate, SCOPE, fetch=offline, require_annual=False).definitions
+    assert not text.lstrip().startswith("{")
+    assert "Title: Electricity prices for non-households by consumer category." in text
+    assert "Note: From 2020 onwards, weighted average prices are reported" in text
+    assert "Price of electricity, (CSEK/kWh) (unit: Average price, CSEK per kWh)" in text
