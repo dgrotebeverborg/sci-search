@@ -1,5 +1,29 @@
 # Data connectors acceptance run
 
+Run: 2026-10-13T11:36+00:00. Provider: codex.
+
+| Question | Succeeded | Sources | Connector gaps |
+|---|---|---|---|
+| Life expectancy for men and women by European country | no | - | data-explorer.oecd.org |
+| Renewable electricity share in NL, DE and DK | no | - | - |
+| Burned area in Spain, Portugal and Greece | yes | Our World in Data; source: Global Wildfire Information System | gwis.jrc.ec.europa.eu |
+| Annual mean CO2 at Mauna Loa | no | - | - |
+| Electricity storage in the Netherlands | no | - | - |
+| Rhine discharge at Lobith | no | - | rijkswaterstaatdata.nl, grdc.bafg.de, portal.grdc.bafg.de |
+| Coral cover on the Great Barrier Reef | no | - | - |
+
+This run added one re-selection after a meaning rejection. Every re-selection ended with
+"no other codes": the model repeated the rejected codes, including hydropower and wind share for
+the renewable share. Most rejections also contained a time complaint that no other code could
+fix. Three of those complaints came from defects in the review's evidence, since fixed: the
+selection document's "Years published" listed only the years inside the requested period; the
+table summary included rows outside that period; and the proposal showed only the first 8 years
+of each series, so the reviewer saw series ending in 2012. Burned area succeeded through the
+web path on an Our World in Data file. The connector datasets were rejected for selecting one
+land cover only, or on the period defects.
+
+## Previous run, before re-selection
+
 Run: 2026-10-13T07:42+00:00. Provider: codex.
 
 | Question | Succeeded | Sources | Connector gaps |
