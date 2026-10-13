@@ -314,6 +314,43 @@ def _facts(value):
     return value
 
 
+def table_evidence(rows, mapping, sample_size=12):
+    """A per-series summary and a sample from both ends of the selected source rows.
+
+    The first rows alone made the review read a series as ending years early.
+    """
+    year, value, entity = (
+        mapping["year_column"],
+        mapping["value_column"],
+        mapping.get("entity_column"),
+    )
+    filters = mapping.get("filters") or {}
+    if isinstance(filters, list):
+        filters = {item["column"]: item["value"] for item in filters}
+    selected = [r for r in rows if all(r.get(k) == v for k, v in filters.items())]
+    lines = [f"Selected rows: {len(selected)} of {len(rows)} table rows"]
+    series = {}
+    for row in selected:
+        series.setdefault(row.get(entity, "") if entity else "", []).append(row)
+    for name, members in series.items():
+        dated = sorted(
+            (r for r in members if base.annual(r.get(year, ""))), key=lambda r: base.annual(r[year])
+        )
+        if not dated:
+            lines.append(f"Series {name or 'all rows'}: {len(members)} rows, no annual years")
+            continue
+        first, last = dated[0], dated[-1]
+        lines.append(
+            f"Series {name or 'all rows'}: {len(members)} rows, "
+            f"years {first[year].strip()}-{last[year].strip()}; "
+            f"first {first[year].strip()} = {first.get(value, '')}; "
+            f"last {last[year].strip()} = {last.get(value, '')}"
+        )
+    half = sample_size // 2
+    sample = selected if len(selected) <= sample_size else selected[:half] + selected[-half:]
+    return "\n".join(lines), json.dumps(sample, ensure_ascii=False)
+
+
 def analyse_dataset(
     question,
     strategy,
@@ -476,10 +513,12 @@ def analyse_dataset(
         }
         stage_name = "connector:meaning"
         _, rows = read_csv(table)
+        summary, sample = table_evidence(rows, mapping)
         documents = {
             "metadata": description.definitions,
             "selection": base.selection_evidence(description, selection),
-            "table_sample": json.dumps(rows[:12], ensure_ascii=False),
+            "table_summary": summary,
+            "table_sample": sample,
         }
         # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed
         # the model's context; the review reads the mapping and a table sample instead.

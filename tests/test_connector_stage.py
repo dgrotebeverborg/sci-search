@@ -119,6 +119,28 @@ def test_meaning_review_receives_the_selected_codes_as_plain_text(tmp_path):
     assert "Geopolitical entity (reporting): EL = Greece" in selection
 
 
+def test_table_evidence_summarises_every_selected_series_and_samples_both_ends():
+    rows = [
+        {"Year": str(y), "Series": s, "Value": str(v), "Measure": m}
+        for m in ("kept", "other")
+        for s in ("A", "B")
+        for y, v in ((2000, 1), (2001, 2), (2024, 9))
+    ]
+    mapping = {
+        "year_column": "Year",
+        "value_column": "Value",
+        "entity_column": "Series",
+        "filters": [{"column": "Measure", "value": "kept"}],
+    }
+    summary, sample = stage.table_evidence(rows, mapping)
+    assert "Selected rows: 6 of 12 table rows" in summary
+    assert "Series A: 3 rows, years 2000-2024; first 2000 = 1; last 2024 = 9" in summary
+    assert "Series B: 3 rows" in summary
+    years = [r["Year"] for r in json.loads(sample)]
+    assert "2024" in years and "2000" in years
+    assert all(r["Measure"] == "kept" for r in json.loads(sample))
+
+
 def test_selection_schema_enumerates_observed_codes():
     description = base.DatasetDescription(
         candidate=base.DatasetCandidate("x", "d", "t", "annual"),
