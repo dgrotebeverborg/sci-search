@@ -1,5 +1,33 @@
 # Data connectors acceptance run
 
+Run: 2026-10-14T07:37+00:00. Provider: codex.
+
+| Question | Succeeded | Sources | Missing countries | Connector gaps |
+|---|---|---|---|---|
+| Life expectancy for men and women by European country | yes | Statistics Netherlands (CBS) | DEU, GRC | genesis.destatis.de |
+| Renewable electricity share in NL, DE and DK | yes | eurostat | - | - |
+| Burned area in Spain, Portugal and Greece | yes | European Commission Joint Research Centre | - | geocatalogo.icnf.pt |
+| Annual mean CO2 at Mauna Loa | no | - | - | - |
+| Electricity storage in the Netherlands | no | - | - | - |
+| Rhine discharge at Lobith | no | - | - | - |
+| Coral cover on the Great Barrier Reef | no | - | - | - |
+
+This run added the dataset-title rule to the meaning review, a national geography line for CBS
+tables without a region dimension, and the missing-countries check. Codex reached its usage limit
+during the run: storage, Rhine discharge and coral cover failed on `CodexRequestError` alone,
+and some web sources for CO₂, burned area and life expectancy were not reviewed. Those results
+measure nothing about the changes.
+
+- Renewable share succeeded through a connector for the first time: Eurostat `sdg_07_40`, code
+  `REN_ELC` in percent, for all three countries. Earlier runs rejected `REN_ELC` for lacking a
+  numerator and denominator definition.
+- Life expectancy succeeded again only for the Netherlands (CBS 37360ned), and the report now
+  shows Germany and Greece as missing. `demo_mlexpec` ("by age and sex") was rejected again on
+  age Y_LT1, as expected; `tps00205` was not tried in this run.
+- CBS battery storage was not reached, so the geography line is untested live.
+
+## Previous run, after the re-selection prompt change
+
 Run: 2026-10-13T13:27+00:00. Provider: codex.
 
 | Question | Succeeded | Sources | Connector gaps |
