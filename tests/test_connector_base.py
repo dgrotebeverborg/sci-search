@@ -240,3 +240,13 @@ def test_selection_evidence_names_each_selected_code_under_its_dimension_label()
     assert "Country: NL = Netherlands" in text
     assert "Unit: YR = Year" in text
     assert "Total" not in text  # unselected codes are left out
+
+
+def test_selection_evidence_states_a_geography_the_connector_establishes():
+    from dataclasses import replace
+
+    national = replace(description(), extra={"geography": "Netherlands (national table)"})
+    assert "Geography: Netherlands (national table)" in base.selection_evidence(
+        national, selection()
+    )
+    assert "Geography" not in base.selection_evidence(description(), selection())

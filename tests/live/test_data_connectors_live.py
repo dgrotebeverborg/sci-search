@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,6 +26,23 @@ OUTCOMES = []
 PROVIDERS = set()
 # Answered by sources without a connector (EFFIS workbook, NOAA), so they need web search.
 WEB_ONLY = {"Burned area in Spain, Portugal and Greece", "Annual mean CO2 at Mauna Loa"}
+# Series entities name a country ("Netherlands, men") or give its ISO3 code ("ESP").
+NAMES = {"NLD": "Netherlands", "DEU": "Germany", "GRC": "Greece", "DNK": "Denmark", "ESP": "Spain", "PRT": "Portugal"}  # fmt: skip
+
+
+def missing_countries(analyses, countries):
+    """The requested countries that no analysed series covers."""
+    entities = [
+        s.get("entity") or ""
+        for a in analyses
+        for c in a.get("components", [a])
+        for s in c.get("series", [])
+    ]
+    return [
+        code
+        for code in countries
+        if not any(re.search(rf"\b({code}|{NAMES[code]})\b", e) for e in entities)
+    ]
 
 
 @pytest.fixture(autouse=True)
@@ -49,9 +67,9 @@ def test_live_question(tmp_path, question, values, should_succeed):
             for a in result["analyses"]
         }
     )
-    OUTCOMES.append(
-        (question, succeeded, sources, [g["host"] for g in result.get("connector_gaps", [])])
-    )
+    missing = missing_countries(result["analyses"], values["countries"]) if succeeded else []
+    gaps = [g["host"] for g in result.get("connector_gaps", [])]
+    OUTCOMES.append((question, succeeded, sources, missing, gaps))
 
     provider = os.environ.get("SCI_SEARCH_ANALYSIS_PROVIDER", "mistral")
     PROVIDERS.add(provider)
@@ -61,6 +79,7 @@ def test_live_question(tmp_path, question, values, should_succeed):
         pytest.skip("needs web search; not measured with the connector-only provider")
     if should_succeed:
         assert succeeded, json.dumps(result["assessments"], default=str)[:3000]
+        assert not missing, f"no analysed series for {', '.join(missing)}"
     else:
         assert result.get("connector_gaps"), "expected a named connector gap"
 
@@ -74,12 +93,13 @@ def teardown_module(module):
         "",
         f"Run: {datetime.now(UTC).isoformat(timespec='minutes')}. Provider: {provider}.",
         "",
-        "| Question | Succeeded | Sources | Connector gaps |",
-        "|---|---|---|---|",
+        "| Question | Succeeded | Sources | Missing countries | Connector gaps |",
+        "|---|---|---|---|---|",
     ]
     lines += [
-        f"| {q} | {'yes' if ok else 'no'} | {', '.join(s) or '-'} | {', '.join(g) or '-'} |"
-        for q, ok, s, g in OUTCOMES
+        f"| {q} | {'yes' if ok else 'no'} | {', '.join(s) or '-'} | {', '.join(m) or '-'}"
+        f" | {', '.join(g) or '-'} |"
+        for q, ok, s, m, g in OUTCOMES
     ]
     # One report per provider: the committed results are compared across providers.
     name = "-".join(sorted(PROVIDERS))

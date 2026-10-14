@@ -242,3 +242,40 @@ def test_definitions_are_plain_text_with_titles_units_and_descriptions():
         "Bron/Techniek: Waterkracht: Energie, opgewekt met behulp van vallend of stromend water."
         in text
     )
+
+
+def described_with(monkeypatch, change):
+    """describe() on the fixture package after change(metadata) edits its metadata."""
+    import json
+
+    raw = offline("https://datasets.cbs.nl/CSV/CBS/nl/82610NED")[0]
+    table, preparation = prepare_table(raw)
+    metadata = json.loads(preparation["metadata"])
+    change(metadata)
+    edited = {**preparation, "metadata": json.dumps(metadata)}
+    monkeypatch.setattr(cbs, "prepare_table", lambda raw: (table, edited))
+    return cbs.describe(CANDIDATE, SCOPE, fetch=offline)
+
+
+def test_a_table_without_a_region_dimension_is_national():
+    description = cbs.describe(CANDIDATE, SCOPE, fetch=offline)
+    assert description.extra["geography"] == (
+        "Netherlands (national table: it has no region dimension)"
+    )
+
+
+def test_a_table_with_a_region_dimension_states_no_national_geography(monkeypatch):
+    def add_regions(metadata):
+        metadata["dimensions"].append(
+            {"Identifier": "RegioS", "Title": "Regio's", "Kind": "GeoDimension"}
+        )
+        metadata["codes"]["RegioS"] = {"NL01": {"Title": "Nederland"}}
+
+    assert "geography" not in described_with(monkeypatch, add_regions).extra
+
+
+def test_a_caribbean_netherlands_table_states_no_national_geography(monkeypatch):
+    def caribbean(metadata):
+        metadata["dataset"][0]["Title"] = "Energie; Caribisch Nederland"
+
+    assert "geography" not in described_with(monkeypatch, caribbean).extra

@@ -170,8 +170,11 @@ their reasons.
 The meaning review of a connector analysis receives the dataset metadata as plain text, a
 `selection` document naming each selected code under its dimension label (for example
 `Age class: Y_LT1 = Less than 1 year`), a per-series summary of years and endpoint values, and a
-sample from both ends of the selected rows. A quote must match its document word for word; only
-whitespace may differ. When the review rejects a selection, the model selects codes in the same
+sample from both ends of the selected rows. For a CBS table without a region dimension, the
+`selection` document also states `Geography: Netherlands (national table: it has no region
+dimension)`; Caribbean Netherlands tables do not get this line. The review treats what a dataset
+title says is measured as documenting every row, unless a selected code says otherwise. A quote
+must match its document word for word; only whitespace may differ. When the review rejects a selection, the model selects codes in the same
 dataset once more, given the rejected codes and the review's reason. The new selection is fetched
 and reviewed again in full. Repeating the rejected codes ends the dataset without another fetch.
 The rejected review is kept as `semantic-review-rejected-1.json`, and the recovery records the

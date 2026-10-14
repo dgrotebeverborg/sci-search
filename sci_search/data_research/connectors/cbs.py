@@ -106,6 +106,18 @@ def _definitions(metadata):
     return "\n".join(lines)
 
 
+# CBS also publishes tables for the Caribbean Netherlands, which have no region dimension either.
+CARIBBEAN = re.compile(r"Caribisch Nederland|Caribbean Netherlands|Bonaire|Sint Eustatius|\bSaba\b")
+
+
+def _geography(metadata, definitions):
+    """The Netherlands for a table without a region dimension, unless it is Caribbean."""
+    regions = {"GeoDimension", "GeoDetailDimension"}
+    if any(d["Kind"] in regions for d in metadata["dimensions"]) or CARIBBEAN.search(definitions):
+        return None
+    return "Netherlands (national table: it has no region dimension)"
+
+
 def describe(candidate, scope, *, fetch):
     url = package_url(candidate.dataset)
     countries = list(scope.get("countries") or [])
@@ -158,12 +170,15 @@ def describe(candidate, scope, *, fetch):
         "fixed_dimensions": ["Measure"],
         "max_series_dimensions": 1,
     }
+    definitions = _definitions(metadata)
+    if geography := _geography(metadata, definitions):
+        extra["geography"] = geography
     return base.DatasetDescription(
         candidate=candidate,
         dimensions=tuple(dimensions),
         years=years,
         licence_url=preparation.get("license_url") or LICENCE_URL,
-        definitions=_definitions(metadata)[:30000],
+        definitions=definitions[:30000],
         publisher=PUBLISHER,
         payload=raw,
         extra=extra,

@@ -52,9 +52,9 @@ def test_the_live_acceptance_report_is_named_after_its_provider(tmp_path, monkey
 
     (tmp_path / "docs/operations").mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(live, "OUTCOMES", [("Question", True, ["eurostat"], [])])
+    monkeypatch.setattr(live, "OUTCOMES", [("Question", True, ["eurostat"], ["DEU"], [])])
     monkeypatch.setattr(live, "PROVIDERS", {"mistral"})
     live.teardown_module(live)
     written = tmp_path / "docs/operations/data-connectors-acceptance-mistral.md"
     assert [p.name for p in (tmp_path / "docs/operations").iterdir()] == [written.name]
-    assert "| Question | yes | eurostat | - |" in written.read_text()
+    assert "| Question | yes | eurostat | DEU | - |" in written.read_text()
