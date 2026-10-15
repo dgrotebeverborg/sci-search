@@ -33,7 +33,9 @@ from sci_search.data_research.retrieval import (
     fetch_public,
     fetch_scoped,
     inspect_page,
+    is_documentation,
     post_public,
+    repository_files,
 )
 from sci_search.data_research.source_review import execution_summary, reassess_source
 from sci_search.data_research.spreadsheets import SELECTION_SCHEMA, inspect_if_workbook
@@ -47,6 +49,9 @@ from sci_search.data_research.statistical_tables import (
 from sci_search.data_research.strategy import validate_strategy
 from sci_search.data_research.tabular import MODEL_MAPPING_SCHEMA, analyse_csv, read_csv
 from sci_search.model_provider import configured_analyzer
+
+# Dataset files, such as NetCDF climate projections, may be up to 250 MB.
+DATA_LIMIT = 250_000_000
 
 ASSESS_SCHEMA = {
     "type": "object",
@@ -148,7 +153,7 @@ def execute(
     # (the Eurostat dataflow list is about 7 MB); an injected fetch is used unchanged.
     connector_fetch = fetch or (lambda url: fetch_public(url, limit=5_000_000))
     search_fetch = fetch or (lambda url: fetch_public(url, limit=20_000_000))
-    fetch = fetch or fetch_public
+    fetch = fetch or (lambda url: fetch_public(url, limit=DATA_LIMIT))
     complete = complete or (lambda prompt, schema: complete_object(analyzer, prompt, schema))
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -429,6 +434,14 @@ def execute(
                 )
             if statistical_preview:
                 page["text"] = json.dumps(statistical_preview, ensure_ascii=False)[:60000]
+            listing = repository_files(url, fetch, limit=DATA_LIMIT)
+            if listing:
+                # The record's files come from the repository API, not from the landing page.
+                assessment["repository_files"] = listing
+                page = {
+                    "text": listing["text"] + "\n\n" + page["text"],
+                    "links": listing["links"] + page["links"],
+                }
             assessment["recovery_links"] = page["links"][:80]
             stage = "assessment"
             context = {
@@ -445,7 +458,7 @@ def execute(
                 "Assess this source against ALL requested measurements, geography and interval. "
                 "Do not state or calculate numeric findings in the assessment reason. "
                 "Choose csv for CSV, TSV, GZIP, XLSX, or ZIP-packaged tables. Excel sheets and metadata are inspected "
-                "Choose python for relevant JSON, XML, PDF, HTML tables, or complex workbooks and archives "
+                "Choose python for relevant JSON, XML, NetCDF, HDF5, PDF, HTML tables, or complex workbooks and archives "
                 "requiring custom code. Python can inspect and extract unfamiliar structures; do not reject "
                 "a relevant source solely because its structure is unfamiliar. "
                 "before suitability is decided; do not reject a source merely because it is Excel. "
@@ -463,7 +476,10 @@ def execute(
                 "covered_measurements must be exact members of scope.measurements; don't claim "
                 "coverage of a metric absent from the source. A source for one requested country or part of the "
                 "requested period can provide partial evidence: do not reject solely because other countries "
-                "or years are missing. Note scope gaps and licence uncertainty.\n"
+                "or years are missing. Note scope gaps and licence uncertainty. "
+                "Never select a user guide, manual, README or other documentation as the download: "
+                "it describes the data but holds none; select the data file itself, choosing one "
+                "file per requested measurement and scenario from a repository file list.\n"
                 + json.dumps(context),
                 source_schema,
             )
@@ -537,6 +553,11 @@ def execute(
                     "index": target_index,
                 }
             target = url if target_index == -1 else page["links"][target_index]
+            if target != url and is_documentation(target):
+                raise ValueError(
+                    "The selected link is documentation, not a data file; the data files "
+                    "still have to be found: " + target
+                )
             # CBS exposes the same Dutch dataset through its legacy OData service
             # and the newer CSV-package endpoint. Preserve the observed identifier.
             parsed_target = urlsplit(target)

@@ -3,6 +3,7 @@
 import http.client
 import ipaddress
 import json
+import re
 import socket
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -248,4 +249,46 @@ def _await_eurostat(response, fetch, attempts):
             time.sleep(2)
     raise ValueError(
         "Eurostat is still preparing the dataset after the bounded status checks; no observations were read"
+    )
+
+
+_ZENODO_RECORD = re.compile(r"^/(?:records?|api/records)/(\d+)/?$")
+_DOCUMENTATION = re.compile(
+    r"(user[-_ ]?guide|users?[-_ ]?manual|manual|readme|documentation|handbook|tech(?:nical)?[-_ ]?note)",
+    re.I,
+)
+
+
+def repository_files(url, fetch, *, limit=250_000_000):
+    """A repository record's files with their sizes, read from its documented API.
+
+    Returns None for pages that are not a supported repository record. Files larger than
+    ``limit`` are named in the text but not offered as links.
+    """
+    parts = urlsplit(url)
+    match = _ZENODO_RECORD.match(parts.path) if parts.hostname == "zenodo.org" else None
+    if not match:
+        return None
+    api = f"https://zenodo.org/api/records/{match[1]}"
+    body, _, _ = fetch(api)
+    record = json.loads(body)
+    lines, links = [f"Files in Zenodo record {match[1]} (from {api}):"], []
+    for item in record.get("files") or []:
+        name, size = str(item.get("key") or ""), int(item.get("size") or 0)
+        link = (item.get("links") or {}).get("self") or ""
+        if not name or not link.startswith("https://zenodo.org/"):
+            continue
+        if size > limit:
+            lines.append(f"- {name} ({size / 1e6:.1f} MB, too large to download)")
+            continue
+        lines.append(f"- {name} ({size / 1e6:.1f} MB): {link}")
+        links.append(link)
+    return {"text": "\n".join(lines), "links": links}
+
+
+def is_documentation(url):
+    """A user guide, manual or README: it describes data but holds none."""
+    name = urlsplit(url).path.rsplit("/", 1)[-1]
+    return bool(_DOCUMENTATION.search(name)) or bool(
+        name.lower().endswith(".pdf") and _DOCUMENTATION.search(urlsplit(url).path)
     )

@@ -64,6 +64,16 @@ if data.startswith(b"PK"):
         result["sheets"]=[{"name":s.title,"rows":s.max_row,"columns":s.max_column,"sample":list(itertools.islice(s.values,200))} for s in list(book)[:15]]
     except Exception as error:
         result["workbook_note"]=str(error)
+elif data.startswith((b"\\x89HDF\\r\\n\\x1a\\n", b"CDF\\x01", b"CDF\\x02", b"CDF\\x05")):
+    import netCDF4
+    def attributes(item):
+        return {k: str(item.getncattr(k))[:2000] for k in item.ncattrs()[:40]}
+    with netCDF4.Dataset("source.nc", memory=data) as nc:
+        result={"bytes":len(data),"netcdf":{
+            "attributes":attributes(nc),
+            "dimensions":{k:len(v) for k,v in nc.dimensions.items()},
+            "variables":{k:{"dimensions":list(v.dimensions),"shape":list(v.shape),"dtype":str(v.dtype),"attributes":attributes(v)} for k,v in list(nc.variables.items())[:100]},
+            "groups":list(nc.groups)[:50]}}
 elif data.startswith(b"%PDF"):
     from pypdf import PdfReader
     reader=PdfReader(io.BytesIO(data))
@@ -123,6 +133,8 @@ def recover(
             "You have the standard library and available_packages. No network, shell installation, credentials "
             "or host files. Inspect bytes with Python; never hardcode numeric observations from the prompt. "
             "Handle unfamiliar CSV, Excel sheets, JSON, XML, ZIP, HTML or PDF structure using libraries. "
+            "Read NetCDF or HDF5 with netCDF4.Dataset('source.nc', memory=data); take units and "
+            "definitions from variable attributes, and state any spatial aggregation rule. "
             "Preserve missing values as null, documented units, dimensions and requested geography. "
             "Do not interpolate or substitute proxies. Aggregate only when source definitions justify it; "
             "record the rule and completeness checks. Never sum totals with their subcategories. "

@@ -234,6 +234,8 @@ def source_documents(metadata, inspection):
         documents[f"archive:{index}:{entry['entry']}"] = entry["text"]
     for index, text in enumerate(inspection.get("page_text", [])):
         documents[f"page:{index + 1}"] = text
+    if inspection.get("netcdf"):
+        documents["netcdf_metadata"] = json.dumps(inspection["netcdf"], ensure_ascii=False)
     if inspection.get("sheets"):
         documents["workbook_sample"] = json.dumps(inspection["sheets"], ensure_ascii=False)
     return documents
