@@ -6,6 +6,12 @@ from sci_search.dashboard import build_dashboard
 def open_section(page, section_id):
     """Open a collapsed results section and the sections around it."""
     page.wait_for_selector(f"#{section_id}", state="attached")
+    tab = page.evaluate(
+        "id => document.getElementById(id).closest('[data-tab-panel]')?.dataset.tabPanel",
+        section_id,
+    )
+    if tab:
+        page.locator(f"#dashboard-tab-{tab}").click()
     page.evaluate(
         "id => { for (let n = document.getElementById(id); n; n = n.parentElement) if (n.tagName === 'DETAILS') n.open = true; }",
         section_id,
@@ -474,6 +480,10 @@ def test_saved_dashboard_finding_review_uses_runtime_identity(
     page.get_by_role("button", name="Accept evidence", exact=True).click()
     expect(page.locator("#dashboard-evidence")).to_contain_text("accepted")
     assert edits == [{"decision": "accepted", "expected_version": 1}]
+    # The re-render after the review keeps the reader's tab and open sections.
+    expect(page.locator("#dashboard-tab-details")).to_have_attribute("aria-selected", "true")
+    assert page.locator("#dashboard-evidence").evaluate("n => n.open")
+    expect(page.locator("#dashboard-evidence .evidence-card").first).to_be_visible()
     page.close()
 
 

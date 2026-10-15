@@ -319,3 +319,46 @@ def test_unlabelled_checks_fall_back_to_the_recorded_missing_requirements():
     assert "Field evidence is missing." in missing
     # A requirement already explained by its check is not repeated.
     assert not any(m.startswith("Hpv vaccination") for m in missing)
+
+
+def adequacy_of(snapshot):
+    return next(b for b in snapshot["blocks"] if b["id"] == "answer")["data"]["answer_adequacy"]
+
+
+def test_malformed_numbers_never_raise():
+    snapshot = hpv_snapshot()
+    for item in adequacy_of(snapshot)["checks"]:
+        item["publication_count"] = "n/a"
+        item["minimum"] = "n/a"
+    adequacy_of(snapshot)["qualifying_publications"] = "n/a"
+    next(b for b in snapshot["blocks"] if b["id"] == "landscape")["data"]["coverage"]["records"] = (
+        "n/a"
+    )
+    summarize(snapshot)
+    build_dashboard(
+        {"question": "Q", "research_landscape": {"coverage": {"records": "n/a"}}},
+        run_id="x",
+        revision=1,
+    )
+
+
+def test_moderate_evidence_counts_failed_required_checks():
+    snapshot = hpv_snapshot()
+    adequacy = adequacy_of(snapshot)
+    adequacy["qualifying_publications"] = 2
+    for item in adequacy["checks"]:
+        if item["id"] != "coverage:geography:united_kingdom":
+            item["passed"] = True
+    # Duplicate wording or extra recorded requirements must not change the count of failed checks.
+    adequacy["missing_requirements"] = ["united kingdom", "another recorded requirement"]
+    assert summarize(snapshot)["certainty"]["level"] == "moderate"
+
+
+def test_the_sentence_uses_contributing_publications_without_screening_decisions():
+    snapshot = hpv_snapshot()
+    studies = next(b for b in snapshot["blocks"] if b["id"] == "studies")["data"]["studies"]
+    for study in studies:
+        study["screening"] = {}
+    adequacy_of(snapshot)["qualifying_publications"] = 3
+    sentence = summarize(snapshot)["certainty"]["sentence"]
+    assert sentence.startswith("3 publications contribute to the answer"), sentence

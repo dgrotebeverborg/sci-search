@@ -65,6 +65,14 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _int(value: Any, default: int = 0) -> int:
+    """A count from a saved result; malformed values fall back instead of raising."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -150,8 +158,8 @@ def _missing(adequacy: dict[str, Any], scope: dict[str, Any], question: str) -> 
             text = f"No included study covers {_as_written(label, question)}."
         elif identifier == "independent_publications":
             count, minimum = (
-                int(check.get("publication_count") or 0),
-                int(check.get("minimum") or 1),
+                _int(check.get("publication_count")),
+                _int(check.get("minimum"), 1) or 1,
             )
             text = (
                 "No single passage answers the whole question."
@@ -175,24 +183,32 @@ def _missing(adequacy: dict[str, Any], scope: dict[str, Any], question: str) -> 
 
 def _certainty(quality, adequacy, scope, data_part, included, missing, question) -> dict[str, Any]:
     status = quality.get("status")
+    contributing = _int(adequacy.get("qualifying_publications"))
     if status == "adequate":
         level = "strong"
     elif status == "insufficient":
         level = "insufficient"
     elif status == "partial":
-        contributing = int(adequacy.get("qualifying_publications") or 0)
-        minimum = int(_dict(scope.get("requirements")).get("minimum_independent_publications") or 1)
-        level = "moderate" if contributing >= minimum and len(missing) <= 1 else "weak"
+        checks = [c for c in adequacy.get("checks") or [] if isinstance(c, dict)]
+        failed = [c for c in checks if c.get("required", True) and not c.get("passed")]
+        independent = next(
+            (c for c in checks if c.get("id") == "coverage:independent_publications"), {}
+        )
+        minimum = _int(independent.get("minimum")) or _int(
+            _dict(scope.get("requirements")).get("minimum_independent_publications"), 1
+        )
+        moderate = contributing >= max(1, minimum) and len(failed) <= 1
+        level = "moderate" if moderate else "weak"
     else:
         level = "not_assessed"
     if level == "not_assessed":
         sentence = "The evidence for this saved result was not assessed."
     else:
-        sentence = _sentence(adequacy, data_part, included, missing, question)
+        sentence = _sentence(adequacy, data_part, included, contributing, missing, question)
     return {"level": level, "label": LABELS[level], "sentence": sentence}
 
 
-def _sentence(adequacy, data_part, included, missing, question) -> str:
+def _sentence(adequacy, data_part, included, contributing, missing, question) -> str:
     leads = []
     datasets = (data_part or {}).get("datasets") or []
     if datasets:
@@ -219,6 +235,10 @@ def _sentence(adequacy, data_part, included, missing, question) -> str:
             f"{len(included)} {'study counts' if one else 'studies count'} as evidence"
             + (f", covering {_join(covered)}" if covered else "")
         )
+    if not included and contributing:
+        # Older results record contributing publications without screening decisions.
+        noun = "publication contributes" if contributing == 1 else "publications contribute"
+        leads.append(f"{contributing} {noun} to the answer")
     lead = " and ".join(leads) or "No study or dataset answers the question directly"
     gaps = [m[:1].lower() + m[1:-1] for m in missing[:2]]
     return "; ".join([lead, *gaps]) + "."
@@ -302,8 +322,8 @@ def _literature(studies: list[dict[str, Any]], landscape: dict[str, Any]) -> dic
     decisions = [_decision(s) for s in studies]
     read = [d for d in decisions if d in {"included", "excluded", "uncertain", "background"}]
     return {
-        "found": int(coverage.get("records") or len(studies)),
-        "full_texts": int(coverage.get("full_texts_acquired") or len(read)),
+        "found": _int(coverage.get("records")) or len(studies),
+        "full_texts": _int(coverage.get("full_texts_acquired")) or len(read),
         "included": decisions.count("included"),
         "uncertain": decisions.count("uncertain"),
         "background": decisions.count("background"),
@@ -312,7 +332,7 @@ def _literature(studies: list[dict[str, Any]], landscape: dict[str, Any]) -> dic
 
 
 def _landscape_line(landscape: dict[str, Any], included: int) -> str | None:
-    records = int(_dict(landscape.get("coverage")).get("records") or 0)
+    records = _int(_dict(landscape.get("coverage")).get("records"))
     if not records:
         return None
     years = [

@@ -97,7 +97,11 @@ Labels are shown as the researcher wrote them: place names keep their capitals.
 
 ## Screen
 
-One page, no tabs. From top to bottom:
+Three tabs: **Answer** (sections 1–5), **Research landscape** (section 6) and **Details**
+(section 7). The researcher asked for tabs after seeing the single scrolling page. The selected tab
+and the open sections are kept when the same result is re-rendered after feedback or a revision.
+The content is aligned with the question heading. UU yellow marks the selected tab and the section
+headings; UU red marks "Not enough evidence". From top to bottom:
 
 1. **Header** — the question, run date, and the **Download all** button.
 2. **Answer** — the answer text, the certainty label as a coloured pill with its sentence, and

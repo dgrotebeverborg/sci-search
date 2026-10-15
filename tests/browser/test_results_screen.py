@@ -27,18 +27,31 @@ def test_one_clean_page_with_the_answer_first(live_browser_url: str, chromium_br
         "No included study covers the United Kingdom."
     )
     expect(page.locator("#dashboard-why")).to_contain_text("Cervical screening in Brazil")
-    # Collapsed by default; the landscape renders when opened.
-    assert not page.locator("#dashboard-landscape").evaluate("n => n.open")
-    assert not page.locator("#dashboard-details").evaluate("n => n.open")
-    page.locator("#dashboard-landscape > summary").click()
+    expect(page.locator("#dashboard-why")).to_contain_text("Literature coverage is not verified")
+    # Three tabs; the landscape and details are separate views, the landscape drawn when shown.
+    tabs = page.get_by_role("tab")
+    expect(tabs).to_have_text(["Answer", "Research landscape", "Details"])
+    expect(page.get_by_role("tab", name="Answer")).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#dashboard-landscape")).to_be_hidden()
+    expect(page.locator("#dashboard-details")).to_be_hidden()
+    page.get_by_role("tab", name="Research landscape").click()
     expect(page.locator("#dashboard-landscape")).to_contain_text("Discovered studies")
-    # Evidence links open the collapsed details and the passage.
+    expect(page.locator("#dashboard-answer")).to_be_hidden()
+    page.get_by_role("tab", name="Answer").click()
+    # Evidence links switch to the details and open the passage.
     answer.get_by_role("link", name="Evidence e1", exact=True).click()
-    assert page.locator("#dashboard-details").evaluate("n => n.open")
+    expect(page.get_by_role("tab", name="Details")).to_have_attribute("aria-selected", "true")
     expect(page.locator("#evidence-e1")).to_be_visible()
-    # No tabs and no internal identifiers above "More details".
+    page.get_by_role("tab", name="Answer").click()
+
+    # The content starts where the question starts.
+    def left(selector):
+        return page.locator(selector).evaluate("n => Math.round(n.getBoundingClientRect().left)")
+
+    assert left("#dashboard-answer") == left("#dashboard-question")
+    # No internal identifiers on the answer tab.
     expect(page.locator("#dashboard-navigation")).to_have_count(0)
-    visible = page.locator("#dashboard-blocks > :not(#dashboard-details)").all_inner_texts()
+    visible = page.locator("#dashboard-panel-answer").all_inner_texts()
     assert not any("coverage:" in t or "executive_summary" in t for t in visible)
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     page.screenshot(path="/tmp/sci-search-results-screen.png", full_page=True)

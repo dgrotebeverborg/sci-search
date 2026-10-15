@@ -228,11 +228,49 @@ function studyBlock(data, parent, snapshot, context) {
   }
   filter.oninput = () => { for (const card of list.children) card.hidden = !card.dataset.studyTitle.includes(filter.value.toLowerCase()); };
 }
-// Open every collapsed section around a target, so links into "More details" work.
+// Show a target wherever it sits: select its tab and open the sections around it.
 function reveal(target) {
+  if (!target) return;
+  const panel = target.closest('[data-tab-panel]');
+  if (panel) selectTab(panel.dataset.tabPanel);
   for (let node = target; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
-  target?.scrollIntoView({block: 'start'});
-  target?.focus?.();
+  target.scrollIntoView({block: 'start'});
+  target.focus?.();
+}
+const TABS = [['answer', 'Answer'], ['landscape', 'Research landscape'], ['details', 'Details']];
+function selectTab(name) {
+  const root = document.getElementById('dashboard-blocks');
+  if (!root.querySelector(`[data-tab-panel="${name}"]`)) name = 'answer';
+  root.dataset.tab = name;
+  for (const panel of root.querySelectorAll('[data-tab-panel]')) panel.hidden = panel.dataset.tabPanel !== name;
+  for (const tab of root.querySelectorAll('[role="tab"]')) {
+    const selected = tab.dataset.tab === name;
+    tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
+  }
+  // The landscape is large and drawn only when its tab is first shown.
+  if (name === 'landscape') document.getElementById('dashboard-landscape')?.dispatchEvent(new Event('draw'));
+}
+function tabBar(names) {
+  const bar = element('div', '', 'result-tabs'); bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', 'Result views');
+  for (const [name, title] of TABS.filter(([name]) => names.includes(name))) {
+    const tab = element('button', title, 'result-tab'); tab.type = 'button';
+    tab.id = `dashboard-tab-${name}`; tab.dataset.tab = name;
+    tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', `dashboard-panel-${name}`);
+    tab.onclick = () => selectTab(name);
+    tab.onkeydown = event => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      const all = [...bar.children]; const next = all[(all.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length];
+      selectTab(next.dataset.tab); next.focus();
+    };
+    bar.append(tab);
+  }
+  return bar;
+}
+function tabPanel(name, sections) {
+  const panel = element('div', '', 'result-panel'); panel.id = `dashboard-panel-${name}`;
+  panel.dataset.tabPanel = name; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', `dashboard-tab-${name}`);
+  for (const section of sections) if (section) panel.append(section);
+  return panel;
 }
 // A renderer that fails on an older or partial saved result affects only its own section.
 function safely(parent, draw) {
@@ -311,6 +349,8 @@ function literatureSection(summary, blocks, snapshot) {
   if (l) node.append(element('p', `${l.found} studies found · ${l.full_texts} full texts read · ${l.included} counted as evidence`, 'help'));
   if (blocks.findings?.claims?.length) fields(blocks.findings.claims, node);
   if (blocks.comparisons?.contradiction_groups?.length) safely(node, () => contradictionGroups(blocks.comparisons.contradiction_groups, node, snapshot));
+  if (blocks.comparisons?.comparison_groups?.length) { node.append(element('h3', 'How the studies compare')); fields(blocks.comparisons.comparison_groups, node); }
+  if (blocks.comparisons?.comparability) node.append(expandable('Comparability and measurement details', {comparability: blocks.comparisons.comparability, measurements: blocks.comparisons.measurements}));
   if (blocks.literature_review && Object.keys(blocks.literature_review).length) {
     const review = element('details', '', 'result-more'); review.id = 'dashboard-literature_review';
     review.append(element('summary', 'Read the full review')); safely(review, () => reviewBlock(blocks.literature_review, review)); node.append(review);
@@ -322,18 +362,24 @@ function studyItem(study, withDecision) {
   if (study.reason) li.append(element('p', study.reason, 'help'));
   return li;
 }
-function whySection(summary) {
-  if (!summary.missing?.length && !summary.included?.length && !summary.left_out?.length) return null;
+function whySection(summary, blocks) {
+  const gaps = blocks.gaps || {};
+  const papers = blocks.landscape?.papers || [];
+  if (!summary.missing?.length && !summary.included?.length && !summary.left_out?.length && !gaps.limitations?.length && !gaps.follow_up_questions?.length && !papers.length) return null;
   const node = resultSection('why', 'Why this certainty');
+  if (papers.length) safely(node, () => renderCoverageNotice(papers, node));
   if (summary.missing?.length) node.append(element('h3', 'What is missing'), list(summary.missing, text => element('li', text)));
   if (summary.included?.length) node.append(element('h3', `Counted as evidence (${summary.included.length})`), list(summary.included, s => studyItem(s, false)));
   if (summary.left_out?.length) node.append(element('h3', 'Read but not counted'), list(summary.left_out, s => studyItem(s, true)));
+  if (gaps.limitations?.length) { node.append(element('h3', 'Limitations')); fields(gaps.limitations, node); }
+  if (gaps.quality_flags?.length) node.append(expandable('Evidence limitations in detail', gaps.quality_flags));
+  if (gaps.follow_up_questions?.length) { node.append(element('h3', 'Next questions')); fields(gaps.follow_up_questions, node); }
   return node;
 }
 function landscapeSection(summary, landscape) {
-  const node = resultSection('landscape', 'Research landscape', {collapsed: true, line: summary.landscape_line || ''});
-  // Drawn on first opening: the timeline and study browser are large and usually not needed.
-  node.addEventListener('toggle', () => { if (node.open && !node.dataset.drawn) { node.dataset.drawn = 'yes'; safely(node, () => renderLandscape(landscape, node)); } });
+  const node = resultSection('landscape', 'Research landscape');
+  if (summary.landscape_line) node.append(element('p', summary.landscape_line, 'result-line'));
+  node.addEventListener('draw', () => { if (!node.dataset.drawn) { node.dataset.drawn = 'yes'; safely(node, () => renderLandscape(landscape, node)); } });
   return node;
 }
 function detailPart(parent, id, title, draw) {
@@ -341,7 +387,10 @@ function detailPart(parent, id, title, draw) {
   part.append(element('summary', title)); safely(part, () => draw(part)); parent.append(part);
 }
 function detailsSection(blocks, snapshot, context) {
-  const node = resultSection('details', 'More details', {collapsed: true, line: 'Question interpretation, methods, all studies and passages, validation, references and downloads'});
+  const node = resultSection('details', 'Details');
+  node.append(element('p', 'Question interpretation, methods, all studies and passages, validation, references and downloads.', 'result-line'));
+  const checks = blocks.answer?.answer_adequacy?.checks || [];
+  if (checks.length) detailPart(node, 'adequacy', 'Evidence adequacy checks', part => part.append(dataTable(checks.map(c => ({part: c.label || c.id, kind: c.kind, passed: c.passed ? 'Passed' : 'Not passed', publications: c.publication_count})), [['part', 'Part of the question'], ['kind', 'Type'], ['passed', 'Result'], ['publications', 'Publications']])));
   if (blocks.scope) detailPart(node, 'scope', 'Question and scope', part => {
     fields(blocks.scope.question_brief, part);
     const scope = blocks.scope.research_scope || {};
@@ -372,6 +421,10 @@ export function renderDashboard(snapshot, context = {}) {
   const root = document.getElementById('dashboard-blocks');
   const key = `${context.projectId}:${snapshot.question}`;
   if (root.dataset.questionKey !== key && window.matchMedia('(max-width: 800px)').matches) document.querySelector('.history-panel').open = false;
+  // A re-render of the same result (after feedback or a revision) keeps the reader's place.
+  const keep = root.dataset.questionKey === key
+    ? {tab: root.dataset.tab, open: [...root.querySelectorAll('details[open][id]')].map(node => node.id), scroll: window.scrollY}
+    : null;
   root.dataset.questionKey = key;
   root.replaceChildren();
   document.body.classList.add('dashboard-open');
@@ -414,13 +467,24 @@ export function renderDashboard(snapshot, context = {}) {
 
   const blocks = Object.fromEntries((snapshot.blocks || []).filter(b => b.status === 'ready').map(b => [b.id, b.data]));
   const summary = snapshot.summary || {};
-  root.append(answerSection(summary, blocks.answer || {}, snapshot));
-  if (summary.data && blocks.answer?.data_analysis) root.append(dataSection(summary, blocks.answer.data_analysis));
   // Literature content can exist without screening counts, for example in older saved results.
-  const literature = summary.literature || blocks.findings?.claims?.length || blocks.comparisons?.contradiction_groups?.length || (blocks.literature_review && Object.keys(blocks.literature_review).length);
-  if (literature) root.append(literatureSection(summary, blocks, snapshot));
-  const why = whySection(summary); if (why) root.append(why);
-  if (blocks.landscape) root.append(landscapeSection(summary, blocks.landscape));
-  root.append(detailsSection(blocks, snapshot, context));
+  const literature = summary.literature || blocks.findings?.claims?.length || blocks.comparisons?.contradiction_groups?.length || blocks.comparisons?.comparison_groups?.length || (blocks.literature_review && Object.keys(blocks.literature_review).length);
+  const panels = {
+    answer: tabPanel('answer', [
+      answerSection(summary, blocks.answer || {}, snapshot),
+      summary.data && blocks.answer?.data_analysis ? dataSection(summary, blocks.answer.data_analysis) : null,
+      literature ? literatureSection(summary, blocks, snapshot) : null,
+      whySection(summary, blocks),
+    ]),
+    landscape: blocks.landscape ? tabPanel('landscape', [landscapeSection(summary, blocks.landscape)]) : null,
+    details: tabPanel('details', [detailsSection(blocks, snapshot, context)]),
+  };
+  root.append(tabBar(Object.keys(panels).filter(name => panels[name])));
+  for (const panel of Object.values(panels)) if (panel) root.append(panel);
+  selectTab(keep?.tab || 'answer');
+  if (keep) {
+    for (const id of keep.open) { const node = document.getElementById(id); if (node) node.open = true; }
+    window.scrollTo(0, keep.scroll);
+  }
 }
 

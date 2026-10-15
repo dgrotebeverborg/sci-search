@@ -1,10 +1,13 @@
 """Pure, versioned presentation contract for fresh and saved scientific results."""
 
+import logging
 from copy import deepcopy
 from typing import Any
 
 from sci_search.result_quality import result_quality
 from sci_search.result_summary import summarize
+
+logger = logging.getLogger(__name__)
 
 
 def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int) -> dict[str, Any]:
@@ -173,5 +176,9 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
         "question": source.get("question", ""),
         "blocks": blocks,
     }
-    snapshot["summary"] = summarize(snapshot)
+    try:
+        snapshot["summary"] = summarize(snapshot)
+    except Exception:  # the read route recomputes it; a summary must never block a revision
+        logger.exception("Result summary failed for run %s", run_id)
+        snapshot["summary"] = None
     return snapshot

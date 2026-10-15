@@ -366,16 +366,12 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 
 
 /* Results: one calm column; the certainty pill is the only colour in the answer. */
-#dashboard-blocks { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.25rem; }
 .result-section { border: 0; padding: 0; }
 .result-section h2 { font-size: 1.15rem; margin: 0 0 .75rem; }
 .result-section h3 { font-size: .95rem; margin: 1.25rem 0 .4rem; color: var(--muted); font-weight: 600; }
 .result-answer { font-size: 1.15rem; line-height: 1.6; margin: 0 0 1rem; }
 .certainty { margin: 0 0 1rem; color: var(--ink); }
 .certainty-pill { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .85rem; font-weight: 700; margin-right: .4rem; }
-.certainty-strong { background: #e3f1e8; color: #1f5a35; }
-.certainty-moderate, .certainty-weak { background: #fdf0d5; color: #7a4b00; }
-.certainty-insufficient, .certainty-not_assessed { background: var(--surface); color: var(--muted); }
 .result-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
 .result-list li { line-height: 1.45; }
 .result-list .help { margin: .15rem 0 0; }
@@ -398,3 +394,22 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 .result-section details > summary { cursor: pointer; padding: .4rem 0; }
 .result-section input[type="search"] { width: 100%; padding: .75rem; border: 1px solid #d5dfe3; border-radius: 6px; }
 .result-section p, .result-section li { line-height: 1.6; }
+
+/* Status banner (restored: it shares a prefix with the removed overview rules). */
+#dashboard-status { color: #56616b; font-size: .85rem; padding: .75rem 1rem; border-radius: 8px; background: #fff8de; }
+#dashboard-status:empty { display: none; }
+
+/* Results: three tabs, content aligned with the question above, UU yellow and red as accents. */
+#dashboard-blocks { display: block; max-width: 900px; margin: 0; }
+.result-tabs { display: flex; gap: 1.75rem; border-bottom: 1px solid var(--line); margin: .5rem 0 1.75rem; overflow-x: auto; }
+.result-tab { background: none; border: 0; border-bottom: 4px solid transparent; padding: .7rem 0; margin-bottom: -1px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.result-tab:hover { color: var(--ink); }
+.result-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--uu-yellow); }
+.result-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.25rem; }
+.result-section > h2 { border-left: 4px solid var(--uu-yellow); padding-left: .6rem; }
+.certainty-strong { background: var(--uu-yellow); color: var(--ink); }
+.certainty-moderate { background: #ffe680; color: var(--ink); }
+.certainty-weak { background: #fff3c4; color: var(--ink); }
+.certainty-insufficient { background: #fbe8ec; color: var(--uu-red); }
+.certainty-not_assessed { background: var(--surface); color: var(--muted); }
+.result-section a { text-decoration-color: var(--uu-yellow); text-decoration-thickness: 2px; text-underline-offset: 3px; }
