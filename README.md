@@ -212,14 +212,16 @@ evidence and downloads appear when research finishes. Questions, projects, dashb
 `data/local_research_runs`. Login sessions are renewed when you return; the workspace survives server restarts. Cancellation suppresses
 publication after the current research step finishes. This mode is loopback-only and cannot run in production.
 
-A result opens as one page. It shows the answer first, with a certainty label ("Strong", "Moderate" or "Weak evidence", "Not enough evidence", or "Not assessed") and one sentence saying what supports it and what is missing. The key sources follow.
+A result opens in three tabs.
 
-The page then shows:
+**Answer** comes first. It gives the answer with a certainty label ("Strong", "Moderate" or "Weak evidence", "Not enough evidence", or "Not assessed") and one sentence saying what supports it and what is missing. The key sources follow, then:
 
 - what the data show and what the literature says, when the run used them;
-- why the certainty is what it is: the studies counted as evidence, the studies read but not counted with their reasons, and what is missing;
-- a collapsed research landscape;
-- a collapsed **More details** section with the question interpretation, methods, all studies with article decisions, evidence passages, validation, references and downloads.
+- why the certainty is what it is: the studies counted as evidence, the studies read but not counted with their reasons, what is missing, limitations and next questions.
+
+**Research landscape** shows all discovered studies. **Details** holds the question interpretation, methods, all studies with article decisions, evidence passages, adequacy checks, validation, references and downloads.
+
+The selected tab and the open sections are kept when you give feedback.
 
 The summary is recomputed from the saved result each time it is opened, so earlier runs use the same page.
 
