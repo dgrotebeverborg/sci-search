@@ -44,6 +44,12 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: false
       - run: uv sync --frozen --extra dev --python "${{ steps.python.outputs.python-path }}"
+      - name: Install Python execution sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap libseccomp2
+      - name: Verify Python execution sandbox
+        run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
         run: uv run python -m playwright install --with-deps chromium
       - name: Start isolated integration services
@@ -70,6 +76,12 @@ jobs:
           version: "0.8.17"
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.11
+      - name: Install Python execution sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap libseccomp2
+      - name: Verify Python execution sandbox
+        run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
         run: uv run python -m playwright install --with-deps chromium
       - name: Start isolated integration services
