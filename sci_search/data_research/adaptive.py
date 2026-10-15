@@ -3,7 +3,7 @@
 import json
 import time
 
-from sci_search.data_research.coverage import evaluate as evaluate_coverage
+from sci_search.data_research.coverage import planning_summary
 from sci_search.data_research.period import period_summary
 
 PLAN_SCHEMA = {
@@ -56,7 +56,7 @@ def research_candidates(
             process["stop_reason"] = "Research budget reached; coverage remains uncertain."
             break
         context = {
-            "coverage": evaluate_coverage(strategy, result["analyses"]),
+            "coverage": planning_summary(strategy, result["analyses"]),
             "question": question,
             "scope": strategy,
             "period": period_summary(strategy, result["analyses"]),

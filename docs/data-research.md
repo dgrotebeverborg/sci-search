@@ -204,7 +204,8 @@ Known limitation: CBS delivers each table as one CSV package with every code tab
 happens only after download. Large CBS tables therefore exceed the 5 MB response limit or the
 package ZIP's file-count and expanded-size limits, and are rejected ("Dataset exceeds the 5 MB
 acquisition limit", "Data ZIP exceeds its file-count or expanded-size limit"). The limits are not
-relaxed for connectors; such a measurement continues with the next candidate or web search.
+relaxed for connectors. Oversized CBS downloads can now try the bounded OData fallback described
+below; otherwise the measurement continues with the next candidate or web search.
 
 ### Recovery
 
@@ -251,3 +252,48 @@ measures only the connectors: the questions answered by sources without a connec
 and the two connector-gap questions are run and tabulated but then skipped ("needs web search;
 not measured with the connector-only provider"), because gaps are recorded only for web
 candidates. The run makes paid model calls; the report of each provider is committed.
+
+### Adaptive coverage and retained investigations
+
+Data research and literature research remain separate workflows. Data strategies may now carry
+an optional `requirements` contract per measurement: entities, breakdowns, frequency, measurement
+type and definition. Older strategies remain accepted. Coverage checks actual numeric observations
+for each requested entity/breakdown/year combination, not simply whether a measurement occurs in
+an analysis. Missing values and conflicting sources keep coverage open. Disjoint source series
+are not spliced together to claim completeness. Model semantic review is still required; coverage
+is not independent proof of definitions or scientific validity.
+
+The planner receives up to 60 example gaps plus total counts. Connectors and web fallback pursue
+remaining measurements, and resumed connector selection targets missing countries. Reports and
+the dashboard expose gaps and stopping reasons. The annual output contract remains in force:
+monthly/daily requests are reported as unsupported coverage, not declared complete.
+
+Each investigation has shared default limits of 600 seconds, 80 model calls, 8 search calls and
+100 downloads. Limits are checked before operations; an in-flight operation retains its existing
+timeout. `execute(..., budget_limits={...})` can override these bounds. A stopped investigation
+retains completed results and an atomic `checkpoint.json`. Resume into a fresh directory with:
+
+```bash
+uv run python -m sci_search.data_research.resume OLD_RUN NEW_RUN
+```
+
+Resume requires the identical question and strategy, checks sealed source hashes and executed
+results, and reconciles completed source artifacts that are newer than the checkpoint. Retained
+observations are a snapshot, not a refresh of the provider's data.
+
+Python recovery can request up to two targeted inspections of text lines, PDF pages, workbook rows
+or a bounded text archive member. Direct CSV/JSON observation locators are checked against original
+source values and checked again during replay. Free-text references remain explicitly unverified;
+a matching number alone does not establish its unit, date or scientific meaning. Relative changes
+are withheld for interval scales and unknown scales; percentage differences use percentage points.
+
+Project-scoped extraction recipes are invalidated by changes to source bytes, scope, metadata,
+runtime or extraction engines. Reuse always executes the recipe and repeats semantic review.
+A cached recipe never constitutes cached scientific approval.
+
+Oversized CBS downloads can use a bounded OData v4 fallback: retained metadata constrains code
+selection, requests filter observations by selected codes and annual periods, and retained pages
+support offline replay. Pagination remains on the same endpoint. This does not add browser
+interaction, OCR, unrestricted geospatial processing or universal file-format support. Unsupported
+sources must remain visible as gaps. The deterministic fixtures test known values and adversarial
+cases; live provider/model acceptance is a separate, opt-in check.

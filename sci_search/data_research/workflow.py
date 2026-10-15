@@ -136,6 +136,7 @@ def execute(question, strategy, directory, *, budget_limits=None, resume_from=No
     control = RunControl(directory, budget_limits)
     if resume_from is not None:
         from sci_search.data_research.resume import prepare
+
         control.seed = prepare(resume_from, directory, question, strategy)
     try:
         return _execute(question, strategy, directory, control=control, **kwargs)
@@ -217,7 +218,9 @@ def _execute(
         for key in ("analyses", "assessments"):
             result[key] = list(control.seed.get(key, []))
         result["resumed"] = True
-        result["limitations"].append("Resumed retained source snapshots; existing observations were not refreshed from the network.")
+        result["limitations"].append(
+            "Resumed retained source snapshots; existing observations were not refreshed from the network."
+        )
     control.state = result
     search = control.wrap("search_calls", search)
     complete = control.wrap("model_calls", complete)
@@ -303,6 +306,7 @@ def _execute(
                 cache_dir=cache_dir,
                 knowledge_dir=knowledge_dir,
                 result=staged,
+                prior_analyses=result["analyses"],
             )
         except Exception as exc:
             if cancellations:
@@ -327,7 +331,7 @@ def _execute(
                         staged_assessment.get("measurement"),
                     )
                 )
-        result["analyses"] += staged["analyses"]
+        result["analyses"] += [a for a in staged["analyses"] if a not in result["analyses"]]
         result["assessments"] += staged["assessments"]
         result["connector_search"] = staged["search"]
         control.staged = None
@@ -382,8 +386,11 @@ def _execute(
         save(directory / "analysis.json", result)
         return outcome
 
-    existing_source_numbers = [int(match[1]) for path in directory.glob("source-*")
-                               if (match := re.match(r"source-(\d+)", path.name))]
+    existing_source_numbers = [
+        int(match[1])
+        for path in directory.glob("source-*")
+        if (match := re.match(r"source-(\d+)", path.name))
+    ]
     source_offset = max(existing_source_numbers, default=0)
     for index, candidate in enumerate(
         research_candidates(

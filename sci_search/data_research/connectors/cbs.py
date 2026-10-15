@@ -5,10 +5,10 @@ import re
 import zipfile
 from urllib.parse import urlsplit
 
+from sci_search.data_research import cbs_odata
 from sci_search.data_research.connectors import base
 from sci_search.data_research.packages import prepare_table
 from sci_search.data_research.tabular import read_csv
-from sci_search.data_research import cbs_odata
 
 NAME = "cbs"
 # Search-term languages: most CBS titles are Dutch; some tables have English editions.
@@ -216,8 +216,20 @@ def fetch(description, selection, scope, *, fetch, post):
             + ", ".join(description.extra["other_countries"]),
         )
     if description.extra.get("odata_root"):
-        body, request = cbs_odata.acquire(json.loads(description.payload), description.extra["odata_root"], selection, description.years, fetch)
-        return base.Fetched(raw=body, request=request, selection={"reader": "cbs_odata"}, artifact="source.json", notes=notes)
+        body, request = cbs_odata.acquire(
+            json.loads(description.payload),
+            description.extra["odata_root"],
+            selection,
+            description.years,
+            fetch,
+        )
+        return base.Fetched(
+            raw=body,
+            request=request,
+            selection={"reader": "cbs_odata"},
+            artifact="source.json",
+            notes=notes,
+        )
     return base.Fetched(
         raw=description.payload,
         request={"method": "GET", "url": url},

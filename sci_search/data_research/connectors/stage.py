@@ -14,6 +14,7 @@ from sci_search.data_research import semantics
 from sci_search.data_research.artifacts import execute_analysis
 from sci_search.data_research.connectors import CONNECTORS, base
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
+from sci_search.data_research.coverage import planning_summary, target_scope
 from sci_search.data_research.packages import attach_provenance, prepare_table
 from sci_search.data_research.python_recovery import recover as recover_python
 from sci_search.data_research.tabular import analyse_csv, read_csv
@@ -187,7 +188,10 @@ def _attempt_folder(directory, name, dataset, measurement):
 def _download(request):
     """Whether DOWNLOAD's plain GET of source["url"] can reproduce the retained bytes."""
     if request.get("snapshot"):
-        return {"reproducible": False, "reason": "This source retains multiple API responses; replay uses the retained snapshot."}
+        return {
+            "reproducible": False,
+            "reason": "This source retains multiple API responses; replay uses the retained snapshot.",
+        }
     if request.get("method", "GET") != "GET":
         return {
             "reproducible": False,
@@ -705,6 +709,7 @@ def _choose_and_analyse(
                     "question": question,
                     "scope": {**strategy, "measurements": measurements},
                     "candidates": candidates,
+                    "coverage": planning_summary(strategy, result["analyses"]),
                 },
                 ensure_ascii=False,
             ),
@@ -751,7 +756,7 @@ def _choose_and_analyse(
         attempted += 1
         analysis, assessment = analyse_dataset(
             question,
-            strategy,
+            target_scope(strategy, result["analyses"], item["measurement"]),
             directory,
             connector,
             candidate,
@@ -811,6 +816,7 @@ def run(
     search_fetch=None,
     result=None,
     knowledge_dir=None,
+    prior_analyses=(),
 ):
     """Run the connector stage. A caller that passes result keeps what the stage completed,
     every analysis with its assessment, even when a later step raises."""
@@ -822,7 +828,7 @@ def run(
     result = {} if result is None else result
     result.update(
         {
-            "analyses": [],
+            "analyses": list(prior_analyses),
             "assessments": [],
             "covered": [],
             "search": {

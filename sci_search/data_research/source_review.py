@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sci_search.data_research.artifacts import execute_analysis
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
+from sci_search.data_research.coverage import planning_summary
 from sci_search.data_research.execution import digest, run_python
 from sci_search.data_research.python_recovery import INSPECT_CODE, recover
 from sci_search.data_research.retrieval import inspect_page
@@ -119,7 +120,7 @@ def reassess_source(
             complete=complete,
             reason="Investigation review seeks missing coverage and/or additional documentation. "
             "Extract missing entities or breakdowns; do not repeat retained series. Coverage: "
-            + json.dumps(coverage)
+            + json.dumps(planning_summary(scope, result["analyses"]))
             + ". Previous result: "
             + assessment["reason"],
             metadata=metadata,
