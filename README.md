@@ -212,6 +212,17 @@ evidence and downloads appear when research finishes. Questions, projects, dashb
 `data/local_research_runs`. Login sessions are renewed when you return; the workspace survives server restarts. Cancellation suppresses
 publication after the current research step finishes. This mode is loopback-only and cannot run in production.
 
+A result opens as one page. It shows the answer first, with a certainty label ("Strong", "Moderate" or "Weak evidence", "Not enough evidence", or "Not assessed") and one sentence saying what supports it and what is missing. The key sources follow.
+
+The page then shows:
+
+- what the data show and what the literature says, when the run used them;
+- why the certainty is what it is: the studies counted as evidence, the studies read but not counted with their reasons, and what is missing;
+- a collapsed research landscape;
+- a collapsed **More details** section with the question interpretation, methods, all studies with article decisions, evidence passages, validation, references and downloads.
+
+The summary is recomputed from the saved result each time it is opened, so earlier runs use the same page.
+
 Without production configuration, `serve` requires `--unsafe-development`. That flag is restricted to loopback addresses and rejected in production. Production startup uses `SCI_SEARCH_ENVIRONMENT=production` and requires database, queue, object-storage, session, and institutional OIDC settings; provider credentials are also required for live discovery. Configure the settings and secret files in [compose.yml](compose.yml), then follow the [deployment runbook](docs/runbooks/DEPLOYMENT.md), including migrations, readiness checks, and worker startup. See the [API cutover guide](docs/operations/api-cutover.md) for current routes and the [retirement notice](docs/migration/LEGACY_RUNTIME_DEPRECATION.md) for retained CLI compatibility.
 
 The old local server and its unversioned endpoints have been removed. Production research uses the project’s **Research**, **Evidence**, **Validation**, and **Downloads** sections. Retained research packages contain full-text artifacts, cited reviews, discovery and screening ledgers, and provenance. The grounding checks described above apply to the scientific outputs; the preview cannot generate them.
