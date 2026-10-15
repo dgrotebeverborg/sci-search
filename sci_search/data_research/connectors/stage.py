@@ -387,6 +387,41 @@ def table_evidence(rows, mapping, scope=None, sample_size=12):
     return "\n".join(lines), json.dumps(sample, ensure_ascii=False)
 
 
+def _duplicate_series(analysis, existing):
+    """Require identical publisher indicator metadata AND observations; values alone are not identity."""
+    connector = analysis["source"].get("connector", {})
+    identity = connector.get("request", {}).get("indicator_identity")
+    if not identity:
+        return None
+
+    def signature(value):
+        return sorted(
+            json.dumps(
+                {
+                    "label": s["label"],
+                    "entity": s["entity"],
+                    "unit": s["unit"],
+                    "identity": s.get("identity"),
+                    "observations": [
+                        {k: r.get(k) for k in ("year", "value", "status")} for r in s["annual"]
+                    ],
+                },
+                sort_keys=True,
+            )
+            for s in value["series"]
+        )
+
+    for previous in existing:
+        other = previous.get("source", {}).get("connector", {})
+        if (
+            other.get("name") == connector.get("name")
+            and other.get("request", {}).get("indicator_identity") == identity
+            and signature(previous) == signature(analysis)
+        ):
+            return previous["source"]["url"]
+    return None
+
+
 def analyse_dataset(
     question,
     strategy,
@@ -403,6 +438,7 @@ def analyse_dataset(
     catalogue_sha256="",
     knowledge_dir=None,
     definition_search=None,
+    existing_analyses=(),
 ):
     check_cancelled = _Cancellation(check_cancelled)
     folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
@@ -576,6 +612,16 @@ def analyse_dataset(
                 else preparation,
             }
             stage_name = "connector:meaning"
+            duplicate = _duplicate_series(analysis, existing_analyses)
+            if duplicate:
+                assessment.update(
+                    decision="duplicate",
+                    duplicate_of=duplicate,
+                    source=source,
+                    reason="Same publisher indicator, definition and observations already retained; not independent evidence.",
+                )
+                save(folder / "assessment.json", assessment)
+                return None, assessment
             _, rows = read_csv(table)
             summary, sample = table_evidence(rows, mapping, strategy)
             documents = {
@@ -829,6 +875,7 @@ def _choose_and_analyse(
             catalogue_sha256=result["search"]["catalogues"].get(connector.NAME, ""),
             knowledge_dir=knowledge_dir,
             definition_search=definition_search,
+            existing_analyses=result["analyses"],
         )
         assessment["choice_reason"] = item["reason"]
         assessment["recovery"] = [*recovery, *assessment["recovery"]]

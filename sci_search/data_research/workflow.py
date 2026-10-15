@@ -41,7 +41,12 @@ from sci_search.data_research.retrieval import (
     repository_files,
 )
 from sci_search.data_research.run_control import BudgetExhausted, RunControl
-from sci_search.data_research.source_review import execution_summary, reassess_source
+from sci_search.data_research.source_review import (
+    execution_summary,
+    inherit_context,
+    reassess_source,
+    save_context,
+)
 from sci_search.data_research.spreadsheets import SELECTION_SCHEMA, inspect_if_workbook
 from sci_search.data_research.statistical_tables import (
     SELECTION_SCHEMA as STATISTICAL_SELECTION_SCHEMA,
@@ -485,6 +490,7 @@ def _execute(
                         check_cancelled=connector_check_cancelled,
                         knowledge_dir=knowledge_dir,
                         progress=progress,
+                        existing_analyses=result["analyses"],
                     )
                 except Exception as exc:
                     if cancellations:
@@ -572,6 +578,10 @@ def _execute(
                     "links": listing["links"] + page["links"],
                 }
             assessment["recovery_links"] = page["links"][:80]
+            inherited, parents = inherit_context(candidate, result["assessments"], retained)
+            if inherited:
+                page["text"] = inherited + "\nLinked download: " + url + "\n" + page["text"]
+                assessment["context_from"] = parents
             stage = "assessment"
             context = {
                 "question": question,
@@ -622,12 +632,14 @@ def _execute(
                     hop, strategy, fetch, assessment.setdefault("download_attempts", [])
                 )
                 (folder / "detail.bin").write_bytes(body)
+                parent_text = page["text"]
                 page = inspect_page(body, url)
                 preview = inspect_if_workbook(body)
                 if preview:
                     save(folder / "workbook-inspection.json", preview)
                     assessment["workbook_inspected"] = True
                     page = {"text": json.dumps(preview, ensure_ascii=False)[:60000], "links": []}
+                page["text"] = parent_text + "\nLinked page: " + url + "\n" + page["text"]
                 context.update(
                     retrieved_url=url,
                     page={
@@ -1350,6 +1362,12 @@ def _execute(
                     },
                 }
             assessment["execution_review"] = execution_summary(folder)
+            if position in retained:
+                save_context(folder, retained[position])
+                assessment["source_digest"] = hashlib.sha256(retained[position]["body"]).hexdigest()
+                assessment["context_digest"] = hashlib.sha256(
+                    retained[position]["metadata"].encode()
+                ).hexdigest()
             assessment["execution_review"]["source_preview"] = page["text"][:8000]
             assessment["execution_review"]["retained_bytes"] = (
                 len(retained[position]["body"]) if position in retained else 0

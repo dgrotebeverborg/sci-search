@@ -6,7 +6,7 @@ from pathlib import Path
 from sci_search.data_research import knowledge, semantics
 from sci_search.data_research.execution import digest, run_python
 from sci_search.data_research.inspection import REQUEST_SCHEMA, inspect_source
-from sci_search.data_research.python_rows import analyse_observations
+from sci_search.data_research.python_rows import analyse_observations, measurement_definitions
 from sci_search.data_research.verification import verify_observations
 
 CODE_SCHEMA = {
@@ -32,13 +32,37 @@ REVIEW_SCHEMA = {
 }
 
 
-def review_schema(measurements):
+def review_schema(measurements, definitions=None):
     """REVIEW_SCHEMA with exactly one meaning review per expected measurement."""
     narrowed = semantics.review_schema(measurements)["properties"]["measurements"]
-    return {
+    schema = {
         **REVIEW_SCHEMA,
         "properties": {**REVIEW_SCHEMA["properties"], "measurements": narrowed},
     }
+    if definitions:
+        schema["required"] = [*schema["required"], "scope_relations"]
+        schema["properties"]["scope_relations"] = {
+            "type": "array",
+            "minItems": len(definitions),
+            "maxItems": len(definitions),
+            "items": semantics._object(
+                {
+                    "measurement": {
+                        "type": "string",
+                        "enum": [d["label"] for d in definitions.values()],
+                    },
+                    "relation": {
+                        "type": "string",
+                        "enum": ["narrower", "proxy", "unresolved", "conflicting"],
+                    },
+                    "reason": {"type": "string"},
+                    "evidence": semantics.MEASUREMENT_SCHEMA["properties"]["checks"]["items"][
+                        "properties"
+                    ]["evidence"],
+                }
+            ),
+        }
+    return schema
 
 
 REFLECTION_SCHEMA = {
@@ -46,7 +70,10 @@ REFLECTION_SCHEMA = {
     "additionalProperties": False,
     "required": ["action", "measurements", "years", "entities", "reason"],
     "properties": {
-        "action": {"type": "string", "enum": ["repair", "extract_subset", "stop"]},
+        "action": {
+            "type": "string",
+            "enum": ["repair", "extract_subset", "clarify_labels", "stop"],
+        },
         "measurements": {"type": "array", "items": {"type": "string"}},
         "years": {"type": "array", "items": {"type": "integer"}},
         "entities": {"type": "array", "items": {"type": "string"}},
@@ -117,14 +144,14 @@ def recover(
         raise ValueError(inspected.get("error", "Python source inspection failed"))
     preview = (root / "inspection/output/inspection.json").read_text()[:120000]
     documents = semantics.source_documents(
-        metadata[:40000], json.loads((root / "inspection/output/inspection.json").read_text())
+        metadata, json.loads((root / "inspection/output/inspection.json").read_text())
     )
     (root / "evidence-documents.json").write_text(json.dumps(documents, ensure_ascii=False))
     context = {
         "question": question,
         "scope": scope,
         "source": source,
-        "metadata": metadata[:40000],
+        "metadata": metadata,
         "inspection": preview,
         "previous_error": reason,
         "previous_code": "",
@@ -138,6 +165,7 @@ def recover(
     cached_code = knowledge.load(knowledge_dir, recipe_key)
     reused_recipe = cached_code is not None
     inspections = set()
+    label_repair_rows = None
     while number < 3:
         check_cancelled()
         progress(f"Asking the model to write Python extraction code, attempt {number + 1} of 3.")
@@ -157,6 +185,13 @@ def recover(
                 "Read NetCDF or HDF5 with netCDF4.Dataset('source.nc', memory=data); take units and "
                 "definitions from variable attributes, and state any spatial aggregation rule. "
                 "Preserve missing values as null, documented units, dimensions and requested geography. "
+                "Put documented geographic qualifications, such as a composite station record, in the "
+                "published entity label itself, not only in assumptions. For one publisher-defined "
+                "composite time series, use one stable qualified entity label across the whole record; "
+                "describe the affected years in assumptions instead of splitting that record into "
+                "different entities. Never combine separate source series to manufacture a composite. "
+                "If label_only_repair is true, "
+                "change only observation.entity labels; preserve every other observation field and row order. "
                 "Do not interpolate or substitute proxies. Aggregate only when source definitions justify it; "
                 "record the rule and completeness checks. Never sum totals with their subcategories. "
                 "Output /output/observations.json: {observations:[{entity:string,year:integer,value:number|null,"
@@ -173,6 +208,12 @@ def recover(
                 "independently checked against original bytes. For other derived values or formats "
                 "omit source_locator; retain an honest source_reference instead. "
                 "Preserve any supported requested measurement even when others or some years are absent. "
+                "When the source explicitly measures a narrower subset of a requested measurement, "
+                "you may supply measurement_definitions:[{requested_measurement:exact scope member, "
+                "label:precise source-supported narrower label, definition:source definition, relation:'narrower'}]. "
+                "Keep observation.measurement as the original requested member; publication uses the narrower label "
+                "and never counts it as full coverage. Only genuine subsets qualify, never proxies, different "
+                "physical quantities, unexplained units or guessed definitions. Omit this field for direct matches. "
                 "If scope.retained_years or scope.retained_entities is nonempty, extract only those "
                 "years/entities; other observations remain explicitly missing in the final result. "
                 "Do not require one source to answer the whole question. Keep reef/site/entity level values "
@@ -218,11 +259,23 @@ def recover(
         semantic_failure = False
         semantic_review = {}
         payload = {}
+        definitions = {}
+        labels = []
         try:
             if record["status"] != "succeeded":
                 raise ValueError(record.get("error", "Python extraction failed"))
             payload = json.loads((attempt / "output/observations.json").read_text())
+            definitions = measurement_definitions(payload, scope)
             analyse_observations(payload, extraction_scope)
+            if (
+                label_repair_rows is not None
+                and [
+                    {k: v for k, v in row.items() if k != "entity"}
+                    for row in payload["observations"]
+                ]
+                != label_repair_rows
+            ):
+                raise ValueError("Label repair changed numeric observations or source references")
             for field, key in (("retained_years", "year"), ("retained_entities", "entity")):
                 allowed = extraction_scope.get(field)
                 if allowed and any(row[key] not in allowed for row in payload["observations"]):
@@ -245,6 +298,11 @@ def recover(
                 "wrong geography, ungrounded aggregation, double counting and fabricated source references. "
                 "Check code, output and missingness; successful execution alone is not evidence of correctness. "
                 "Partial measurements/years/countries are acceptable when explicitly identified; assess "
+                "For measurement_definitions assess the actual narrower label; missing broader coverage "
+                "is not a reason to reject a well-defined subset. Independently review scope_relations: "
+                "cite source evidence that each proposed narrower measure is a genuine subset of the "
+                "requested quantity. Reject proxies, changed physical quantities, ambiguous definitions "
+                "or a relabel used to conceal missing units. Source limitations alone do not prove a subset. "
                 "the published subset, not whether this source alone answers the entire question. If the supplied "
                 "preview is sampled, assess the code's full-file reading and checks; not every output "
                 "row must appear in the preview. Do not require truncating a valid extraction to preview rows. "
@@ -259,7 +317,8 @@ def recover(
                         "scope": scope,
                         "evidence_documents": documents,
                         "measurements": labels,
-                        "metadata": metadata[:40000],
+                        "measurement_definitions": list(definitions.values()),
+                        "metadata": metadata,
                         "source_inspection": preview,
                         "code": code,
                         "source_verification": source_verification,
@@ -269,9 +328,15 @@ def recover(
                         "checks": payload.get("checks", []),
                     }
                 ),
-                review_schema(labels),
+                review_schema(labels, definitions),
             )
             semantic_review = semantics.validate(review, labels, documents)
+            if definitions:
+                semantic_review["scope_relations"] = review.get("scope_relations", [])
+                try:
+                    semantics.validate_scope_relations(review, definitions, documents)
+                except ValueError as error:
+                    semantic_review.update(accepted=False, reason=str(error))
             semantic_failure = not semantic_review["accepted"]
             (attempt / "semantic-review.json").write_text(json.dumps(semantic_review, indent=2))
             (attempt / "review.json").write_text(json.dumps(review, indent=2))
@@ -304,6 +369,13 @@ def recover(
                 },
             )
             analysis["limitations"].extend(str(n) for n in review.get("limitations", []))
+            analysis["limitations"].extend(
+                d["label"]
+                + " is a narrower source-defined subset of "
+                + d["requested_measurement"]
+                + "; it does not establish complete coverage of that measurement."
+                for d in definitions.values()
+            )
             represented = {s["label"] for s in analysis["series"]}
             analysis["uncovered_measurements"] = [
                 m for m in scope["measurements"] if m not in represented
@@ -331,6 +403,9 @@ def recover(
                         "Review this investigation's actual extraction failure before another attempt. "
                         "Inspect the source, documentation, prior code, validation error and previous decisions. "
                         "repair is for an actionable code/reading problem. extract_subset limits extraction "
+                        "clarify_labels is only for a geography-label conflict when the source already "
+                        "documents the actual entity or composite record: qualify published entity labels "
+                        "without changing any values, measurements, years, units, row order or source references. "
                         "to supported members of the original requested measurements; preserve partial results "
                         "and optionally select supported years and entities from the previous extracted rows. "
                         "Use years=[] and entities=[] to leave those dimensions unrestricted. "
@@ -345,8 +420,26 @@ def recover(
                         ),
                         REFLECTION_SCHEMA,
                     )
-                    if decision.get("action") not in {"repair", "extract_subset", "stop"}:
+                    if decision.get("action") not in {
+                        "repair",
+                        "extract_subset",
+                        "clarify_labels",
+                        "stop",
+                    }:
                         raise ValueError("Unknown reflection action")
+                    if decision["action"] == "clarify_labels":
+                        if (
+                            not payload
+                            or not semantic_review
+                            or definitions
+                            or not semantics.can_clarify_labels(semantic_review, labels, documents)
+                        ):
+                            raise ValueError("Missing evidence cannot be repaired by relabelling")
+                        label_repair_rows = [
+                            {k: v for k, v in row.items() if k != "entity"}
+                            for row in payload["observations"]
+                        ]
+                        context["label_only_repair"] = True
                     if decision["action"] == "extract_subset":
                         measures = decision.get("measurements")
                         if (

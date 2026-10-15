@@ -4,7 +4,7 @@ import itertools
 import math
 import re
 
-from sci_search.data_research.wildfire import COUNTRY_NAMES, EU27, EUROPE
+from sci_search.data_research.wildfire import COUNTRY_NAMES
 
 ALIASES = {
     "male": ("male", "males", "men", "mannen"),
@@ -28,13 +28,9 @@ def _finite(value):
 
 def evaluate(scope, analyses):
     requirements = {r["measurement"]: r for r in scope.get("requirements", [])}
-    countries = scope.get("countries") or (
-        EU27
-        if scope.get("country_scope") == "eu27"
-        else EUROPE
-        if scope.get("country_scope") == "europe"
-        else []
-    )
+    # A regional request is not an implicit request for every constituent country.
+    # Explicit country lists and per-measurement entities still take precedence.
+    countries = scope.get("countries") or []
     start, end = scope.get("start_year"), scope.get("end_year")
     requested_years = set(range(start, end + 1)) if start is not None and end is not None else None
     cells = []

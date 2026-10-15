@@ -168,7 +168,7 @@ def test_repeated_query_does_not_spend_another_search_call():
         )
     )
     assert len(calls) == 1
-    assert len(result["research_process"]["steps"]) == 3
+    assert len(result["research_process"]["steps"]) == 2
 
 
 def test_cancelled_research_does_not_become_a_source_failure():
@@ -346,3 +346,93 @@ def test_reviewer_can_reprocess_download_with_documentation_and_see_outcome():
         == []
     )
     assert result["research_process"]["steps"][0]["outcome"]["status"] == "retained"
+
+
+def test_equivalent_downloads_cannot_trigger_identical_reassessments():
+    result = {
+        "analyses": [],
+        "limitations": [],
+        "assessments": [
+            dict(
+                url=f"https://example.org/{n}",
+                title="Data",
+                decision="blocked",
+                reason="Units missing",
+                source_digest="same-bytes",
+                context_digest="same-evidence",
+                recovery_links=[],
+            )
+            for n in range(2)
+        ],
+    }
+    plans = iter(
+        [
+            dict(
+                action="reassess",
+                source_index=i,
+                link_index=-1,
+                query="",
+                measurements=["cover"],
+                reason="Try again",
+            )
+            for i in range(2)
+        ]
+    )
+    outcomes = []
+
+    def reassess(*args):
+        outcomes.append(args)
+        return {"status": "blocked", "reason": "No new definitions"}
+
+    list(
+        research_candidates(
+            "Cover",
+            {"measurements": ["cover"]},
+            {"candidates": []},
+            result,
+            None,
+            None,
+            lambda *a: next(plans),
+            lambda *a: None,
+            lambda *a: None,
+            lambda: None,
+            review_source=reassess,
+            max_rounds=2,
+        )
+    )
+    assert len(outcomes) == 1
+    assert result["research_process"]["steps"][1]["status"] == "failed"
+
+
+def test_repeated_search_without_new_sources_stops_before_spending_all_rounds():
+    result = {"analyses": [], "assessments": [], "limitations": []}
+    calls = []
+
+    def model(*args):
+        calls.append(1)
+        return dict(
+            action="search",
+            source_index=-1,
+            link_index=-1,
+            query="Same query",
+            reason="Look for units",
+            measurements=["cover"],
+        )
+
+    list(
+        research_candidates(
+            "Cover",
+            {"measurements": ["cover"]},
+            {"candidates": []},
+            result,
+            lambda *a, **k: {"candidates": []},
+            None,
+            model,
+            lambda *a: None,
+            lambda *a: None,
+            lambda: None,
+            max_rounds=6,
+        )
+    )
+    assert len(calls) == 2
+    assert "progress" in result["research_process"]["stop_reason"].lower()

@@ -13,10 +13,44 @@ except ImportError:
     from tabular import analyse_csv
 
 
+def measurement_definitions(payload, scope):
+    """Optional source-defined subsets; none can satisfy the original measurement."""
+    if not isinstance(payload, dict):
+        raise ValueError("Extracted observations must be an object")
+    entries = payload.get("measurement_definitions", [])
+    if not isinstance(entries, list) or len(entries) > len(scope["measurements"]):
+        raise ValueError("Invalid measurement definitions")
+    result, labels = {}, set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid measurement definition")
+        name, label = entry.get("requested_measurement"), entry.get("label")
+        definition = entry.get("definition")
+        if (
+            not isinstance(name, str)
+            or name not in scope["measurements"]
+            or name in result
+            or not isinstance(label, str)
+            or not label.strip()
+            or len(label) > 300
+            or label in scope["measurements"]
+            or label in labels
+            or not isinstance(definition, str)
+            or not definition.strip()
+            or len(definition) > 2000
+            or entry.get("relation") != "narrower"
+        ):
+            raise ValueError("Invalid narrower measurement definition")
+        result[name] = entry
+        labels.add(label)
+    return result
+
+
 def analyse_observations(payload, scope):
     rows = payload.get("observations") if isinstance(payload, dict) else None
     if not isinstance(rows, list) or not 0 < len(rows) <= 50000:
         raise ValueError("Expected 1–50000 extracted observations")
+    definitions = measurement_definitions(payload, scope)
     for key in ("assumptions", "checks"):
         notes = payload.get(key, [])
         if (
@@ -73,6 +107,14 @@ def analyse_observations(payload, scope):
         )
         references = {(r["entity"], r["year"]): r["source_reference"] for r in group}
         for series in result["series"]:
+            if measurement in definitions:
+                definition = definitions[measurement]
+                series.update(
+                    label=definition["label"],
+                    requested_measurement=measurement,
+                    coverage_relation="narrower",
+                    source_definition=definition["definition"],
+                )
             for observation in series["annual"]:
                 observation["source_reference"] = references.get(
                     (series["entity"], observation["year"])

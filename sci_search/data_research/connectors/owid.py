@@ -161,6 +161,16 @@ def describe(candidate, scope, *, fetch):
             "missing_countries": missing,
             # fetch reads exactly one indicator; the selection schema pins it.
             "fixed_dimensions": ["indicator"],
+            "indicator_identities": {
+                short: {
+                    "id": info["owidVariableId"],
+                    "metadata_sha256": hashlib.sha256(
+                        json.dumps(info, sort_keys=True).encode()
+                    ).hexdigest(),
+                }
+                for short, info in columns.items()
+                if info.get("owidVariableId")
+            },
         },
     )
 
@@ -183,6 +193,9 @@ def fetch(description, selection, scope, *, fetch, post):
             "url": _csv_url(slug),
             "csv_sha256": description.extra["csv_sha256"],
             "metadata_sha256": description.extra["metadata_sha256"],
+            "indicator_identity": description.extra.get("indicator_identities", {}).get(
+                filters["indicator"][0]
+            ),
         },
         selection={
             "reader": "owid_csv",

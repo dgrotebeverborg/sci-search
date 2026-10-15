@@ -120,6 +120,58 @@ def _spaced(text):
     return " ".join(text.split())
 
 
+def validate_scope_relations(review, definitions, documents):
+    """A narrower result needs a separately reviewed, cited subset relationship."""
+    names = {d["label"] for d in definitions.values()}
+    items = review.get("scope_relations", [])
+    if not isinstance(items, list) or len(items) != len(names):
+        raise ValueError("Missing narrower-scope review")
+    seen = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Malformed narrower-scope review")
+        name = item.get("measurement")
+        evidence = item.get("evidence")
+        if (
+            not isinstance(name, str)
+            or name not in names
+            or name in seen
+            or item.get("relation") != "narrower"
+            or not isinstance(item.get("reason"), str)
+            or not item["reason"].strip()
+            or not isinstance(evidence, list)
+            or not evidence
+        ):
+            raise ValueError(
+                "Source does not establish a narrower subset of the requested measurement"
+            )
+        for citation in evidence:
+            if not isinstance(citation, dict):
+                raise ValueError("Invalid subset citation")
+            key, quote = citation.get("document"), citation.get("quote")
+            if (
+                not isinstance(key, str)
+                or key not in documents
+                or not isinstance(quote, str)
+                or len(quote.strip()) < 3
+                or _spaced(quote) not in _spaced(documents[key])
+            ):
+                raise ValueError("Subset citation absent from original source document")
+        seen.add(name)
+
+
+def can_clarify_labels(review, measurements, documents):
+    """Only a cited geography-label conflict may enter label-only repair."""
+    candidate = copy.deepcopy(review)
+    repaired = False
+    for item in candidate.get("measurements", []):
+        for check in item.get("checks", []):
+            if check.get("aspect") == "geography" and check.get("status") == "conflicting":
+                check["status"] = "supported"
+                repaired = True
+    return repaired and validate(candidate, measurements, documents)["accepted"]
+
+
 def validate(review, measurements, documents):
     """Fail closed on omissions, contradictions, unknown sources and invented quotes.
 

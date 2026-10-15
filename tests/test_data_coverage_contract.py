@@ -42,6 +42,23 @@ def test_one_country_does_not_cover_a_multicountry_question():
     assert [(g["entity"], g["missing_years"]) for g in result["gaps"]] == [("DEU", [2020, 2021])]
 
 
+@pytest.mark.parametrize("geography,country_scope", [("Europe", "europe"), ("EU27", "eu27")])
+def test_regional_question_does_not_require_unrequested_country_breakdowns(
+    geography, country_scope
+):
+    scope = {**SCOPE, "geography": geography, "country_scope": country_scope, "countries": []}
+    result = coverage(scope, [analysis(geography)])
+    assert result["complete_measurements"] == ["life expectancy"]
+    assert len(result["cells"]) == 1
+    assert not coverage(scope, [analysis("Netherlands")])["complete_measurements"]
+
+
+def test_explicit_country_requirements_survive_regional_geography():
+    scope = {**SCOPE, "geography": "Europe", "country_scope": "europe"}
+    result = coverage(scope, [analysis("Europe")])
+    assert [g["entity"] for g in result["gaps"]] == ["NLD", "DEU"]
+
+
 def test_null_values_do_not_count_as_country_coverage():
     result = coverage(SCOPE, [analysis("Netherlands"), analysis("Germany", (None, None))])
     assert result["gaps"][0]["status"] == "missing"

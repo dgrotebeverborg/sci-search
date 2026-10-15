@@ -12,6 +12,27 @@ from sci_search.data_research.python_recovery import INSPECT_CODE, recover
 from sci_search.data_research.retrieval import inspect_page
 
 
+def inherit_context(candidate, assessments, retained):
+    """Only carry evidence along an observed parent-to-download link, never by host."""
+    for index, assessment in enumerate(assessments):
+        if (
+            assessment.get("url") == candidate.get("recovery_from")
+            and candidate["url"] in assessment.get("recovery_links", [])
+            and index in retained
+        ):
+            record = retained[index]
+            return record["metadata"], [assessment["url"]]
+    return "", []
+
+
+def save_context(folder, record):
+    """Persist source evidence independently of extraction success; never persist raw bytes here."""
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    (Path(folder) / "source-context.json").write_text(
+        json.dumps({k: v for k, v in record.items() if k != "body"}, ensure_ascii=False, indent=2)
+    )
+
+
 def execution_summary(folder):
     """Small factual snapshot for the next decision; never executable instructions."""
     root = Path(folder) / "python"
@@ -107,9 +128,16 @@ def reassess_source(
                 text = (folder / "documentation-inspection/output/inspection.json").read_text()
             else:
                 text = body[:40000].decode("utf-8", errors="replace")
-            metadata = (
-                metadata[:20000] + "\nObserved documentation: " + final_url + "\n" + text[:20000]
+            metadata = metadata + "\nObserved documentation: " + final_url + "\n" + text[:20000]
+            source_record["metadata"] = metadata
+            assessment["context_digest"] = digest(metadata.encode())
+            source_record.setdefault("documentation", []).append(
+                {
+                    **record["documentation"],
+                    "artifact": str(folder.relative_to(directory) / "documentation.bin"),
+                }
             )
+            save_context(Path(directory) / source_folder, source_record)
         progress("Reassessing downloaded data for: " + ", ".join(measurements))
         analysis = recover(
             question,

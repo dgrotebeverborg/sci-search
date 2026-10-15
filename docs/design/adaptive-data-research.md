@@ -127,3 +127,59 @@ three retained runs replayed offline. The CO2 result explicitly retains the Maun
 caveat. These are individual acceptance cases, not a representative accuracy benchmark. Raw
 sources, intermediate unsuccessful attempts and final acceptance records remain local and are
 not committed.
+
+### Preserve requested scope and source context
+
+Regional geography no longer expands implicitly into every constituent country in the coverage
+contract. Explicit country lists, measurement-specific entities and requested breakdowns retain
+their precedence. A country series still cannot stand in for a regional aggregate, and separate
+sources are not spliced to manufacture a complete interval.
+
+Observed parent-to-download links carry the parent's retained metadata into the next assessment,
+extraction and meaning review. Matching a publisher hostname alone is insufficient. Reassessment
+adds documentation to the original source context even when extraction remains blocked; the
+document URL, byte hash and artifact path are retained in `source-context.json`. The already
+bounded source text is not truncated again at the front when passed to Python recovery, so newly
+appended definitions are available for exact citations.
+
+Python observations may optionally declare `measurement_definitions`: a requested measurement,
+a distinct source-supported label, definition and `narrower` relationship. Published series keep
+the narrower label, original `requested_measurement` and `coverage_relation`. An independent
+meaning review must also substantiate the subset relationship with exact source citations.
+Proxy, unresolved and conflicting relationships are rejected. These series remain supplementary:
+they never fill the broader measurement's coverage cells. The numeric verification and standalone
+replay use the same observation contract; unsupported units and definitions remain blockers.
+
+A cited geographic label conflict has a separate `clarify_labels` recovery action. It is unavailable
+when other meaning checks or source citations fail. Only entity labels may change: all observation
+values, units, years, measurement names, source references and row order must remain identical.
+The output then undergoes fresh numeric verification and meaning review. This supports explicit
+composite-record labels without weakening the rule against guessing missing definitions.
+
+OWID exposes publisher variable IDs and hashes of the selected indicator metadata. A second chart
+is skipped before another meaning review only when that identity, definition, entities, units,
+measurement and annual observations match an already retained analysis. Coincidentally equal
+numbers, different definitions and revised values are not deduplicated. The duplicate assessment
+links to the retained source and does not count as independent evidence.
+
+Follow-up reassessments use source-byte and context identities rather than only candidate indices.
+Two consecutive invalid or no-new-source actions stop planning with explicit unresolved gaps.
+Interactive pages without observed downloads prompt a search for a documented API or export;
+this does not add browser execution or invent endpoints. All changes are confined to the data
+path and additive artifacts; literature research retains its separate evidence stream.
+
+Validation: 1,386 tests passed, 24 skipped, two subtests passed, 84.83% coverage; final targeted
+checks passed (58 tests), Ruff passed and Pyright reported zero errors. Independent review found
+and verified fixes for long-context truncation and malformed extraction payloads. The three
+reference data questions again retained all 28 independently checked values with complete
+requested coverage. An initial CO2 attempt exposed incomplete composite-record labelling;
+the final case passed after the generic label guidance and constrained repair change. All three
+reference cases and the wildfire case replayed offline.
+
+The wildfire case retained five analyses, including explicitly narrower forest-fire series,
+and detected a duplicate OWID count series. It remains partial: early count years are absent and
+overlapping burned-area sources require reconciliation. Compared with the prior run, model calls
+fell from 47 to 38, downloads rose from 47 to 57 and elapsed time rose from 519 to 570 seconds.
+This is evidence of broader retained coverage, not a speedup or a representative accuracy claim.
+The local acceptance record is `data/validation_runs/scope-context-20261015/acceptance.json`;
+raw runs and intermediate failures are intentionally excluded from Git.
