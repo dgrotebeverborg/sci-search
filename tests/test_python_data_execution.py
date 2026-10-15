@@ -116,18 +116,25 @@ def test_interpreter_outside_system_paths_is_available_without_exposing_its_pare
     import sysconfig
     from pathlib import Path
 
-    installation = tmp_path / "python-runtime"
-    (installation / "bin").mkdir(parents=True)
-    interpreter = installation / "bin/python"
-    shutil.copy2(Path(sys.executable).resolve(), interpreter)
-    standard_library = Path(sysconfig.get_path("stdlib"))
-    shutil.copytree(
-        standard_library,
-        installation / "lib" / standard_library.name,
-        ignore=shutil.ignore_patterns("site-packages", "__pycache__"),
-    )
-    for library in Path(sysconfig.get_config_var("LIBDIR")).glob("libpython*.so*"):
-        shutil.copy2(library, installation / "lib" / library.name)
+    installation = Path(sys.base_prefix).resolve()
+    interpreter = Path(sys.executable).resolve()
+    if any(installation.is_relative_to(path) for path in ("/usr", "/lib", "/lib64")):
+        # System builds can be relocated while their linker paths stay in /usr.
+        # Hosted toolcache builds may embed absolute linker paths: exercise their
+        # actual non-system installation instead of copying an unrelocatable binary.
+        installation = tmp_path / "python-runtime"
+        (installation / "bin").mkdir(parents=True)
+        relocated = installation / "bin/python"
+        shutil.copy2(interpreter, relocated)
+        interpreter = relocated
+        standard_library = Path(sysconfig.get_path("stdlib"))
+        shutil.copytree(
+            standard_library,
+            installation / "lib" / standard_library.name,
+            ignore=shutil.ignore_patterns("site-packages", "__pycache__"),
+        )
+        for library in Path(sysconfig.get_config_var("LIBDIR")).glob("libpython*.so*"):
+            shutil.copy2(library, installation / "lib" / library.name)
     secret = tmp_path / "private.txt"
     secret.write_text("not a runtime file")
     monkeypatch.setattr(execution.sys, "executable", str(interpreter))
