@@ -620,6 +620,8 @@ def analyse_dataset(
             }
             recovery.append(reselected)
             progress("The meaning check rejected the selected codes. Choosing codes again.")
+        else:
+            raise base.DatasetRejected("No accepted dataset selection")
         analysis["semantic_review"] = review
         stage_name = "execution"
         analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)

@@ -192,12 +192,10 @@ def _interpretation(question, analyzer, *, steer, clarification) -> dict[str, An
             data_research=data_scope,
         ).to_dict()
     if selected is not None:
+        # Passed only when set, so the call stays compatible with plain interpretations.
+        extras = {k: v for k, v in {"steer": steer, "clarification": clarification}.items() if v}
         try:
             try:
-                # Passed only when set, so the call stays compatible with plain interpretations.
-                extras = {
-                    k: v for k, v in {"steer": steer, "clarification": clarification}.items() if v
-                }
                 result = _model_interpretation(question, plan, selected, **extras)
             except ValueError as error:
                 if selected.provider.name != "codex":

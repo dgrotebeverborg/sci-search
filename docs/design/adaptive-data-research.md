@@ -78,3 +78,14 @@ already downloaded research packages contain their own engines and remain reprod
 - Monthly/daily output, browser interaction, OCR and general geospatial adapters remain future
   capabilities. Unknown or unsupported inputs must remain explicit gaps. Coverage checks and
   exact numeric locators do not replace scientific interpretation or semantic review.
+
+### PR validation follow-up
+
+The CI blockers above were addressed after the initial push. The connector now explicitly rejects
+an exhausted selection loop, making successful publication paths definite for the type checker;
+question interpretation prepares retry arguments before entering its exception handler. Pyright
+reports zero errors. Explicit pytest coverage configuration propagates branch settings to replay
+subprocesses: the complete suite now passes with 1,342 tests, 24 skips, two subtests and 85.08%
+coverage (80% required). Updated pypdf and urllib3 within their existing version constraints;
+the locked dependency audit reports no known vulnerabilities. The lock also now includes the
+already-declared optional NetCDF dependency. Capability limitations above remain unchanged.

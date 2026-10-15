@@ -69,7 +69,7 @@ include = ["sci_search*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-config --strict-markers --import-mode=importlib"
+addopts = "--strict-config --strict-markers --import-mode=importlib --cov-config=pyproject.toml"
 markers = [
   "security: mandatory tenant-isolation and authentication security tests",
   "retained_corpus: requires locally retained full texts or historical research runs; enable with --run-retained-corpus",
