@@ -106,3 +106,42 @@ def test_temporary_files_have_a_total_storage_limit(tmp_path):
     )
     assert result["status"] == "failed"
     assert "No space left" in result["error"]
+
+
+def test_interpreter_outside_system_paths_is_available_without_exposing_its_parent(
+    tmp_path, monkeypatch
+):
+    import shutil
+    import sys
+    import sysconfig
+    from pathlib import Path
+
+    installation = tmp_path / "python-runtime"
+    (installation / "bin").mkdir(parents=True)
+    interpreter = installation / "bin/python"
+    shutil.copy2(Path(sys.executable).resolve(), interpreter)
+    standard_library = Path(sysconfig.get_path("stdlib"))
+    shutil.copytree(
+        standard_library,
+        installation / "lib" / standard_library.name,
+        ignore=shutil.ignore_patterns("site-packages", "__pycache__"),
+    )
+    for library in Path(sysconfig.get_config_var("LIBDIR")).glob("libpython*.so*"):
+        shutil.copy2(library, installation / "lib" / library.name)
+    secret = tmp_path / "private.txt"
+    secret.write_text("not a runtime file")
+    monkeypatch.setattr(execution.sys, "executable", str(interpreter))
+    monkeypatch.setattr(execution.sys, "base_prefix", str(installation))
+    result = execution.run_python(
+        "from pathlib import Path\n"
+        f"assert not Path({str(secret)!r}).exists()\n"
+        f"assert Path({str(interpreter)!r}).exists()\n"
+        f"try: Path({str(interpreter)!r}).write_bytes(b'changed')\n"
+        "except OSError: pass\n"
+        "else: raise AssertionError('runtime is writable')\n"
+        "Path('/output/result.txt').write_text('ok')\n",
+        {},
+        tmp_path / "attempt",
+    )
+    assert result["status"] == "succeeded", result.get("error")
+    assert (tmp_path / "attempt/output/result.txt").read_text() == "ok"
