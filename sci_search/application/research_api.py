@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from io import BytesIO
 from pathlib import PurePath
-from typing import Protocol
+from typing import Any, Protocol
 
 from pypdf import PdfReader
 
@@ -150,7 +150,11 @@ class ResearchApiService(Protocol):
         question: str,
         *,
         analysis_selection: dict[str, str] | None = None,
+        steer: dict[str, Any] | None = None,
+        clarification: str | None = None,
     ) -> dict: ...
+
+    def adjust_brief(self, user_id: str, project_id: str, brief: dict, change: dict) -> dict: ...
 
     def start_run(
         self,
@@ -278,6 +282,8 @@ class InMemoryResearchApiService:
         question: str,
         *,
         analysis_selection: dict[str, str] | None = None,
+        steer: dict[str, Any] | None = None,
+        clarification: str | None = None,
     ) -> dict:
         from sci_search.question_interpretation import interpret_question
 
@@ -285,7 +291,14 @@ class InMemoryResearchApiService:
         from sci_search.model_provider import analysis_scope, resolve_selection
 
         with analysis_scope(resolve_selection(analysis_selection)):
-            return interpret_question(question)
+            extras = {"steer": steer, "clarification": clarification}
+            return interpret_question(question, **{k: v for k, v in extras.items() if v})
+
+    def adjust_brief(self, user_id: str, project_id: str, brief: dict, change: dict) -> dict:
+        from sci_search.question_choices import adjust
+
+        self._require(Action.MANAGE_RUNS, user_id, project_id)
+        return adjust(brief, change)
 
     def start_run(
         self,

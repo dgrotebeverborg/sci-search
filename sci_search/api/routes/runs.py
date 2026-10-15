@@ -13,7 +13,12 @@ from sci_search.api.dependencies import (
     require_principal,
     research_service,
 )
-from sci_search.api.schemas import QuestionInterpretationCreate, RunCreate, RunResponse
+from sci_search.api.schemas import (
+    QuestionBriefAdjust,
+    QuestionInterpretationCreate,
+    RunCreate,
+    RunResponse,
+)
 from sci_search.application.research_api import ResearchApiService, ResearchRunRecord
 from sci_search.question_planning import plan_from_brief
 
@@ -60,7 +65,23 @@ def interpret_question(
         analysis_selection=body.analysis_selection.model_dump()
         if body.analysis_selection
         else None,
+        steer=body.steer.model_dump() if body.steer else None,
+        clarification=body.clarification,
     )
+
+
+@router.post("/interpret/adjust")
+def adjust_question_brief(
+    project_id: str,
+    body: QuestionBriefAdjust,
+    principal: CsrfPrincipal,
+    service: ResearchService,
+) -> dict:
+    """Apply one clicked or typed change to a brief; no model call."""
+    try:
+        return service.adjust_brief(principal.user_id, project_id, body.brief, body.change)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("", response_model=RunResponse, status_code=status.HTTP_201_CREATED)

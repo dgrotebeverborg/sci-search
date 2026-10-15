@@ -213,3 +213,86 @@ def test_adjust_never_changes_its_input():
     before = copy.deepcopy(brief)
     adjust(brief, {"detail": "route", "value": "both"})
     assert brief == before
+
+
+def scripted_analyzer(payload, seen):
+    import json
+
+    from sci_search.mistral_analysis import MistralAnalyzer
+
+    def complete(body, headers):
+        seen.append(json.loads(body["messages"][-1]["content"]))
+        return {"choices": [{"message": {"content": json.dumps(payload)}}]}
+
+    return MistralAnalyzer("key", model="m", complete_json=complete)
+
+
+def model_payload(**extra):
+    return {
+        "interpreted_question": BASE["interpreted_question"],
+        "objective": BASE["objective"],
+        "evidence_scope": [],
+        "assumptions": [],
+        "exclusions": [],
+        "ambiguity": "clear",
+        "clarification_question": None,
+        "research_plan": PLAN,
+        "research_strategy": {k: v for k, v in BASE["data_research"].items() if k != "adapter"},
+        **extra,
+    }
+
+
+def test_the_interpretation_returns_validated_options():
+    from sci_search.question_interpretation import interpret_question
+
+    seen = []
+    options = [DATA_OPTION, CLOSEST_OPTION, INVALID_OPTION]
+    result = interpret_question(QUESTION, scripted_analyzer(model_payload(options=options), seen))
+    assert [o["title"] for o in result["options"]] == [
+        CLOSEST_OPTION["title"],
+        DATA_OPTION["title"],
+    ]
+    assert result["options"][1]["brief"]["data_research"]["end_year"] == 2100
+    assert result["clarification_options"] == []
+
+
+def test_steering_and_a_clarification_reach_the_model():
+    from sci_search.question_interpretation import interpret_question
+
+    seen = []
+    steer = {"direction": "more_data", "option": {"title": "Projected glacier runoff to 2100"}}
+    interpret_question(
+        QUESTION,
+        scripted_analyzer(model_payload(), seen),
+        steer=steer,
+        clarification="Only the Indus basin",
+    )
+    assert seen[0]["steer"] == steer
+    assert seen[0]["clarification_answer"] == "Only the Indus basin"
+    assert seen[0]["question"] == QUESTION
+
+
+def test_clarification_options_are_returned_with_a_material_ambiguity():
+    from sci_search.question_interpretation import interpret_question
+
+    payload = model_payload(
+        ambiguity="material",
+        clarification_question="Which rivers do you mean?",
+        clarification_options=["Indus", "Ganges and Brahmaputra", "All Himalayan rivers"],
+    )
+    result = interpret_question(QUESTION, scripted_analyzer(payload, []))
+    assert result["clarification_options"] == [
+        "Indus",
+        "Ganges and Brahmaputra",
+        "All Himalayan rivers",
+    ]
+    assert len(result["options"]) == 1
+
+
+def test_without_a_model_the_question_is_the_only_option(monkeypatch):
+    from sci_search.question_interpretation import interpret_question
+
+    monkeypatch.setenv("MISTRAL_API_KEY", "")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "mistral")
+    result = interpret_question("How does vegetation structure affect goat foraging behaviour?")
+    assert [o["title"] for o in result["options"]] == ["Your question"]

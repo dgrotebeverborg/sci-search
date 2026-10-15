@@ -12,6 +12,7 @@ from sci_search.data_research.strategy import SCHEMA as STRATEGY_SCHEMA
 from sci_search.data_research.strategy import validate_strategy
 from sci_search.mistral_analysis import MistralAnalyzer
 from sci_search.model_provider import configured_analyzer
+from sci_search.question_choices import option_briefs, option_schema
 from sci_search.question_planning import (
     EVIDENCE_PREFERENCES,
     RESEARCH_INTENTS,
@@ -40,6 +41,8 @@ class QuestionBrief:
     model: str | None = None
     research_plan: dict[str, Any] | None = None
     data_research: dict[str, Any] | None = None
+    # The model's raw options and clarification answers; validated by interpret_question.
+    proposals: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -123,11 +126,41 @@ QUESTION_BRIEF_SCHEMA: dict[str, Any] = {
         },
         "ambiguity": {"type": "string", "enum": ["clear", "minor", "material"]},
         "clarification_question": {"type": ["string", "null"], "maxLength": 300},
+        "clarification_options": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {"type": "string", "minLength": 1, "maxLength": 120},
+        },
     },
+}
+QUESTION_BRIEF_SCHEMA["properties"]["options"] = {
+    "type": "array",
+    "maxItems": 4,
+    "items": option_schema(QUESTION_BRIEF_SCHEMA["properties"]["research_plan"]),
 }
 
 
-def interpret_question(question: str, analyzer: MistralAnalyzer | None = None) -> dict[str, Any]:
+def interpret_question(
+    question: str,
+    analyzer: MistralAnalyzer | None = None,
+    *,
+    steer: dict[str, Any] | None = None,
+    clarification: str | None = None,
+) -> dict[str, Any]:
+    """The brief with clickable ``options`` and ``clarification_options`` for the researcher."""
+    brief = _interpretation(question, analyzer, steer=steer, clarification=clarification)
+    raw = brief.pop("proposals", None) or {}
+    raw_options, answers = raw.get("options"), raw.get("clarification_options")
+    return {
+        **brief,
+        "options": option_briefs(question, brief, raw_options),
+        "clarification_options": [
+            " ".join(str(a).split())[:120] for a in answers or [] if str(a).strip()
+        ][:4],
+    }
+
+
+def _interpretation(question, analyzer, *, steer, clarification) -> dict[str, Any]:
     plan = plan_question(question)
     from sci_search.data_research.wildfire import propose
 
@@ -155,12 +188,19 @@ def interpret_question(question: str, analyzer: MistralAnalyzer | None = None) -
     if selected is not None:
         try:
             try:
-                result = _model_interpretation(question, plan, selected)
+                result = _model_interpretation(
+                    question, plan, selected, steer=steer, clarification=clarification
+                )
             except ValueError as error:
                 if selected.provider.name != "codex":
                     raise
                 result = _model_interpretation(
-                    question, plan, selected, validation_feedback=str(error)[:500]
+                    question,
+                    plan,
+                    selected,
+                    validation_feedback=str(error)[:500],
+                    steer=steer,
+                    clarification=clarification,
                 )
             return result.to_dict()
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
@@ -186,6 +226,8 @@ def _model_interpretation(
     analyzer: MistralAnalyzer,
     *,
     validation_feedback: str | None = None,
+    steer: dict[str, Any] | None = None,
+    clarification: str | None = None,
 ) -> QuestionBrief:
     body = {
         "model": analyzer.model,
@@ -209,6 +251,18 @@ def _model_interpretation(
                     "default to no exclusions. Surface only unavoidable assumptions or explicit exclusions that materially affect retrieval. Mark ambiguity material only "
                     "when different reasonable interpretations would produce substantially different corpora. Ask at most "
                     "one specific clarification question. Return the requested JSON only."
+                    " Also return options: 2 to 4 distinct versions of the question the researcher may "
+                    "mean, each with a short title, a one-sentence summary, its own interpreted_question, "
+                    "objective, research_plan and research_strategy. Mark exactly the version closest "
+                    "to the literal question with closest true. When published datasets, including "
+                    "model projections, could answer part of the question, include a data or both "
+                    "version with concrete measurements. For each version give alternatives the "
+                    "researcher can click: routes, measurement sets, geographies (with ISO alpha-3 "
+                    "countries only when certain) and periods. When steer is given, propose new "
+                    "versions moved in that direction from steer.option. When clarification_answer "
+                    "is given, it answers your earlier clarification question; use it. When ambiguity "
+                    "is material, give clarification_options: 2 to 4 short answers to your "
+                    "clarification question."
                     " The research_plan is executable: identify compact noun phrases for the subject/outcome being explained, "
                     "separate possible drivers, and list ONLY explicitly requested geography and exclusions. "
                     "A question about drivers of evolution is relationship, not automatically temporal_trend. "
@@ -257,6 +311,8 @@ def _model_interpretation(
                 "content": json.dumps(
                     {
                         "question": question,
+                        **({"steer": steer} if steer else {}),
+                        **({"clarification_answer": clarification} if clarification else {}),
                         **(
                             {
                                 "previous_validation_error": validation_feedback,
@@ -328,6 +384,10 @@ def _model_interpretation(
         data_research=validate_strategy(payload["research_strategy"], infer_route=True)
         if payload.get("research_strategy")
         else None,
+        proposals={
+            "options": payload.get("options"),
+            "clarification_options": payload.get("clarification_options"),
+        },
     )
 
 

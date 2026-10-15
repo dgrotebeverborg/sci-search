@@ -979,6 +979,8 @@ class ResearchRunManager:
             from sci_search.question_interpretation import interpret_question
 
             brief = interpret_question(question)
+            brief.pop("options", None)
+            brief.pop("clarification_options", None)
             self._update(run_id, question_brief=brief)
         data_result = None
         data_strategy = brief.get("data_research") or {}
