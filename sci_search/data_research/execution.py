@@ -141,6 +141,12 @@ def run_python(code, inputs, directory, *, timeout=45, check_cancelled=lambda: N
             "-B",
             "/bootstrap.py",
         ]
+        # Managed interpreters (including GitHub's toolcache) can live outside /usr.
+        # Expose only their installation, read-only, after the temporary mounts.
+        installation = Path(sys.base_prefix).resolve()
+        if not any(installation.is_relative_to(path) for path in ("/usr", "/lib", "/lib64")):
+            position = command.index("--remount-ro")
+            command[position:position] = ["--ro-bind", str(installation), str(installation)]
         with (
             (directory / "stdout.txt").open("wb") as stdout,
             (directory / "stderr.txt").open("wb") as stderr,
