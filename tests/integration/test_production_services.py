@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -243,6 +244,8 @@ def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(
         idempotency_key="worker-run",
     )
 
+    source_timestamps = iter((NOW.timestamp(), NOW.timestamp() + 10))
+
     class Manager:
         def __init__(self, root: Path) -> None:
             self.root = root
@@ -269,6 +272,11 @@ def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(
                 ),
                 encoding="utf-8",
             )
+            # Identical content regenerated later must retain the same archive identity.
+            timestamp = next(source_timestamps)
+            for path in corpus.rglob("*"):
+                if path.is_file():
+                    os.utime(path, (timestamp, timestamp))
             return {
                 "run_id": "internal",
                 "status": "complete",
