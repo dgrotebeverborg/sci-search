@@ -91,6 +91,8 @@ INSTRUCTIONS = (
     "A dataset title that states what is measured documents every row of that dataset unless a "
     "selected code's label or definition says otherwise; a code consistent with the title needs "
     "no separate definition. "
+    "A projected series must be documented as a model projection with a named scenario; never "
+    "accept it as an observation. "
     "Distinguish measurement date, reporting year and fiscal year. Verify the actual published "
     "geography and entity level; partial coverage is allowed when accurately labelled. "
     "Set unresolved or conflicting whenever evidence is missing or inconsistent; do not pass it "

@@ -3,6 +3,7 @@
 import re
 from datetime import UTC, datetime
 
+LAST_PROJECTED_YEAR = 2100
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -25,6 +26,11 @@ PROMPT = (
     "Do not force data research onto every quantitative scientific question. Describe requested "
     "measurements and geography faithfully. Measurements are observed base variables, not derived "
     "changes, percentages or trends; those are calculations on the same series, not separate datasets. "
+    "Base variables may be observed or modelled: for a question about the future, use projected "
+    "variables named with their scenario family, for example 'projected glacier runoff (SSP "
+    "scenarios)', and an end_year up to 2100. "
+    "When datasets could answer part of a literature question, offer that data version as one of "
+    "the options instead of leaving measurements empty. "
     "Set country_scope to europe for broader Europe, eu27 ONLY when EU/European Union is explicitly "
     "requested, and other for other geographies. Do not read a negated EU restriction as EU scope. "
     "When the geography names specific countries, list them in countries as ISO 3166-1 alpha-3 "
@@ -91,11 +97,11 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
                 " Study-based assessment is needed alongside data to interpret these concepts."
             )
 
+    # A period may end in a projected future (to 2100), but it cannot start in the future.
+    latest = {"start_year": datetime.now(UTC).year, "end_year": LAST_PROJECTED_YEAR}
     for key in ("start_year", "end_year"):
         year = value.get(key)
-        if year is not None and (
-            type(year) is not int or not 1800 <= year <= datetime.now(UTC).year
-        ):
+        if year is not None and (type(year) is not int or not 1800 <= year <= latest[key]):
             raise ValueError("Invalid research years")
         result[key] = year
     start, end = result["start_year"], result["end_year"]
