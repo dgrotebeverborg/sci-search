@@ -36,6 +36,7 @@ from sci_search.data_research.retrieval import (
     fetch_scoped,
     inspect_page,
     is_documentation,
+    is_html,
     post_public,
     repository_files,
 )
@@ -283,6 +284,51 @@ def _execute(
             raise
 
     connector_covered = []
+    definition_search_used = False
+
+    def find_definitions(candidate, review):
+        nonlocal definition_search_used
+        if definition_search_used:
+            return []
+        definition_search_used = True
+        progress("Searching the original publisher for the missing measurement definition.")
+        publisher_host = urlsplit(candidate.landing_url).hostname
+        trace = search(
+            question
+            + "\nFind primary documentation for the already downloaded dataset "
+            + candidate.dataset
+            + ": "
+            + candidate.title
+            + ". Find definitions, not alternative data. Resolve: "
+            + review["reason"],
+            {
+                **strategy,
+                "documentation_request": review["reason"],
+                "publisher_host": publisher_host,
+            },
+            analyzer=analyzer,
+        )
+        save(directory / "definition-discovery.json", trace)
+        documents = []
+        for item in trace.get("candidates", [])[:2]:
+            url = item.get("url", "")
+            if not publisher_host or urlsplit(url).hostname != publisher_host:
+                continue
+            try:
+                body, kind, final = fetch(url)
+                if urlsplit(final).hostname != publisher_host:
+                    continue
+                text = (
+                    inspect_page(body, final)["text"]
+                    if is_html(body, kind)
+                    else body.decode("utf-8")[:40000]
+                )
+                if text:
+                    documents.append({"url": final, "body": body, "text": text})
+            except (OSError, ValueError):
+                continue
+        return documents
+
     # (connector, dataset, measurement) already analysed through a connector.
     attempted = set()
     if use_connectors:
@@ -307,6 +353,7 @@ def _execute(
                 knowledge_dir=knowledge_dir,
                 result=staged,
                 prior_analyses=result["analyses"],
+                definition_search=find_definitions,
             )
         except Exception as exc:
             if cancellations:
@@ -1170,6 +1217,11 @@ def _execute(
                                 )
                                 break
                 if not components:
+                    if any(
+                        semantics.needs_documentation(review)
+                        for review in assessment.get("semantic_reviews", [])
+                    ):
+                        stage = "meaning"
                     raise ValueError(
                         "No requested measurement could be mapped and validated: "
                         + "; ".join(g["reason"] for g in assessment.get("mapping_gaps", []))

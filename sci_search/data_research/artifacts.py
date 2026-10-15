@@ -157,6 +157,7 @@ def execute_analysis(analysis, folder, *, check_cancelled=lambda: None):
     ]
     files.extend(p for p in (folder / "calculation").rglob("*") if p.is_file())
     files.extend(folder.glob("semantic-review*.json"))
+    files.extend(folder.glob("definition-*.bin"))
     if (folder / "documentation.bin").exists():
         files.append(folder / "documentation.bin")
     evidence = folder / "python/evidence-documents.json"

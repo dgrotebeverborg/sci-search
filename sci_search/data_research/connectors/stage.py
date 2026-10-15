@@ -402,6 +402,7 @@ def analyse_dataset(
     progress,
     catalogue_sha256="",
     knowledge_dir=None,
+    definition_search=None,
 ):
     check_cancelled = _Cancellation(check_cancelled)
     folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
@@ -433,6 +434,8 @@ def analyse_dataset(
             ],
         }
         rejected = reselected = None
+        definition_documents = {}
+        documentation_attempted = False
         # A meaning rejection gets MAX_RESELECTIONS new selections in the same dataset.
         for round_ in range(MAX_RESELECTIONS + 1):
             payload.pop("previous_error", None)
@@ -580,6 +583,7 @@ def analyse_dataset(
                 "selection": base.selection_evidence(description, selection),
                 "table_summary": summary,
                 "table_sample": sample,
+                **definition_documents,
             }
             # Row provenance lists every source row (1.3 MB for a CBS package), which can exceed
             # the model's context; the review reads the mapping and a table sample instead.
@@ -597,6 +601,59 @@ def analyse_dataset(
                 complete=complete,
             )
             assessment.setdefault("semantic_reviews", []).append(review)
+            if (
+                semantics.needs_documentation(review)
+                and not documentation_attempted
+                and (hasattr(connector, "documentation") or definition_search is not None)
+            ):
+                documentation_attempted = True
+                save(
+                    folder / "semantic-review-before-documentation.json",
+                    {
+                        "review": review,
+                        "evidence_documents": documents,
+                    },
+                )
+                progress(
+                    "Retrieving official measurement definitions before changing selected codes."
+                )
+                suppliers = []
+                if hasattr(connector, "documentation"):
+                    suppliers.append(
+                        lambda reviewed: connector.documentation(description, fetch=fetch)
+                    )
+                if definition_search is not None:
+                    suppliers.append(lambda reviewed: definition_search(candidate, reviewed))
+                for supply in suppliers:
+                    if not semantics.needs_documentation(review):
+                        break
+                    additional = supply(review)
+                    for document in additional:
+                        key = "definition:" + document["url"]
+                        if key in definition_documents:
+                            continue
+                        artifact = f"definition-{len(definition_documents) + 1}.bin"
+                        (folder / artifact).write_bytes(document["body"])
+                        definition_documents[key] = document["text"]
+                        recovery.append(
+                            {
+                                "class": "meaning",
+                                "action": "retrieve_definition",
+                                "url": document["url"],
+                                "artifact": artifact,
+                                "sha256": hashlib.sha256(document["body"]).hexdigest(),
+                            }
+                        )
+                    if additional:
+                        documents.update(definition_documents)
+                        review = semantics.assess(
+                            question=question,
+                            scope=strategy,
+                            analysis=proposal,
+                            documents=documents,
+                            complete=complete,
+                        )
+                        assessment["semantic_reviews"].append(review)
             final = review["accepted"] or round_ == MAX_RESELECTIONS
             name = (
                 "semantic-review.json" if final else f"semantic-review-rejected-{round_ + 1}.json"
@@ -698,6 +755,7 @@ def _choose_and_analyse(
     skipped,
     recovery=(),
     knowledge_dir=None,
+    definition_search=None,
 ):
     """Let the model choose among found candidates, analyse each choice; return how many were tried."""
     candidates = [
@@ -770,6 +828,7 @@ def _choose_and_analyse(
             progress=progress,
             catalogue_sha256=result["search"]["catalogues"].get(connector.NAME, ""),
             knowledge_dir=knowledge_dir,
+            definition_search=definition_search,
         )
         assessment["choice_reason"] = item["reason"]
         assessment["recovery"] = [*recovery, *assessment["recovery"]]
@@ -818,6 +877,7 @@ def run(
     search_fetch=None,
     result=None,
     knowledge_dir=None,
+    definition_search=None,
     prior_analyses=(),
 ):
     """Run the connector stage. A caller that passes result keeps what the stage completed,
@@ -844,6 +904,7 @@ def run(
         }
     )
     steps = {
+        "definition_search": definition_search,
         "knowledge_dir": knowledge_dir,
         "complete": complete,
         "fetch": fetch,

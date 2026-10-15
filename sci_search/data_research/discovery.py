@@ -85,6 +85,20 @@ def discover(question, strategy, *, analyzer=None, transport=None):
         "If none, return an empty candidates array. No markdown, no inline citation markers inside strings.\n"
         + json.dumps({"question": question, "scope": strategy})
     )
+    if strategy.get("documentation_request"):
+        prompt = (
+            "Search the web now for primary methodological documentation resolving the stated "
+            "definition gap for an ALREADY DOWNLOADED dataset. The numeric table is available. "
+            "Find the publisher's definitions of the selected field, denominator, units or scope. "
+            "Prefer methodology pages, technical notes or explanatory articles that explicitly "
+            "resolve the gap. Do not return the dataset table again unless it contains that definition. "
+            "Return up to two pages from publisher_host, with exact URLs observed in search results. "
+            "Do not invent URLs or infer definitions from snippets. The caller downloads each page "
+            "and verifies its text. Return ONLY JSON: {candidates:[{title,url,landing_url,publisher,"
+            "rationale}]}. Set landing_url to the observed documentation page; rationale identifies "
+            "the definition it provides. Return an empty array if no evidence is found.\n"
+            + json.dumps({"question": question, "scope": strategy})
+        )
     body = {
         "model": analyzer.model,
         "input": prompt,

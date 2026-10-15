@@ -3,7 +3,7 @@
 import json
 import time
 
-from sci_search.data_research.coverage import planning_summary
+from sci_search.data_research.coverage import pending, planning_summary
 from sci_search.data_research.period import period_summary
 
 PLAN_SCHEMA = {
@@ -47,11 +47,19 @@ def research_candidates(
     }
     seen, queries, rechecks = set(), set(), set()
     for candidate in trace["candidates"][:4]:
+        if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+            break
         if candidate["url"] not in seen:
             seen.add(candidate["url"])
             yield candidate
     for round_number in range(1, max_rounds + 1):
         check_cancelled()
+        if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+            process["stop_reason"] = "Requested observation coverage is complete."
+            process["steps"].append(
+                {"action": "stop", "status": "stopped", "reason": process["stop_reason"]}
+            )
+            break
         if time.monotonic() - started >= time_budget_seconds:
             process["stop_reason"] = "Research budget reached; coverage remains uncertain."
             break
@@ -187,6 +195,8 @@ def research_candidates(
             step["new_sources"] = len(new)
             for candidate in new:
                 check_cancelled()
+                if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+                    break
                 if time.monotonic() - started >= time_budget_seconds or len(seen) >= 10:
                     break
                 seen.add(candidate["url"])

@@ -89,3 +89,41 @@ subprocesses: the complete suite now passes with 1,342 tests, 24 skips, two subt
 coverage (80% required). Updated pypdf and urllib3 within their existing version constraints;
 the locked dependency audit reports no known vulnerabilities. The lock also now includes the
 already-declared optional NetCDF dependency. Capability limitations above remain unchanged.
+
+### Recovery of supported data after live acceptance checks
+
+Missing measurement definitions now trigger bounded retrieval of the original publisher's
+metadata before code reselection. Eurostat metadata may refer to underlying methodology; observed
+related metadata links are followed within a small request limit. If those documents are missing
+or insufficient, one metered search per run can retrieve up to two documents from the original
+publisher's host. Search snippets are not evidence: the downloaded bytes, source URLs, exact
+passages and hashes are retained. The unchanged observations undergo a fresh meaning review.
+
+Python extraction can retain supported years and entities as well as supported measurements.
+Selections must refer to previously extracted observations and remain within the requested
+period; the next extraction must respect them. The final analysis keeps the original scope,
+so omitted years stay missing. Partial evidence does not bypass semantic review. Web research
+stops when the retained observations satisfy the coverage contract, avoiding unnecessary
+additional sources and model calls.
+
+Structured numeric locators now support original text line/column positions, whitespace or
+single-character delimiters, and explicitly declared conversion factors. Numeric checks inspect
+the original bytes; only converted values allow a four-ULP floating-point tolerance. Conversion
+meaning still requires documented units. Verified line samples and retrieval metadata are
+provided to the semantic reviewer. Free-text references remain explicitly unverified.
+
+These are additive research-artifact fields; no database migration is required. Rollback means
+reverting the recovery changes for new runs. Existing retained runs keep their bundled verification
+and replay code; their source bytes and original results must not be rewritten. Monthly/daily
+output and repository-specific acquisition (including a possible Datahugger adapter) remain
+separate follow-up work.
+
+Validation of this follow-up: 1,356 tests passed, 24 skipped and two subtests passed, with 84.94%
+coverage. Ruff, Pyright (zero errors), build, secret scanning and the locked dependency audit
+passed. Three bounded live acceptance cases produced 28 values matching independently retrieved
+primary data: 16 life-expectancy values, eight renewable-electricity percentages and four CO2
+annual means. Both electricity percentage-point changes matched independent calculations; all
+three retained runs replayed offline. The CO2 result explicitly retains the Maunakea substitution
+caveat. These are individual acceptance cases, not a representative accuracy benchmark. Raw
+sources, intermediate unsuccessful attempts and final acceptance records remain local and are
+not committed.

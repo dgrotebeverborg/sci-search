@@ -16,7 +16,7 @@ OTHER = {**FIRST, "filters": {**FIRST["filters"], "geo": ["NL", "DE"]}}
 def rejected_review(prompt):
     review = positive_review(prompt)
     check = review["measurements"][0]["checks"][0]
-    check.update(status="unresolved", reason="The selected field measures forest area only")
+    check.update(status="conflicting", reason="The selected field measures forest area only")
     return review
 
 

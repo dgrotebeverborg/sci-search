@@ -216,6 +216,46 @@ def describe(candidate, scope, *, fetch):
     )
 
 
+def documentation(description, *, fetch):
+    """Bounded retrieval of official dataset reference metadata, on demand."""
+    from urllib.parse import urldefrag
+
+    from sci_search.data_research.retrieval import inspect_page
+
+    dataset = _checked(description.candidate.dataset)
+    for suffix in ("esmsip2", "esms"):
+        url = f"https://ec.europa.eu/eurostat/cache/metadata/en/{dataset}_{suffix}.htm"
+        try:
+            body, _, final = fetch(url)
+        except (OSError, ValueError):
+            continue
+        page = inspect_page(body, final)
+        if page["text"]:
+            documents = [{"url": final, "body": body, "text": page["text"]}]
+            seen = {urldefrag(url)[0], urldefrag(final)[0]}
+            # Indicator metadata often links to the underlying statistical methodology.
+            # Follow only observed official metadata links, never model-supplied URLs.
+            for link in page["links"]:
+                target = urldefrag(link)[0]
+                if target in seen or not re.fullmatch(
+                    r"https://ec\.europa\.eu/eurostat/cache/metadata/(?:en|EN)/[a-z0-9_]+\.htm",
+                    target,
+                ):
+                    continue
+                seen.add(target)
+                try:
+                    related, _, resolved = fetch(target)
+                    text = inspect_page(related, resolved)["text"]
+                    if text:
+                        documents.append({"url": resolved, "body": related, "text": text})
+                except (OSError, ValueError):
+                    pass
+                if len(seen) >= 3:
+                    break
+            return documents
+    return []
+
+
 def fetch(description, selection, scope, *, fetch, post):
     from sci_search.data_research.statistical_tables import inspect_statistics
 

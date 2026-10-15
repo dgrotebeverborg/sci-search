@@ -10,6 +10,15 @@ import json
 ASPECTS = ("definition", "unit", "geography", "time", "calculation")
 
 
+def needs_documentation(review):
+    """Missing meaning needs source documentation, not different numeric codes."""
+    return not review.get("accepted") and any(
+        check.get("status") == "unresolved"
+        for item in review.get("measurements", [])
+        for check in item.get("checks", [])
+    )
+
+
 def _object(properties):
     return {
         "type": "object",
@@ -95,6 +104,11 @@ INSTRUCTIONS = (
     "accept it as an observation. "
     "Distinguish measurement date, reporting year and fiscal year. Verify the actual published "
     "geography and entity level; partial coverage is allowed when accurately labelled. "
+    "Judge only the supplied observations: absent countries or years are coverage gaps, not "
+    "evidence that the retained subset has the wrong meaning. A documented station substitution "
+    "can support an explicitly labelled composite record, but never an unqualified single-site "
+    "claim. Distinguish an accurately disclosed source limitation from missing evidence. "
+    "Cite separate exact passages when comment markers interrupt a sentence across source lines. "
     "Set unresolved or conflicting whenever evidence is missing or inconsistent; do not pass it "
     "as a limitation. Give a precise followup_question requesting the documentation needed to "
     "resolve the gap. Successful execution or plausible values cannot override an unresolved check. "

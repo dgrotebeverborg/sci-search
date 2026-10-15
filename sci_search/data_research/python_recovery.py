@@ -44,10 +44,12 @@ def review_schema(measurements):
 REFLECTION_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["action", "measurements", "reason"],
+    "required": ["action", "measurements", "years", "entities", "reason"],
     "properties": {
         "action": {"type": "string", "enum": ["repair", "extract_subset", "stop"]},
         "measurements": {"type": "array", "items": {"type": "string"}},
+        "years": {"type": "array", "items": {"type": "integer"}},
+        "entities": {"type": "array", "items": {"type": "string"}},
         "reason": {"type": "string"},
     },
 }
@@ -164,9 +166,15 @@ def recover(
                 "For directly copied JSON or CSV numbers also include source_locator: "
                 "{format:'json',path:['key',0,'value']} or "
                 "{format:'csv',line:original_1_based_line,column:'header',decimal_separator:'.'}. "
-                "These are independently checked against original bytes. For derived or converted values "
-                "or other formats omit source_locator; retain an honest source_reference instead. "
+                "For whitespace- or delimiter-separated text, including comment-prefixed tables, use "
+                "{format:'text',line:original_1_based_line,column:1_based_column,delimiter:null}. "
+                "Use delimiter:',' for comma-separated fields. A source-documented unit conversion "
+                "may add factor:0.1 (or the required multiplier) to a locator. These references are "
+                "independently checked against original bytes. For other derived values or formats "
+                "omit source_locator; retain an honest source_reference instead. "
                 "Preserve any supported requested measurement even when others or some years are absent. "
+                "If scope.retained_years or scope.retained_entities is nonempty, extract only those "
+                "years/entities; other observations remain explicitly missing in the final result. "
                 "Do not require one source to answer the whole question. Keep reef/site/entity level values "
                 "when an overall aggregation is not justified. Read archive README and dictionaries. "
                 "Do not derive or rename measures from ambiguous or contradictory definitions. "
@@ -209,13 +217,23 @@ def recover(
         (attempt / "proposal.json").write_text(json.dumps(draft, indent=2))
         semantic_failure = False
         semantic_review = {}
+        payload = {}
         try:
             if record["status"] != "succeeded":
                 raise ValueError(record.get("error", "Python extraction failed"))
             payload = json.loads((attempt / "output/observations.json").read_text())
             analyse_observations(payload, extraction_scope)
+            for field, key in (("retained_years", "year"), ("retained_entities", "entity")):
+                allowed = extraction_scope.get(field)
+                if allowed and any(row[key] not in allowed for row in payload["observations"]):
+                    raise ValueError("Extraction did not respect the reviewed " + field)
             analysis = analyse_observations(payload, scope)
             source_verification = verify_observations(body, payload)
+            documents["retrieval"] = json.dumps(source, ensure_ascii=False)
+            documents["numeric_reference_verification"] = json.dumps(
+                source_verification, ensure_ascii=False
+            )
+            (root / "evidence-documents.json").write_text(json.dumps(documents, ensure_ascii=False))
             labels = list(dict.fromkeys(s["label"] for s in analysis["series"]))
             check_cancelled()
             progress(
@@ -244,6 +262,7 @@ def recover(
                         "metadata": metadata[:40000],
                         "source_inspection": preview,
                         "code": code,
+                        "source_verification": source_verification,
                         "extracted_count": len(payload["observations"]),
                         "extracted_sample": payload["observations"][:60],
                         "assumptions": payload.get("assumptions", []),
@@ -313,6 +332,9 @@ def recover(
                         "Inspect the source, documentation, prior code, validation error and previous decisions. "
                         "repair is for an actionable code/reading problem. extract_subset limits extraction "
                         "to supported members of the original requested measurements; preserve partial results "
+                        "and optionally select supported years and entities from the previous extracted rows. "
+                        "Use years=[] and entities=[] to leave those dimensions unrestricted. "
+                        "A station change in some years must not discard verified unaffected years. "
                         "and never treat absent data as zero. A missing bleaching field must not discard "
                         "documented coral cover. Do not redefine measurements, units, geography or years. "
                         "stop if more code cannot resolve missing definitions or measurements; another source "
@@ -334,6 +356,32 @@ def recover(
                         ):
                             raise ValueError("Reflection cannot introduce unrequested measurements")
                         extraction_scope = {**scope, "measurements": list(dict.fromkeys(measures))}
+                        for field, key in (("years", "year"), ("entities", "entity")):
+                            values = decision.get(field, [])
+                            rows = (
+                                payload.get("observations", []) if isinstance(payload, dict) else []
+                            )
+                            rows = (
+                                [row for row in rows if isinstance(row, dict)]
+                                if isinstance(rows, list)
+                                else []
+                            )
+                            if not isinstance(values, list) or any(
+                                value not in [row.get(key) for row in rows] for value in values
+                            ):
+                                raise ValueError(
+                                    "Subset must refer to previously extracted " + field
+                                )
+                            if field == "years" and any(
+                                type(year) is not int
+                                or year < (scope.get("start_year") or 1800)
+                                or year > (scope.get("end_year") or 2199)
+                                for year in values
+                            ):
+                                raise ValueError(
+                                    "Subset years must remain inside the requested period"
+                                )
+                            extraction_scope["retained_" + field] = values
                     decision = {**decision, "after_attempt": number}
                 except (OSError, ValueError, KeyError, TypeError, StopIteration) as error:
                     decision = {
