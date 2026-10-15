@@ -69,6 +69,10 @@ def test_simultaneous_review_conflict_is_visible_and_recoverable(
     second = chromium_browser.new_page()
     _login_as(first, live_browser_url, "reviewer")
     _login_as(second, live_browser_url, "reviewer")
+    # Both sessions must have loaded the original revision before either edits it.
+    # Navigation alone does not wait for the asynchronous evidence request.
+    expect(first.get_by_text("version 1", exact=True)).to_be_visible()
+    expect(second.get_by_text("version 1", exact=True)).to_be_visible()
 
     first.get_by_role("button", name="Accept evidence").click()
     expect(first.get_by_text("Evidence review saved.")).to_be_visible()
