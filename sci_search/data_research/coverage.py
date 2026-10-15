@@ -40,6 +40,11 @@ def evaluate(scope, analyses):
         dims = requirement.get("breakdowns", [])
         combinations = list(itertools.product(*(d["values"] for d in dims)))
         for entity, values in itertools.product(entities, combinations):
+            other_entities = set(entities)
+            if not requirement.get("entities") or any(_matches(c, entity) for c in COUNTRY_NAMES):
+                other_entities.update(COUNTRY_NAMES)
+            elif countries:
+                other_entities.update(set(COUNTRY_NAMES) - set(countries))
             dimensions = dict(zip((d["dimension"] for d in dims), values, strict=True))
             matches = []
             for source_index, analysis in enumerate(analyses):
@@ -57,7 +62,7 @@ def evaluate(scope, analyses):
                             and not _matches(other, entity)
                             and not _matches(entity, other)
                             and _matches(other, geography)
-                            for other in set(entities) | set(COUNTRY_NAMES)
+                            for other in other_entities
                         )
                     ):
                         continue

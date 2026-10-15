@@ -5,6 +5,40 @@ from pathlib import Path
 
 from sci_search.data_research.execution import run_python
 
+PDF_DOCUMENTATION_CODE = """import io, json
+from pathlib import Path
+from pypdf import PdfReader
+reader = PdfReader(io.BytesIO(Path('/input/source.bin').read_bytes()))
+if reader.is_encrypted or len(reader.pages) > 200:
+    raise ValueError('Encrypted or excessive PDF documentation')
+parts, size = [], 0
+for number, page in enumerate(reader.pages, 1):
+    text = page.extract_text() or ''
+    size += len(text)
+    if size > 200000:
+        raise ValueError('PDF documentation exceeds the text limit')
+    parts.append(f'[PAGE {number}]\\n{text}')
+if size < 100:
+    raise ValueError('PDF documentation has too little extractable text')
+Path('/output/documentation.json').write_text(json.dumps({'text': '\\n\\n'.join(parts)}))
+"""
+
+
+def extract_documentation_pdf(body, directory, *, check_cancelled=lambda: None):
+    """Read source definitions in isolation; retain every page or explicitly fail."""
+    if len(body) > 10_000_000 or not body.startswith(b"%PDF-"):
+        raise ValueError("Invalid or excessive PDF documentation")
+    result = run_python(
+        PDF_DOCUMENTATION_CODE,
+        {"source.bin": body},
+        directory,
+        check_cancelled=check_cancelled,
+    )
+    if result["status"] != "succeeded":
+        raise ValueError(result.get("error", "PDF documentation extraction failed"))
+    return json.loads((Path(directory) / "output/documentation.json").read_text())["text"]
+
+
 REQUEST_SCHEMA = {
     "type": ["object", "null"],
     "additionalProperties": False,

@@ -42,6 +42,65 @@ def test_one_country_does_not_cover_a_multicountry_question():
     assert [(g["entity"], g["missing_years"]) for g in result["gaps"]] == [("DEU", [2020, 2021])]
 
 
+@pytest.mark.parametrize(
+    "countries,entities,dimension,values",
+    [
+        (["NLD", "DEU"], [], "country", ["Netherlands", "Germany"]),
+        ([], ["Amsterdam", "Paris"], "City", ["Paris", "Amsterdam"]),
+    ],
+)
+def test_geography_is_not_crossed_with_an_identical_geographic_breakdown(
+    countries, entities, dimension, values
+):
+    scope = {
+        **SCOPE,
+        "countries": countries,
+        "requirements": [
+            {
+                "measurement": "life expectancy",
+                "entities": entities,
+                "breakdowns": [{"dimension": dimension, "values": values}],
+            }
+        ],
+    }
+    result = coverage(scope, [analysis(value) for value in values])
+    assert len(result["cells"]) == 2
+    assert result["gaps"] == []
+
+
+def test_country_of_birth_is_not_removed_as_a_duplicate_geography():
+    scope = {
+        **SCOPE,
+        "requirements": [
+            {
+                "measurement": "life expectancy",
+                "breakdowns": [
+                    {"dimension": "country of birth", "values": ["Netherlands", "Germany"]}
+                ],
+            }
+        ],
+    }
+    assert len(coverage(scope, [])["cells"]) == 4
+
+
+def test_city_identity_may_include_its_parent_country_without_becoming_multicountry():
+    scope = {
+        **SCOPE,
+        "countries": ["FRA"],
+        "requirements": [
+            {
+                "measurement": "life expectancy",
+                "entities": ["Paris"],
+            }
+        ],
+    }
+    assert coverage(scope, [analysis("Paris, France")])["complete_measurements"] == [
+        "life expectancy"
+    ]
+    assert coverage(scope, [analysis("France")])["complete_measurements"] == []
+    assert coverage(scope, [analysis("Paris, Germany")])["complete_measurements"] == []
+
+
 @pytest.mark.parametrize("geography,country_scope", [("Europe", "europe"), ("EU27", "eu27")])
 def test_regional_question_does_not_require_unrequested_country_breakdowns(
     geography, country_scope

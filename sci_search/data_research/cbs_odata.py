@@ -148,7 +148,12 @@ def prepare_snapshot(body):
     tables = {
         "Properties.csv": info["dataset"],
         "Dimensions.csv": info["dimensions"],
-        "MeasureCodes.csv": info["measures"],
+        # The API slice identifies measures by code. Unselected measures may repeat a
+        # title/unit in another hierarchy; they must not invalidate this selected field.
+        # Ambiguity among the selected measures still fails in the package reader.
+        "MeasureCodes.csv": [
+            m for m in info["measures"] if m["Identifier"] in {r["Measure"] for r in observations}
+        ],
         "Observations.csv": observations,
     }
     tables.update({key + "Codes.csv": list(value.values()) for key, value in info["codes"].items()})

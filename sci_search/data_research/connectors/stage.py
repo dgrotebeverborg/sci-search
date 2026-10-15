@@ -382,6 +382,22 @@ def table_evidence(rows, mapping, scope=None, sample_size=12):
             f"first {first[year].strip()} = {first.get(value, '')}; "
             f"last {last[year].strip()} = {last.get(value, '')}"
         )
+        for column in ("Status", "Period status", "Value attribute"):
+            flagged = {}
+            for row in dated:
+                flag = row.get(column, "").strip()
+                if flag and flag != "None":
+                    flagged.setdefault(flag, []).append(row[year].strip())
+            for flag, years in flagged.items():
+                lines.append(
+                    f"Series {name or 'all rows'}: {column} {flag} in "
+                    + ", ".join(years[:50])
+                    + (
+                        f"; {len(years) - 50} further flagged rows omitted"
+                        if len(years) > 50
+                        else ""
+                    )
+                )
     half = sample_size // 2
     sample = selected if len(selected) <= sample_size else selected[:half] + selected[-half:]
     return "\n".join(lines), json.dumps(sample, ensure_ascii=False)

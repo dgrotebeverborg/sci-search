@@ -2,6 +2,46 @@
 
 import math
 
+from sci_search.data_research.wildfire import COUNTRY_NAMES
+
+
+def normalize_geography(items, countries, geography):
+    """Remove only an exact duplicate of the entity axis, never a second geographic concept."""
+    names = {code.casefold(): name.casefold() for code, name in COUNTRY_NAMES.items()}
+    names.update({"nederland": "netherlands", "duitsland": "germany"})
+
+    def canonical(value):
+        text = value.strip().casefold()
+        return names.get(text, text)
+
+    result = []
+    for item in items:
+        entities = item.get("entities") or countries or [geography]
+        keys = {canonical(e) for e in entities}
+        breakdowns = []
+        for dim in item.get("breakdowns", []):
+            duplicate = (
+                dim["dimension"].strip().casefold()
+                in {
+                    "country",
+                    "countries",
+                    "city",
+                    "cities",
+                    "geography",
+                    "land",
+                    "landen",
+                    "stad",
+                    "steden",
+                }
+                and len(dim["values"]) == len(keys)
+                and {canonical(v) for v in dim["values"]} == keys
+            )
+            if not duplicate:
+                breakdowns.append(dim)
+        result.append({**item, "breakdowns": breakdowns})
+    return result
+
+
 ENUMS = {
     "frequency": ("annual", "monthly", "daily", "unspecified"),
     "measure_type": ("ratio", "interval", "percentage", "index", "unknown"),

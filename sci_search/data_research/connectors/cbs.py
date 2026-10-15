@@ -126,16 +126,20 @@ def describe(candidate, scope, *, fetch):
         raise base.DatasetRejected(
             "CBS covers only the Netherlands; requested: " + ", ".join(countries)
         )
-    if candidate.frequency not in {"annual", "unknown"}:
-        named = candidate.frequency if candidate.frequency in FREQUENCY.values() else "not annual"
-        raise base.DatasetRejected(f"dataset is {named}; no aggregation was performed")
     try:
+        # Catalogue frequency describes publication cadence, not every available period.
+        if candidate.frequency not in {"annual", "unknown"}:
+            raise ValueError("CBS catalogue frequency requires annual code inspection")
         raw, _, _ = fetch(url)
         _, preparation = prepare_table(raw)  # validates the package with the existing CBS reader
     except zipfile.BadZipFile as exc:  # a truncated or non-ZIP body
         raise base.DatasetRejected("not a readable CBS package: " + str(exc)) from exc
     except ValueError as exc:  # a malformed or non-annual package, not a transport failure
-        if "exceeds" in str(exc) and "limit" in str(exc):
+        if ("exceeds" in str(exc) and "limit" in str(exc)) or str(exc) in {
+            "CBS catalogue frequency requires annual code inspection",
+            "CBS code labels are ambiguous",
+            "CBS package contains non-annual or unknown periods; no aggregation was performed",
+        }:
             root = "https://datasets.cbs.nl/odata/v1/CBS/" + _checked(candidate.dataset)
             snapshot = cbs_odata.describe_snapshot(root, fetch)
             raw = json.dumps(snapshot).encode()
@@ -148,11 +152,12 @@ def describe(candidate, scope, *, fetch):
             raise base.DatasetRejected(str(exc)) from exc
     metadata = json.loads(preparation["metadata"])
     measures = {m["Identifier"]: f"{m['Title']} ({m['Unit']})" for m in metadata["measures"]}
-    time = next(
-        (d["Identifier"] for d in metadata["dimensions"] if d["Kind"] == "TimeDimension"), None
-    )
-    if time is None:
+    times = [d["Identifier"] for d in metadata["dimensions"] if d["Kind"] == "TimeDimension"]
+    if not times:
         raise base.DatasetRejected("CBS package has no time dimension")
+    if len(times) != 1:
+        raise base.DatasetRejected("CBS annual analysis requires exactly one time dimension")
+    time = times[0]
     dimensions = [base.Dimension("Measure", "Measure", measures)]
     for d in metadata["dimensions"]:
         if d["Identifier"] != time:
@@ -259,7 +264,7 @@ def mapping(table, preparation, selection, measurement):
     selected = [r for r in rows if all(r[k] == v for k, v in filters.items())]
     comma = any("," in r["Value"] for r in selected)
     entity = series[0] if series else ""
-    return dict(
+    result = dict(
         year_column="Year",
         value_column="Value",
         entity_column=entity,
@@ -271,3 +276,14 @@ def mapping(table, preparation, selection, measurement):
         missing_values=[""],
         decimal_separator="," if comma else ".",
     )
+    geography = [
+        d["Identifier"]
+        for d in metadata["dimensions"]
+        if d["Kind"] in {"GeoDimension", "GeoDetailDimension"}
+    ]
+    if len(geography) == 1:
+        dimension = geography[0]
+        codes = selection["filters"].get(dimension, [])
+        if dimension not in series and len(codes) == 1:
+            result["identity_geography"] = labels[dimension][codes[0]]
+    return result

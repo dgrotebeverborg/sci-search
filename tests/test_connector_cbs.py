@@ -128,12 +128,6 @@ def test_other_countries_are_named_in_notes():
     assert any("DEU" in n for n in fetched.notes)
 
 
-def test_non_annual_candidates_are_rejected_by_name():
-    monthly = base.DatasetCandidate("cbs", "82610NED", "x", "monthly")
-    with pytest.raises(base.DatasetRejected, match="dataset is monthly; no aggregation"):
-        cbs.describe(monthly, SCOPE, fetch=offline)
-
-
 def test_period_outside_the_package_is_rejected():
     scope = {"start_year": 1900, "end_year": 1950}
     with pytest.raises(base.DatasetRejected, match="no annual series in the requested period"):
@@ -272,6 +266,24 @@ def test_a_table_with_a_region_dimension_states_no_national_geography(monkeypatc
         metadata["codes"]["RegioS"] = {"NL01": {"Title": "Nederland"}}
 
     assert "geography" not in described_with(monkeypatch, add_regions).extra
+
+
+def test_fixed_region_selection_keeps_geography_when_entity_is_the_measurement():
+    import json
+
+    from sci_search.data_research.coverage import evaluate
+
+    metadata = {
+        "measures": [{"Identifier": "PRICE", "Title": "Average price", "Unit": "euro"}],
+        "dimensions": [{"Identifier": "Region", "Kind": "GeoDimension"}],
+        "codes": {"Region": {"NL01": {"Title": "Nederland"}}},
+    }
+    table = b"Year,Measure,Region,Value,Unit\n2024,Average price,Nederland,100,euro\n"
+    selection = {"filters": {"Measure": ["PRICE"], "Region": ["NL01"]}, "series_dimensions": []}
+    mapping = cbs.mapping(table, {"metadata": json.dumps(metadata)}, selection, "price")
+    scope = {"measurements": ["price"], "countries": ["NLD"], "start_year": 2024, "end_year": 2024}
+    result = analyse_csv(table, mapping, scope)
+    assert evaluate(scope, [result])["complete_measurements"] == ["price"]
 
 
 def test_a_caribbean_netherlands_table_states_no_national_geography(monkeypatch):

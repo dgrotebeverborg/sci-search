@@ -189,6 +189,20 @@ def test_table_evidence_keeps_to_the_requested_period():
     assert {r["Year"] for r in json.loads(sample)} <= {str(y) for y in range(2000, 2025)}
 
 
+def test_table_evidence_exposes_middle_year_status_flags_for_each_series():
+    rows = [
+        {"Year": str(y), "Series": s, "Value": "10", "Status": "b" if (s, y) == ("A", 2012) else ""}
+        for s in ("A", "B")
+        for y in range(2000, 2025)
+    ]
+    mapping = {"year_column": "Year", "value_column": "Value", "entity_column": "Series"}
+    summary, _ = stage.table_evidence(rows, mapping)
+    assert "Series A: Status b in 2012" in summary
+    assert "Series B: Status b" not in summary
+    summary, _ = stage.table_evidence(rows, mapping, {"start_year": 2013, "end_year": 2024})
+    assert "Status b" not in summary
+
+
 def test_selection_schema_enumerates_observed_codes():
     description = base.DatasetDescription(
         candidate=base.DatasetCandidate("x", "d", "t", "annual"),

@@ -27,12 +27,20 @@ PROMPT = (
     "non-country entities (stations, basins, sites), breakdown dimensions with requested values, "
     "frequency, measure_type and observation_type. Use readable labels (male/female, not invented "
     "dataset codes). Do not invent breakdowns or infer that all requested data exists. "
+    "Countries belong in countries and named cities/sites in entities; do not repeat them as "
+    "breakdowns. A request to identify whether figures are citywide OR station-level asks for "
+    "source qualification, not both as required breakdown values. Only require both when the "
+    "user explicitly asks for both series. Preserve requested output calculations in definitions, "
+    "and include base inputs for new calculations (for a newly computed ratio, numerator and "
+    "denominator). Published percentages, rates and indices are already base series: retain "
+    "them directly rather than requiring underlying counts or reconstructing their denominator. "
     " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
     "relationships or evidence synthesis; data for descriptive numerical questions answerable "
     "from published datasets; both when the user asks for numerical developments AND explanations. "
     "Do not force data research onto every quantitative scientific question. Describe requested "
-    "measurements and geography faithfully. Measurements are observed base variables, not derived "
-    "changes, percentages or trends; those are calculations on the same series, not separate datasets. "
+    "measurements and geography faithfully. Measurements are published base series, including "
+    "published percentages, rates and indices. Requested changes, trends and rebasing are "
+    "calculations on those series, not separate datasets. "
     "Base variables may be observed or modelled: for a question about the future, use projected "
     "variables named with their scenario family, for example 'projected glacier runoff (SSP "
     "scenarios)', and an end_year up to 2100. "
@@ -94,7 +102,11 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
         raise ValueError("Data research requires requested measurements")
     result["measurements"] = metrics
     if "requirements" in value:
-        result["requirements"] = requirements.validate(value["requirements"], metrics)
+        result["requirements"] = requirements.normalize_geography(
+            requirements.validate(value["requirements"], metrics),
+            result["countries"],
+            result["geography"],
+        )
     if (
         infer_route
         and result["route"] == "data"

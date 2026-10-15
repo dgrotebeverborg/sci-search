@@ -20,6 +20,7 @@ from sci_search.data_research.connectors import stage as connector_stage
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.coverage import pending as pending_measurements
 from sci_search.data_research.discovery import complete_object, discover
+from sci_search.data_research.inspection import extract_documentation_pdf
 from sci_search.data_research.navigation import resolve_table_download
 from sci_search.data_research.packages import attach_provenance, prepare_table
 from sci_search.data_research.period import period_summary
@@ -315,7 +316,7 @@ def _execute(
         )
         save(directory / "definition-discovery.json", trace)
         documents = []
-        for item in trace.get("candidates", [])[:2]:
+        for index, item in enumerate(trace.get("candidates", [])[:2], 1):
             url = item.get("url", "")
             if not publisher_host or urlsplit(url).hostname != publisher_host:
                 continue
@@ -323,11 +324,18 @@ def _execute(
                 body, kind, final = fetch(url)
                 if urlsplit(final).hostname != publisher_host:
                     continue
-                text = (
-                    inspect_page(body, final)["text"]
-                    if is_html(body, kind)
-                    else body.decode("utf-8")[:40000]
-                )
+                if body.startswith(b"%PDF-"):
+                    text = extract_documentation_pdf(
+                        body,
+                        directory / f"definition-document-{index}",
+                        check_cancelled=check_cancelled,
+                    )
+                else:
+                    text = (
+                        inspect_page(body, final)["text"]
+                        if is_html(body, kind)
+                        else body.decode("utf-8")[:40000]
+                    )
                 if text:
                     documents.append({"url": final, "body": body, "text": text})
             except (OSError, ValueError):
