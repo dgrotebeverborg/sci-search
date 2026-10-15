@@ -188,9 +188,11 @@ def _interpretation(question, analyzer, *, steer, clarification) -> dict[str, An
     if selected is not None:
         try:
             try:
-                result = _model_interpretation(
-                    question, plan, selected, steer=steer, clarification=clarification
-                )
+                # Passed only when set, so the call stays compatible with plain interpretations.
+                extras = {
+                    k: v for k, v in {"steer": steer, "clarification": clarification}.items() if v
+                }
+                result = _model_interpretation(question, plan, selected, **extras)
             except ValueError as error:
                 if selected.provider.name != "codex":
                     raise
@@ -199,8 +201,7 @@ def _interpretation(question, analyzer, *, steer, clarification) -> dict[str, An
                     plan,
                     selected,
                     validation_feedback=str(error)[:500],
-                    steer=steer,
-                    clarification=clarification,
+                    **extras,
                 )
             return result.to_dict()
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:

@@ -201,10 +201,11 @@ def _period(value: Any) -> dict[str, Any]:
 def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
     """The brief with one detail changed; raises ValueError with a readable reason."""
     brief = deepcopy(brief)
-    plan = brief.get("research_plan")
-    if not isinstance(plan, dict):
-        raise ValueError("This interpretation has no adjustable plan.")
+    # An automatic brief has no research plan; its data strategy can still be changed.
+    plan = brief.get("research_plan") if isinstance(brief.get("research_plan"), dict) else None
     strategy = brief.get("data_research")
+    if plan is None and not strategy:
+        raise ValueError("This interpretation has no adjustable plan.")
     if strategy and strategy.get("adapter") not in (None, "discovered_data_v1"):
         raise ValueError("This research plan cannot be adjusted here.")
     detail = change.get("detail") if isinstance(change, dict) else None
@@ -217,7 +218,7 @@ def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
                 "route": "literature",
                 "rationale": "Adjusted by the researcher.",
                 "measurements": [],
-                "geography": ", ".join(plan.get("geography_terms") or []),
+                "geography": ", ".join((plan or {}).get("geography_terms") or []),
                 "countries": [],
                 "start_year": None,
                 "end_year": None,
@@ -239,13 +240,15 @@ def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
         ensured()["measurements"] = names
     elif detail == "geography":
         place = _place(value if isinstance(value, dict) else {})
-        plan["geography_terms"] = place["geography_terms"]
+        if plan is not None:
+            plan["geography_terms"] = place["geography_terms"]
         if strategy:
             strategy.update(geography=place["label"], countries=place["countries"])
             strategy.pop("country_scope", None)  # inferred again from the new geography
     elif detail == "period":
         period = _period(value if isinstance(value, dict) else {})
-        plan["time_terms"] = [period["label"]] if period["label"] else []
+        if plan is not None:
+            plan["time_terms"] = [period["label"]] if period["label"] else []
         if strategy:
             strategy.update(start_year=period["start_year"], end_year=period["end_year"])
         else:

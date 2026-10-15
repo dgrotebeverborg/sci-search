@@ -4,6 +4,7 @@ import {openDashboard, refreshHistory, clearDashboard, beginNewSearch} from './h
 import {loadEvidence} from './evidence.js';
 import {loadExports} from './exports.js';
 import {loadValidation} from './validation.js';
+import {renderChoices} from './question_choices.js';
 
 let activeRun = null;
 let pollTimer = null;
@@ -110,6 +111,100 @@ function clearBrief() {
   document.getElementById("question-brief").hidden = true;
 }
 
+
+function showBrief(brief) {
+  // The brief that starts the run: the chosen, adjusted version without its choices.
+  const {options: _options, clarification_options: _answers, ...chosen} = brief;
+  questionBrief = chosen;
+  document.getElementById('brief-question').textContent = brief.interpreted_question;
+  document.getElementById('brief-objective').textContent = brief.objective;
+  document.getElementById('brief-method').textContent = brief.provider
+    ? `Interpreted with ${modelLabel(brief)} — check the scope and assumptions before approving.`
+    : 'Automatic research brief — AI interpretation is unavailable; check the scope before approving.';
+  const details = document.getElementById('brief-details');
+  details.replaceChildren();
+  if (brief.data_research?.adapter === 'effis_reported_fires_v1') {
+    document.getElementById('brief-method').textContent = 'Suggested approach: analyse official data. Calculations use a verified source adapter, not model-generated numbers.';
+    const scope = brief.data_research;
+    const controls = document.createElement('div'); controls.className = 'data-plan-controls';
+    for (const [key, label, choices] of [
+      ['route', 'Research approach', [['data', 'Data analysis — EFFIS pilot'], ['literature', 'Literature review']]],
+      ['geography', 'Country scope', [['europe', 'Broader Europe — listed country set, including Türkiye and Cyprus'], ['eu27', 'EU-27 — fixed membership']]],
+    ]) {
+      const field = document.createElement('label'); field.textContent = label;
+      const select = document.createElement('select'); select.setAttribute('aria-label', label);
+      for (const [value, text] of choices) select.append(new Option(text, value));
+      select.value = scope[key]; select.onchange = () => { scope[key] = select.value; };
+      field.append(select); controls.append(field);
+    }
+    for (const [key, label] of [['start_year', 'First year'], ['end_year', 'Last year']]) {
+      const field = document.createElement('label'); field.textContent = label;
+      const input = document.createElement('input'); input.type = 'number'; input.min = '1980'; input.max = String(new Date().getFullYear()); input.required = true; input.value = scope[key]; input.setAttribute('aria-label', label);
+      input.oninput = () => { scope[key] = Number(input.value); document.getElementById('approve-question').disabled = ![...controls.querySelectorAll('input')].every(i => i.checkValidity()) || scope.start_year > scope.end_year; };
+      field.append(input); controls.append(field);
+    }
+    const note = document.createElement('p'); note.textContent = 'Measures: nationally reported forest-fire counts and burned area in km². This source edition ends in 2024. Missing years and country coverage will be shown; no causal explanation is inferred.';
+    controls.append(note); details.append(controls);
+  }
+  const plan = brief.research_plan;
+  const relationship = plan?.intent === 'relationship';
+  const unresolvedRoles = relationship && (!plan.subject_terms?.length || !plan.driver_terms?.length);
+  const needsClarification = brief.ambiguity === 'material' || unresolvedRoles;
+  const outcomes = plan?.outcome_measure_terms?.length
+    ? [`${plan.subject_terms.join(', ')} (${plan.outcome_measure_terms.join(', ')})`]
+    : plan?.subject_terms;
+  const specified = values => values == null ? ['Not resolved automatically — check your question']
+    : values.length ? values : ['Not specified — no restriction'];
+  if (!brief.data_research || brief.data_research.route === 'literature') for (const [label, values] of [
+    ['Factor being studied', relationship ? (plan.driver_terms?.length ? plan.driver_terms : ['Not identified — clarify the question']) : []],
+    [relationship ? 'Outcome being studied' : plan?.intent === 'comparison' ? 'What is being compared' : 'Topic being studied', outcomes],
+    ['Relationship to investigate', relationship ? [plan.relationship_type === 'association'
+      ? 'Whether the factor and outcome are associated. An association alone does not establish cause and effect.'
+      : 'How the proposed factors relate to the outcome; their effects are not assumed.'] : []],
+    ['People or study subjects', specified(plan?.population_terms)],
+    ['Location', specified(plan?.geography_terms)],
+    ['Time period', specified(plan?.time_terms)],
+    ['Automatic evidence filters', brief.research_plan?.evidence_preferences?.map(value => value.replaceAll('_', ' '))],
+    ['Excluded terms used in screening', brief.research_plan?.exclusion_terms],
+    ['Evidence to look for', brief.evidence_scope], ['Assumptions to check', brief.assumptions],
+    ['Exclusions', brief.exclusions], ['Clarification', brief.clarification_question ? [brief.clarification_question] : []],
+  ]) {
+    if (!values?.length) continue;
+    const heading = document.createElement('h3'); heading.textContent = label;
+    const list = document.createElement('ul');
+    for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); }
+    details.append(heading, list);
+  }
+  document.getElementById('approve-question').disabled = needsClarification;
+  approvalStatus(needsClarification
+    ? (brief.clarification_question || 'Identify both the factor and the outcome in your question, then review it again.')
+    : 'Ready to start. Approve this interpretation to begin the research.', needsClarification ? 'error' : 'info');
+  document.getElementById('question-brief').hidden = false;
+  setStatus(needsClarification
+    ? 'Clarify the question above and review it again before starting.'
+    : 'Review the interpretation below. Research starts only when you approve.');
+}
+
+// Asks for an interpretation; `extra` carries a steer or a clarification answer.
+async function interpretQuestion(extra = {}) {
+  const project = currentProject();
+  if (!project) throw new Error('Create or select a project first');
+  clearBrief();
+  const version = interpretationVersion;
+  setStatus(extra.steer ? 'Proposing other versions of your question…' : extra.clarification ? 'Using your answer…' : 'Interpreting your question…');
+  const interpretation = await request(`/api/v1/projects/${project.id}/runs/interpret`, {
+    method: 'POST', body: {question: document.getElementById('research-question').value.trim(), analysis_selection: selectedModel(), ...extra},
+  });
+  if (version !== interpretationVersion || currentProject()?.id !== project.id) return;
+  const choices = document.getElementById('brief-choices');
+  if (interpretation.data_research?.adapter === 'effis_reported_fires_v1') { choices.replaceChildren(); showBrief(interpretation); return; }
+  renderChoices(interpretation, {
+    container: choices,
+    projectId: project.id,
+    onBrief: brief => { if (version === interpretationVersion) showBrief(brief); },
+    onInterpret: next => interpretQuestion(next).catch(error => setStatus(error.message, 'error')),
+  });
+}
 
 export function currentRun() { return activeRun; }
 
@@ -258,105 +353,7 @@ export function initializeRuns() {
   });
   document.getElementById('question-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    try {
-      const project = currentProject();
-      if (!project) throw new Error('Create or select a project first');
-      clearBrief();
-      const version = interpretationVersion;
-      setStatus('Interpreting your question…');
-      const brief = await request(`/api/v1/projects/${project.id}/runs/interpret`, {
-        method: 'POST', body: {question: document.getElementById('research-question').value.trim(), analysis_selection: selectedModel()},
-      });
-      if (version !== interpretationVersion || currentProject()?.id !== project.id) return;
-      questionBrief = brief;
-      document.getElementById('brief-question').textContent = brief.interpreted_question;
-      document.getElementById('brief-objective').textContent = brief.objective;
-      document.getElementById('brief-method').textContent = brief.provider
-        ? `Interpreted with ${modelLabel(brief)} — check the scope and assumptions before approving.`
-        : 'Automatic research brief — AI interpretation is unavailable; check the scope before approving.';
-      const details = document.getElementById('brief-details');
-      details.replaceChildren();
-      if (brief.data_research?.adapter === 'discovered_data_v1') {
-        const scope = brief.data_research;
-        const controls = document.createElement('div'); controls.className = 'data-plan-controls';
-        const field = document.createElement('label'); field.textContent = 'Research approach';
-        const select = document.createElement('select'); select.setAttribute('aria-label', 'Research approach');
-        for (const [value, text] of [['data', 'Find and analyse datasets'], ['both', 'Datasets and literature'], ['literature', 'Literature review']]) select.append(new Option(text, value));
-        if (!scope.measurements.length) { for (const option of select.options) if (option.value !== 'literature') option.disabled = true; }
-        select.value = scope.route; select.onchange = () => { scope.route = select.value; };
-        field.append(select); controls.append(field);
-        const rationale = document.createElement('p'); rationale.textContent = scope.rationale; controls.append(rationale);
-        for (const [label, value] of [['Requested measurements', scope.measurements.join(', ') || 'None specified'], ['Geography', scope.geography || 'Not restricted'], ['Search period', !scope.start_year && !scope.end_year ? 'Longest comparable historical series (no dates specified)' : [scope.start_year || 'earliest comparable year', scope.end_year || 'latest available year'].join('–')]]) {
-          const item = document.createElement('p'); item.textContent = label + ': ' + value; controls.append(item);
-        }
-        const note = document.createElement('p');
-        const updateApproachNote = () => { note.textContent = scope.route === 'literature'
-          ? 'After approval, the app searches publications, checks relevance and available full texts, and reports supported findings and evidence gaps.'
-          : 'After approval, the app searches for datasets, checks definitions and coverage, and calculates from downloaded files. It shows sources it cannot use and any unanswered parts. AI plans and assesses sources; calculations use recorded data.'; };
-        select.onchange = () => { scope.route = select.value; updateApproachNote(); };
-        updateApproachNote();
-        controls.append(note); details.append(controls);
-      } else if (brief.data_research) {
-        document.getElementById('brief-method').textContent = 'Suggested approach: analyse official data. Calculations use a verified source adapter, not model-generated numbers.';
-        const scope = brief.data_research;
-        const controls = document.createElement('div'); controls.className = 'data-plan-controls';
-        for (const [key, label, choices] of [
-          ['route', 'Research approach', [['data', 'Data analysis — EFFIS pilot'], ['literature', 'Literature review']]],
-          ['geography', 'Country scope', [['europe', 'Broader Europe — listed country set, including Türkiye and Cyprus'], ['eu27', 'EU-27 — fixed membership']]],
-        ]) {
-          const field = document.createElement('label'); field.textContent = label;
-          const select = document.createElement('select'); select.setAttribute('aria-label', label);
-          for (const [value, text] of choices) select.append(new Option(text, value));
-          select.value = scope[key]; select.onchange = () => { scope[key] = select.value; };
-          field.append(select); controls.append(field);
-        }
-        for (const [key, label] of [['start_year', 'First year'], ['end_year', 'Last year']]) {
-          const field = document.createElement('label'); field.textContent = label;
-          const input = document.createElement('input'); input.type = 'number'; input.min = '1980'; input.max = String(new Date().getFullYear()); input.required = true; input.value = scope[key]; input.setAttribute('aria-label', label);
-          input.oninput = () => { scope[key] = Number(input.value); document.getElementById('approve-question').disabled = ![...controls.querySelectorAll('input')].every(i => i.checkValidity()) || scope.start_year > scope.end_year; };
-          field.append(input); controls.append(field);
-        }
-        const note = document.createElement('p'); note.textContent = 'Measures: nationally reported forest-fire counts and burned area in km². This source edition ends in 2024. Missing years and country coverage will be shown; no causal explanation is inferred.';
-        controls.append(note); details.append(controls);
-      }
-      const plan = brief.research_plan;
-      const relationship = plan?.intent === 'relationship';
-      const unresolvedRoles = relationship && (!plan.subject_terms?.length || !plan.driver_terms?.length);
-      const needsClarification = brief.ambiguity === 'material' || unresolvedRoles;
-      const outcomes = plan?.outcome_measure_terms?.length
-        ? [`${plan.subject_terms.join(', ')} (${plan.outcome_measure_terms.join(', ')})`]
-        : plan?.subject_terms;
-      const specified = values => values == null ? ['Not resolved automatically — check your question']
-        : values.length ? values : ['Not specified — no restriction'];
-      if (!brief.data_research || brief.data_research.route === 'literature') for (const [label, values] of [
-        ['Factor being studied', relationship ? (plan.driver_terms?.length ? plan.driver_terms : ['Not identified — clarify the question']) : []],
-        [relationship ? 'Outcome being studied' : plan?.intent === 'comparison' ? 'What is being compared' : 'Topic being studied', outcomes],
-        ['Relationship to investigate', relationship ? [plan.relationship_type === 'association'
-          ? 'Whether the factor and outcome are associated. An association alone does not establish cause and effect.'
-          : 'How the proposed factors relate to the outcome; their effects are not assumed.'] : []],
-        ['People or study subjects', specified(plan?.population_terms)],
-        ['Location', specified(plan?.geography_terms)],
-        ['Time period', specified(plan?.time_terms)],
-        ['Automatic evidence filters', brief.research_plan?.evidence_preferences?.map(value => value.replaceAll('_', ' '))],
-        ['Excluded terms used in screening', brief.research_plan?.exclusion_terms],
-        ['Evidence to look for', brief.evidence_scope], ['Assumptions to check', brief.assumptions],
-        ['Exclusions', brief.exclusions], ['Clarification', brief.clarification_question ? [brief.clarification_question] : []],
-      ]) {
-        if (!values?.length) continue;
-        const heading = document.createElement('h3'); heading.textContent = label;
-        const list = document.createElement('ul');
-        for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); }
-        details.append(heading, list);
-      }
-      document.getElementById('approve-question').disabled = needsClarification;
-      approvalStatus(needsClarification
-        ? (brief.clarification_question || 'Identify both the factor and the outcome in your question, then review it again.')
-        : 'Ready to start. Approve this interpretation to begin the research.', needsClarification ? 'error' : 'info');
-      document.getElementById('question-brief').hidden = false;
-      setStatus(needsClarification
-        ? 'Clarify the question above and review it again before starting.'
-        : 'Review the interpretation below. Research starts only when you approve.');
-    } catch (error) { setStatus(error.message, 'error'); }
+    try { await interpretQuestion(); } catch (error) { setStatus(error.message, 'error'); }
   });
   document.getElementById('approve-question').addEventListener('click', async () => {
     if (!questionBrief) {

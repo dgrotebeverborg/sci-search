@@ -296,3 +296,15 @@ def test_without_a_model_the_question_is_the_only_option(monkeypatch):
     monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "mistral")
     result = interpret_question("How does vegetation structure affect goat foraging behaviour?")
     assert [o["title"] for o in result["options"]] == ["Your question"]
+
+
+def test_a_brief_without_a_research_plan_can_still_change_its_data_strategy():
+    brief = {**copy.deepcopy(BASE), "research_plan": None}
+    brief["data_research"].update(route="data", measurements=["population"])
+    adjusted = adjust(brief, {"detail": "route", "value": "both"})
+    assert adjusted["data_research"]["route"] == "both"
+    adjusted = adjust(
+        adjusted, {"detail": "period", "value": {"label": "", "start_year": 2001, "end_year": 2024}}
+    )
+    assert adjusted["data_research"]["start_year"] == 2001
+    assert adjusted["research_plan"] is None

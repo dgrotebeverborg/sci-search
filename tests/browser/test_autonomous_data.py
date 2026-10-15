@@ -18,15 +18,17 @@ def test_automatic_plan_and_source_failure_are_clear(live_browser_url, chromium_
         "start_year": 2001,
         "end_year": 2024,
     }
+    brief["options"] = []  # the response itself is the only version
     page = chromium_browser.new_page()
     page.request.post(live_browser_url + "/auth/development")
     page.route("**/runs/interpret", lambda route: route.fulfill(json=brief))
     page.goto(live_browser_url + "/app")
     page.get_by_label("Research question", exact=True).fill("Population in the Netherlands")
     page.get_by_role("button", name="Review question", exact=True).click()
-    expect(page.get_by_label("Research approach", exact=True)).to_have_value("data")
-    expect(page.get_by_text("Annual data answer the question", exact=True)).to_be_visible()
-    page.get_by_label("Research approach", exact=True).select_option("both")
+    approach = page.locator(".choice-row[data-detail='approach']")
+    expect(approach.locator(".choice-current")).to_have_text("Find and analyse datasets")
+    approach.get_by_role("button", name="Datasets and literature", exact=True).click()
+    expect(approach.locator(".choice-current")).to_have_text("Datasets and literature")
     expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
     page.close()
 
