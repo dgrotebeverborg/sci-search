@@ -82,6 +82,37 @@ export function renderDataResearch(data, parent) {
 }
 
 
+function renderDerived(data, parent) {
+  const completion = data.output_completion;
+  if (!completion) return;
+  const section = element('section', '', 'derived-outputs');
+  section.append(element('h3', 'Requested calculations'));
+  const inputs = {complete: 'Requested input data complete', partial: 'Requested input data incomplete', blocked: 'Requested input data unavailable'};
+  const calculations = {complete: 'Requested calculations complete', partial: 'Requested calculations partly available', blocked: 'Requested calculations unavailable', not_assessed: 'Requested calculations have not been assessed', not_requested: 'No additional calculations requested'};
+  section.append(element('p', inputs[completion.data_status] || completion.data_status));
+  section.append(element('p', calculations[completion.calculation_status] || completion.calculation_status));
+  section.append(element('strong', completion.numerical_answer_status === 'complete' ? 'Requested numerical outputs complete' : completion.numerical_answer_status === 'not_assessed' ? 'Numerical answer completeness not assessed' : 'Requested numerical outputs incomplete'));
+  section.append(element('p', completion.qualification || ''));
+  const derived = data.derived_outputs || {};
+  if (derived.reason) section.append(element('p', derived.reason));
+  for (const output of derived.outputs || []) {
+    const details = element('details'); details.open = (derived.outputs || []).length <= 6;
+    details.append(element('summary', `${output.entity} — ${output.label} · ${output.status}`));
+    if (output.reason) details.append(element('p', output.reason));
+    if (output.formula) details.append(element('p', 'Calculation: ' + output.formula));
+    if (output.annual.some(row => row.value != null)) details.append(chart(output.annual, 'value', output.entity + ' — ' + output.label, output.unit));
+    details.append(dataTable(output.annual.map(row => ({year: row.year, value: observation(row.value), reason: row.reason || '', inputs: (row.inputs || []).map(input => `${input.role} (${input.year}): ${input.observation?.source_reference || input.observation?.source_row || 'No source observation'}`).join('; ')})), [['year', 'Year'], ['value', output.unit || 'Value'], ['reason', 'Missing input or limitation'], ['inputs', 'Input references']]));
+    for (const source of output.sources || []) {
+      const original = data.analyses[source.analysis_index]?.source;
+      if (original) details.append(safeLink(source.role + ': ' + original.title, original.url));
+    }
+    if (output.semantic_review) meaningDetails(output.semantic_review, details);
+    section.append(details);
+  }
+  executionDetails(derived, section);
+  parent.append(section);
+}
+
 function renderDiscovered(data, parent) {
   const notice = element('aside', '', 'landscape-shared-reason');
   notice.append(element('strong', data.analyses.length ? 'Calculated from downloaded data · check coverage' : 'No supported numerical answer yet'));
@@ -98,6 +129,7 @@ function renderDiscovered(data, parent) {
     }
     parent.append(gaps);
   }
+  renderDerived(data, parent);
   if (data.run_control?.stop_reason) parent.append(element('p', 'Stopped: ' + data.run_control.stop_reason));
   const strategy = data.strategy || {};
   if (data.literature_fallback) parent.append(element('p', data.literature_fallback));

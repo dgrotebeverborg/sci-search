@@ -29,6 +29,35 @@ For CSV downloads, up to three further HTML pages can be followed using observed
 loops and unresolved viewers remain explicit source gaps. Downloads are limited to 50 MB and public HTTP(S) addresses. DNS is validated and pinned for each
 redirect; credentials are not sent to dataset hosts.
 
+## Requested numerical outputs
+
+The interpreted data scope can contain an explicit `calculations` list alongside the published
+input measurements. Supported operations are nominal base-year indices, inflation-adjusted indices,
+constant-base-year monetary values, compatible unit conversions, and numerator/denominator shares.
+The model selects a bounded operation and named inputs; fixed Python performs the arithmetic.
+
+The dashboard reports input coverage, calculation availability and numerical-answer completeness
+separately. A complete collection of raw observations does not imply the requested index or share
+has been produced. Existing saved scopes without a calculation plan remain explicitly unassessed;
+an explicit empty plan means no additional calculations were requested.
+
+Calculations require an explicit annual output period and one unambiguous source series per input,
+country and requested breakdown. They never splice sources, interpolate missing years, substitute
+a different base year, or divide by a missing/non-positive denominator. Unit conversion uses explicit
+energy and currency factors; unknown conversions are blocked. Cross-input calculations additionally
+require a cited compatibility review against sealed source documentation, including gross/net and
+population definitions. This remains a model assessment, not expert certification.
+
+Derived outputs retain current and base-year observations, formulas, source hashes, reviews and an
+isolated execution under `derived-N/`. The offline replay checks both raw and derived results.
+Changed raw analyses must still match their sealed executed results; mutable cached approvals and
+new unsealed documentation cannot authorize calculations. Exhausted review budgets leave unresolved
+calculations blocked while preserving calculations already reviewed.
+
+This layer does not implement arbitrary expressions, automatic acquisition of out-of-period base
+years, general monthly calculations, or a judgment that methodological explanations and literature
+synthesis are complete. See the [calculation validation report](operations/data-calculation-validation-20261015.md).
+
 ## Executed Python extraction and calculation
 
 Every new successful data analysis executes a retained Python calculation before publication,

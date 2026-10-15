@@ -19,6 +19,7 @@ from sci_search.data_research.connectors import CONNECTORS, base, dataset_from_u
 from sci_search.data_research.connectors import stage as connector_stage
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.coverage import pending as pending_measurements
+from sci_search.data_research.derived_artifacts import finalize as finalize_outputs
 from sci_search.data_research.discovery import complete_object, discover
 from sci_search.data_research.inspection import extract_documentation_pdf
 from sci_search.data_research.navigation import resolve_table_download
@@ -157,6 +158,9 @@ def execute(question, strategy, directory, *, budget_limits=None, resume_from=No
         result["coverage"] = evaluate_coverage(result["strategy"], result["analyses"])
         result["period"] = period_summary(result["strategy"], result["analyses"])
         result["run_control"] = control.snapshot()
+        finalize_outputs(
+            result, directory, check_cancelled=kwargs.get("check_cancelled", lambda: None)
+        )
         write_replay(directory)
         save(Path(directory) / "analysis.json", result)
         control.checkpoint()
@@ -243,6 +247,7 @@ def _execute(
     check_cancelled = checked_cancelled
 
     def finish():
+        finalize_outputs(result, directory, complete=complete, check_cancelled=original_check)
         result["run_control"] = control.snapshot()
         result["coverage"] = evaluate_coverage(full_strategy, result["analyses"])
         result["period"] = period_summary(full_strategy, result["analyses"])

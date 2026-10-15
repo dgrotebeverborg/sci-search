@@ -126,6 +126,31 @@ for folder in folders:
             (root/"reproduced").mkdir(exist_ok=True)
             (root/"reproduced/analysis.json").write_text(json.dumps(actual,indent=2))
     print("Verified",folder.name)
+derived=published_root.get("derived_outputs")
+if published_root.get("strategy", {}).get("calculations") and not isinstance(derived, dict):
+    raise ValueError("Requested derived outputs are missing")
+if derived and derived.get("execution", {}).get("status")=="verified":
+    record=derived["execution"]
+    folder=root/record["directory"]
+    if folder.is_symlink() or not folder.resolve().is_relative_to(root.resolve()):
+        raise ValueError("Invalid derived artifact directory")
+    for name, expected in record["artifacts"].items():
+        path=folder/name
+        if path.is_symlink() or not path.resolve().is_relative_to(folder.resolve()) or digest(path.read_bytes())!=expected:
+            raise ValueError("Derived artifact hash mismatch: "+name)
+    payload=json.loads((folder/"input/payload.json").read_text())
+    if payload["scope"]!=published_root["strategy"] or payload["analyses"]!=published_root["analyses"]:
+        raise ValueError("Derived inputs differ from retained source analyses or requested scope")
+    with tempfile.TemporaryDirectory() as scratch:
+        inputs={p.name:p.read_bytes() for p in (folder/"input").iterdir()}
+        run=run_python((folder/"script.py").read_text(),inputs,Path(scratch)/"derive")
+        if run["status"]!="succeeded": raise ValueError(run.get("error"))
+        actual=json.loads((Path(scratch)/"derive/output/result.json").read_text())
+        if actual!={k:v for k,v in derived.items() if k!="execution"}:
+            raise ValueError("Published derived outputs differ from executed calculations")
+    print("Verified derived outputs")
+elif derived and any(row.get("value") is not None for output in derived.get("outputs", []) for row in output.get("annual", [])):
+    raise ValueError("Published derived values have no verified execution")
 '''
 
 

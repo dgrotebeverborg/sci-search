@@ -408,3 +408,62 @@ def test_connector_gaps_and_recovery_are_visible(live_browser_url, chromium_brow
     assert page.locator("#gap-test img").count() == 0
     assert page.evaluate("window.pwned") is None
     page.close()
+
+
+def test_complete_raw_data_does_not_hide_missing_calculations(live_browser_url, chromium_browser):
+    data = {
+        "kind": "discovered",
+        "status": "partial",
+        "strategy": {"measurements": ["price"], "rationale": "Index requested"},
+        "analyses": [],
+        "assessments": [],
+        "limitations": [],
+        "coverage": {"cells": [{"status": "complete"}], "gaps": []},
+        "output_completion": {
+            "data_status": "complete",
+            "calculation_status": "blocked",
+            "numerical_answer_status": "partial",
+            "qualification": "Numerical completion does not certify explanations.",
+        },
+        "derived_outputs": {
+            "status": "blocked",
+            "outputs": [
+                {
+                    "label": "Real house-price index",
+                    "entity": "Netherlands",
+                    "status": "blocked",
+                    "reason": "Missing CPI baseline for 2000",
+                    "unit": "2000 = 100",
+                    "sources": [],
+                    "annual": [
+                        {
+                            "year": 2000,
+                            "value": None,
+                            "reason": "Missing CPI baseline for 2000",
+                            "inputs": [],
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+    snapshot = build_dashboard(investigation("Index", {}, data), run_id="derived-data", revision=1)
+    page = chromium_browser.new_page(viewport={"width": 390, "height": 844})
+    page.route("**/runs?*", lambda route: route.fulfill(json={"items": [], "next_cursor": None}))
+    page.route(
+        "**/runs/derived-data/dashboard**",
+        lambda route: route.fulfill(json={**snapshot, "role": "owner", "current_revision": 1}),
+    )
+    page.route(
+        "**/runs/derived-data/revisions",
+        lambda route: route.fulfill(json={"items": [{"revision": 1}]}),
+    )
+    page.request.post(live_browser_url + "/auth/development")
+    page.goto(live_browser_url + "/app?project=development-project&run=derived-data")
+    host = page.locator("#dashboard-data")
+    expect(host).to_contain_text("Requested input data complete")
+    expect(host).to_contain_text("Requested calculations unavailable")
+    expect(host).to_contain_text("Requested numerical outputs incomplete")
+    expect(host).to_contain_text("Missing CPI baseline for 2000")
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.close()

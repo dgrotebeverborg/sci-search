@@ -3,7 +3,7 @@
 import re
 from datetime import UTC, datetime
 
-from sci_search.data_research import requirements
+from sci_search.data_research import calculation_contract, requirements
 
 LAST_PROJECTED_YEAR = 2100
 SCHEMA = {
@@ -12,6 +12,7 @@ SCHEMA = {
     "required": ["route", "rationale", "measurements", "geography", "start_year", "end_year"],
     "properties": {
         "requirements": requirements.SCHEMA,
+        "calculations": calculation_contract.SCHEMA,
         "route": {"type": "string", "enum": ["literature", "data", "both"]},
         "rationale": {"type": "string"},
         "measurements": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
@@ -34,6 +35,19 @@ PROMPT = (
     "and include base inputs for new calculations (for a newly computed ratio, numerator and "
     "denominator). Published percentages, rates and indices are already base series: retain "
     "them directly rather than requiring underlying counts or reconstructing their denominator. "
+    " Copy measurement names EXACTLY from measurements into requirements.measurement and "
+    "calculation input/reference, including any parenthesized units. Use ratio for monetary "
+    "amounts, counts, and physical quantities such as electricity generation; interval is for "
+    "scales without a meaningful zero, such as Celsius temperatures. Use index for CPI. "
+    " Include calculations as an explicit list (empty when no additional numerical output is "
+    "requested). Each calculation names an exact input measurement, and a distinct reference "
+    "measurement for share/deflate/real_index. Operations: index (nominal base-year index), "
+    "real_index (inflation-adjusted base-year index), deflate (constant-base-year monetary values), "
+    "convert (requested physical unit), share (numerator as percent of denominator). When a physical output unit is explicitly requested, include convert with that target unit even if a source might already use it; compatible identity conversions are valid. Use stable "
+    "unique id and readable label; base_year is required only for index/real_index/deflate; "
+    "target_unit only for convert; use null for irrelevant reference/base_year/target_unit. "
+    "Retain published percentages directly, without requesting a share calculation. Explanations "
+    "of methods or missing years belong in definitions, never as numerical measurements. "
     " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
     "relationships or evidence synthesis; data for descriptive numerical questions answerable "
     "from published datasets; both when the user asks for numerical developments AND explanations. "
@@ -101,6 +115,8 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
     if value["route"] != "literature" and not metrics:
         raise ValueError("Data research requires requested measurements")
     result["measurements"] = metrics
+    if "calculations" in value:
+        result["calculations"] = calculation_contract.validate(value["calculations"], metrics)
     if "requirements" in value:
         result["requirements"] = requirements.normalize_geography(
             requirements.validate(value["requirements"], metrics),

@@ -97,6 +97,10 @@ full-suite runs passed without frontend changes. Independent review found no imp
 
 ## Remaining work
 
+Follow-up: the explicit calculation layer below has since been implemented and separately
+validated; see [calculation validation](data-calculation-validation-20261015.md). This report
+retains the original before/after results.
+
 1. Represent requested calculations explicitly: base-year indices, inflation adjustment, unit
    conversion, and numerator/denominator joins need their own completion checks. Raw-data coverage
    must not imply these outputs exist.

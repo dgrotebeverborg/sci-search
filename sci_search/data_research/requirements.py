@@ -100,7 +100,9 @@ def validate(items, measurements):
             raise ValueError("Invalid data requirement")
         name = item.get("measurement")
         if not isinstance(name, str) or name not in measurements or name in seen:
-            raise ValueError("Unknown or duplicate requirement measurement")
+            raise ValueError(
+                f"Unknown or duplicate requirement measurement {name!r}; copy an exact unique name from {measurements}"
+            )
         seen.add(name)
         normalized = {"measurement": name}
         definition = item.get("definition", "")
