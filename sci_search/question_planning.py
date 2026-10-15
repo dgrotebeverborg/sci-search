@@ -271,7 +271,8 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
             raise ValueError(f"Confirmed {key} is required")
         return result
 
-    subjects = terms("subject_terms", required=True)
+    geography = terms("geography_terms")
+    subjects = _without_places(terms("subject_terms", required=True), geography)
     drivers = terms("driver_terms")
     relationship = structure.get("relationship_type", "unspecified")
     if relationship not in {"association", "influence", "unspecified"}:
@@ -284,7 +285,6 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
     population = terms("population_terms")
     period = terms("time_terms")
     measures = terms("outcome_measure_terms")
-    geography = terms("geography_terms")
     preferences = terms("evidence_preferences")
     if any(value not in EVIDENCE_PREFERENCES for value in preferences):
         raise ValueError("Unsupported evidence filter in the confirmed research plan")
@@ -312,6 +312,19 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
         time_terms=period if "time_terms" in structure else None,
         outcome_measure_terms=measures if "outcome_measure_terms" in structure else None,
     )
+
+
+def _without_places(subjects: tuple[str, ...], places: tuple[str, ...]) -> tuple[str, ...]:
+    """Subjects without a requested place: "insect biomass in germany" becomes "insect biomass".
+
+    The place remains a separate part of the plan, so a study of one place can be found and
+    screened on the subject itself.
+    """
+    if not places:
+        return subjects
+    names = "|".join(re.escape(place) for place in sorted(places, key=len, reverse=True))
+    suffix = re.compile(rf"\s+(?:in|across|for|from)\s+(?:the\s+)?(?:{names})$")
+    return tuple(dict.fromkeys(suffix.sub("", subject) or subject for subject in subjects))
 
 
 def plan_focus(plan: ResearchPlan) -> tuple[str, tuple[str, ...], tuple[str, ...]] | None:

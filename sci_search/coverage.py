@@ -286,6 +286,9 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
     if focus:
         primary_subjects = list(plan.subject_terms) or [focus[0]]
         topic_concepts = list(focus[1])
+    # Several confirmed subjects ("PFAS in drinking water", "PFAS in surface water") are parts
+    # that different publications may cover; each part is checked across the answer below.
+    subject_parts = bool(plan.subject_terms) and len(primary_subjects) > 1
     dimensions.insert(
         0,
         {
@@ -297,10 +300,13 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 list(_scope_aliases(concept, profile, lowered)) for concept in primary_subjects
             ],
             "minimum_group_matches": (
-                len(primary_subjects)
+                1
+                if subject_parts
+                else len(primary_subjects)
                 if anchors or task in {"relationship", "comparison", "contradiction", "limitation"}
                 else min(2, len(primary_subjects))
             ),
+            "parts": subject_parts,
             "mandatory_group_indexes": [
                 index
                 for index, concept in enumerate(primary_subjects)
@@ -316,6 +322,17 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             "required": True,
         },
     )
+    if subject_parts:
+        for index, concept in enumerate(primary_subjects):
+            dimensions.append(
+                {
+                    "id": f"subject_part:{index}",
+                    "kind": "subject_part",
+                    "label": concept,
+                    "terms": list(_scope_aliases(concept, profile, lowered)),
+                    "required": True,
+                }
+            )
     for index, concept in enumerate(topic_concepts):
         dimensions.append(
             {
@@ -404,6 +421,13 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
         "dimensions": dimensions,
         "subquestions": subquestions,
         "requirements": {
+            # A publication may cover one of several requested places; each place is still
+            # checked across the answer.
+            "alternative_geography_dimensions": [
+                item["id"] for item in dimensions if item.get("kind") == "geography"
+            ]
+            if plan.subject_terms and len(locations) > 1
+            else [],
             "alternative_driver_dimensions": [
                 f"topic:{index}" for index in range(len(topic_concepts))
             ]
@@ -595,12 +619,14 @@ def assess_answer_adequacy(
     driver_dimensions = set(
         decomposition.get("requirements", {}).get("alternative_driver_dimensions", [])
     )
+    places = set(decomposition.get("requirements", {}).get("alternative_geography_dimensions", []))
     required_dimensions = [
         str(item.get("id"))
         for item in decomposition.get("dimensions", [])
         if item.get("required")
         and item.get("kind") in {"subject", "geography", "population", "time", "topic"}
         and item.get("id") not in driver_dimensions
+        and item.get("id") not in places
     ]
     statement_required_dimensions = {
         str(item.get("id"))
@@ -608,6 +634,7 @@ def assess_answer_adequacy(
         if item.get("required")
         and item.get("statement_required")
         and item.get("id") not in driver_dimensions
+        and item.get("id") not in places
     }
     outcome_dimensions = {
         str(item.get("id"))
@@ -622,6 +649,8 @@ def assess_answer_adequacy(
             if dimension_id not in driver_dimensions:
                 dimension_publications[str(dimension_id)].add(publication_id)
         complete_scope = all(dimension_id in matched for dimension_id in required_dimensions)
+        if places:
+            complete_scope = complete_scope and bool(places & matched)
         if driver_dimensions:
             complete_scope = complete_scope and bool(driver_dimensions & statement_matched)
         subject_dimensions = {
@@ -631,6 +660,12 @@ def assess_answer_adequacy(
         }
         subject_match = not subject_dimensions or subject_dimensions <= statement_matched
         statement_scope_match = statement_required_dimensions <= statement_matched
+        if places and any(
+            item.get("statement_required")
+            for item in decomposition.get("dimensions", [])
+            if item.get("id") in places
+        ):
+            statement_scope_match = statement_scope_match and bool(places & statement_matched)
         outcome_match = not outcome_dimensions or bool(outcome_dimensions & statement_matched)
         statement = " ".join(str(item.get("statement") or "").casefold().split())
         requested_temporal_nature = decomposition.get("requirements", {}).get(
