@@ -48,6 +48,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes bubblewrap libseccomp2
+          # Ubuntu's runner policy otherwise denies bwrap's isolated loopback setup.
+          # Enable user namespaces on this disposable CI VM; bwrap and seccomp still
+          # enforce the application's network, filesystem and process isolation.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Verify Python execution sandbox
         run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
@@ -80,6 +84,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes bubblewrap libseccomp2
+          # Ubuntu's runner policy otherwise denies bwrap's isolated loopback setup.
+          # Enable user namespaces on this disposable CI VM; bwrap and seccomp still
+          # enforce the application's network, filesystem and process isolation.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Verify Python execution sandbox
         run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
