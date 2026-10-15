@@ -118,6 +118,8 @@ function showBrief(brief) {
   questionBrief = chosen;
   document.getElementById('brief-question').textContent = brief.interpreted_question;
   document.getElementById('brief-objective').textContent = brief.objective;
+  // The headline is the chosen version; changes made since are listed right under it.
+  document.getElementById('brief-adjustments').textContent = brief.adjustments?.length ? `Adjusted: ${brief.adjustments.join('; ')}` : '';
   document.getElementById('brief-method').textContent = brief.provider
     ? `Interpreted with ${modelLabel(brief)} — check the scope and assumptions before approving.`
     : 'Automatic research brief — AI interpretation is unavailable; check the scope before approving.';

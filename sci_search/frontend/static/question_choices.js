@@ -34,6 +34,8 @@ export function renderChoices(interpretation, {container, projectId, onBrief, on
     : [{title: 'Your question', summary: interpretation.objective || '', closest: true, brief: interpretation, alternatives: {}}];
   let chosen = 0;
   let brief = options[0].brief;
+  // Each card choice or change takes a turn; a response from an earlier turn is ignored.
+  let turn = 0;
   container.replaceChildren();
 
   if (interpretation.ambiguity === 'material' && interpretation.clarification_question) {
@@ -62,6 +64,7 @@ export function renderChoices(interpretation, {container, projectId, onBrief, on
     const route = option.brief?.data_research?.route;
     if (route) card.append(node('span', ROUTES[route] || route, 'choice-route'));
     card.onclick = () => {
+      turn += 1; rows.classList.remove('choice-busy');
       chosen = index; brief = option.brief;
       for (const other of cards.children) other.setAttribute('aria-pressed', String(other === card));
       drawRows(); onBrief(brief);
@@ -73,11 +76,21 @@ export function renderChoices(interpretation, {container, projectId, onBrief, on
 
   async function apply(detail, value, row) {
     row.querySelector('.choice-error')?.remove();
+    const mine = ++turn;
+    // One change at a time: each change starts from the result of the previous one.
+    rows.classList.add('choice-busy');
+    for (const button of rows.querySelectorAll('button')) button.disabled = true;
     try {
-      brief = await request(`/api/v1/projects/${encodeURIComponent(projectId)}/runs/interpret/adjust`, {method: 'POST', body: {brief, change: {detail, value}}});
+      const adjusted = await request(`/api/v1/projects/${encodeURIComponent(projectId)}/runs/interpret/adjust`, {method: 'POST', body: {brief, change: {detail, value}}});
+      if (mine !== turn) return;
+      brief = adjusted;
       drawRows(); onBrief(brief);
     } catch (error) {
-      row.append(node('p', error.message, 'choice-error'));
+      if (mine !== turn) return;
+      drawRows();
+      rows.querySelector(`[data-detail="${row.dataset.detail}"]`)?.append(node('p', error.message, 'choice-error'));
+    } finally {
+      if (mine === turn) rows.classList.remove('choice-busy');
     }
   }
   function editForm(row, fields, toValue) {
@@ -122,7 +135,7 @@ export function renderChoices(interpretation, {container, projectId, onBrief, on
     rows.append(measurementRow);
     rows.append(row('Geography', geography(strategy, plan),
       (alternatives.geography || []).map(place => [place.label, item => apply('geography', place, item), false]),
-      item => editForm(item, [['Geography', 'text', geography(strategy, plan)]], ([text]) => ({detail: 'geography', value: {label: text, geography_terms: text ? [text] : [], countries: []}}))));
+      item => editForm(item, [['Geography', 'text', plan?.geography_terms?.join(', ') || strategy?.geography || '']], ([text]) => ({detail: 'geography', value: {label: text, geography_terms: text ? [text] : [], countries: []}}))));
     rows.append(row('Period', period(strategy, plan),
       (alternatives.period || []).map(value => [value.label || `${value.start_year || ''}–${value.end_year || ''}`, item => apply('period', value, item), false]),
       item => editForm(item, [['First year', 'number', strategy?.start_year], ['Last year', 'number', strategy?.end_year]], ([start, end]) => ({detail: 'period', value: {label: '', start_year: start ? Number(start) : null, end_year: end ? Number(end) : null}}))));

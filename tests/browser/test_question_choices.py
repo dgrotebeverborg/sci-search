@@ -109,3 +109,48 @@ def test_a_clarification_is_answered_by_clicking(live_browser_url, chromium_brow
         expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
     finally:
         page.close()
+
+
+def test_a_late_change_never_replaces_the_version_chosen_since(live_browser_url, chromium_browser):
+    page = chromium_browser.new_page()
+    try:
+        open_question(page, live_browser_url, [interpretation()])
+        held = []
+        page.route("**/runs/interpret/adjust", lambda route: held.append(route))
+        cards = page.locator(".choice-card")
+        cards.nth(1).click()
+        geography = page.locator(".choice-row[data-detail='geography']")
+        geography.get_by_role("button", name="Indus basin", exact=True).click()
+        page.wait_for_timeout(300)
+        assert len(held) == 1
+        cards.first.click()  # the researcher switches back before the change returns
+        held[0].continue_()
+        page.wait_for_timeout(500)
+        expect(cards.first).to_have_attribute("aria-pressed", "true")
+        expect(page.locator("#brief-question")).not_to_contain_text(
+            "projected to change until 2100"
+        )
+        with page.expect_request("**/api/v1/projects/*/runs") as started:
+            page.get_by_role("button", name="Approve and start review").click()
+        sent = started.value.post_data_json["question_brief"]
+        assert sent["interpreted_question"] == CLOSEST_OPTION["interpreted_question"]
+        assert sent["research_plan"]["geography_terms"] == ["Himalaya"]
+    finally:
+        page.close()
+
+
+def test_adjusted_details_are_shown_with_the_headline(live_browser_url, chromium_browser):
+    page = chromium_browser.new_page()
+    try:
+        open_question(page, live_browser_url, [interpretation()])
+        page.locator(".choice-card").nth(1).click()
+        period = page.locator(".choice-row[data-detail='period']")
+        period.get_by_role("button", name="2000–2050", exact=True).click()
+        expect(page.locator("#brief-adjustments")).to_have_text("Adjusted: Period: 2000–2050")
+        geography = page.locator(".choice-row[data-detail='geography']")
+        geography.get_by_role("button", name="Edit…", exact=True).click()
+        expect(page.get_by_label("Geography")).to_have_value(
+            "Indus basin, Ganges basin, Brahmaputra basin"
+        )
+    finally:
+        page.close()

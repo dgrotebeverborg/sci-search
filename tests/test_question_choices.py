@@ -191,10 +191,6 @@ def test_free_typed_geography_and_period_are_accepted():
             "years",
         ),
         (
-            {"detail": "geography", "value": {"label": "", "geography_terms": [], "countries": []}},
-            "Give a place",
-        ),
-        (
             {
                 "detail": "geography",
                 "value": {"label": "X", "geography_terms": ["X"], "countries": ["NOTACODE"]},
@@ -308,3 +304,67 @@ def test_a_brief_without_a_research_plan_can_still_change_its_data_strategy():
     )
     assert adjusted["data_research"]["start_year"] == 2001
     assert adjusted["research_plan"] is None
+
+
+def test_an_automatic_brief_without_plan_or_strategy_can_be_adjusted():
+    brief = {**copy.deepcopy(BASE), "research_plan": None, "data_research": None}
+    brief = adjust(brief, {"detail": "measurements", "value": ["river discharge"]})
+    brief = adjust(brief, {"detail": "route", "value": "both"})
+    brief = adjust(
+        brief,
+        {
+            "detail": "geography",
+            "value": {"label": "Indus basin", "geography_terms": ["Indus basin"], "countries": []},
+        },
+    )
+    brief = adjust(
+        brief, {"detail": "period", "value": {"label": "", "start_year": 1990, "end_year": 2020}}
+    )
+    strategy = brief["data_research"]
+    assert (strategy["route"], strategy["geography"], strategy["start_year"]) == (
+        "both",
+        "Indus basin",
+        1990,
+    )
+
+
+def test_an_empty_geography_removes_the_restriction():
+    brief = adjust(
+        data_brief(),
+        {"detail": "geography", "value": {"label": "", "geography_terms": [], "countries": []}},
+    )
+    assert brief["research_plan"]["geography_terms"] == []
+    assert brief["data_research"]["geography"] == ""
+    assert brief["data_research"]["countries"] == []
+
+
+def test_adjustments_are_recorded_for_the_headline_and_the_report():
+    brief = adjust(
+        data_brief(),
+        {"detail": "period", "value": {"label": "2000–2050", "start_year": 2000, "end_year": 2050}},
+    )
+    brief = adjust(
+        brief, {"detail": "geography", "value": DATA_OPTION["alternatives"]["geography"][0]}
+    )
+    brief = adjust(
+        brief, {"detail": "period", "value": {"label": "", "start_year": 2000, "end_year": 2070}}
+    )
+    assert brief["adjustments"] == ["Geography: Indus basin", "Period: 2000–2070"]
+
+
+def test_the_interpretation_has_room_for_four_options():
+    import json
+
+    from sci_search.mistral_analysis import MistralAnalyzer
+    from sci_search.question_interpretation import interpret_question
+
+    bodies = []
+
+    def complete(body, headers):
+        bodies.append(body)
+        return {"choices": [{"message": {"content": json.dumps(model_payload())}}]}
+
+    interpret_question(
+        QUESTION, MistralAnalyzer("key", model="mistral-small", complete_json=complete)
+    )
+    assert bodies[0]["max_tokens"] >= 6000

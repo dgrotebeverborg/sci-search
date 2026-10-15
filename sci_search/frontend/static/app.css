@@ -440,3 +440,6 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 .choice-steer { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding-top: .7rem; border-top: 1px solid var(--line); }
 .choice-clarify { padding: 1rem; background: #fff8de; border-radius: 8px; display: grid; gap: .6rem; }
 @media (max-width: 640px) { .choice-row { grid-template-columns: minmax(0, 1fr); } .choice-row > * { grid-column: 1 !important; } }
+.choice-adjusted:empty { display: none; }
+.choice-adjusted { margin: -.25rem 0 0; padding-left: .6rem; border-left: 4px solid var(--uu-yellow); font-size: .9rem; }
+.choice-busy { opacity: .6; }

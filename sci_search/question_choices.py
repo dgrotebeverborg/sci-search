@@ -204,8 +204,6 @@ def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
     # An automatic brief has no research plan; its data strategy can still be changed.
     plan = brief.get("research_plan") if isinstance(brief.get("research_plan"), dict) else None
     strategy = brief.get("data_research")
-    if plan is None and not strategy:
-        raise ValueError("This interpretation has no adjustable plan.")
     if strategy and strategy.get("adapter") not in (None, "discovered_data_v1"):
         raise ValueError("This research plan cannot be adjusted here.")
     detail = change.get("detail") if isinstance(change, dict) else None
@@ -239,18 +237,25 @@ def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(NEED_MEASUREMENT)
         ensured()["measurements"] = names
     elif detail == "geography":
-        place = _place(value if isinstance(value, dict) else {})
+        value = value if isinstance(value, dict) else {}
+        unrestricted = not str(value.get("label") or "").strip() and not value.get(
+            "geography_terms"
+        )
+        place = (
+            {"label": "", "geography_terms": [], "countries": []} if unrestricted else _place(value)
+        )
         if plan is not None:
             plan["geography_terms"] = place["geography_terms"]
-        if strategy:
+        if strategy or plan is None:
+            strategy = ensured()
             strategy.update(geography=place["label"], countries=place["countries"])
             strategy.pop("country_scope", None)  # inferred again from the new geography
     elif detail == "period":
         period = _period(value if isinstance(value, dict) else {})
         if plan is not None:
             plan["time_terms"] = [period["label"]] if period["label"] else []
-        if strategy:
-            strategy.update(start_year=period["start_year"], end_year=period["end_year"])
+        if strategy or plan is None:
+            ensured().update(start_year=period["start_year"], end_year=period["end_year"])
         else:
             # The plan has no years of its own; check them as the data route would.
             validate_strategy({**ensured(), **period, "route": "literature"})
@@ -259,7 +264,32 @@ def adjust(brief: dict[str, Any], change: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Unknown detail.")
     brief["research_plan"] = plan
     brief["data_research"] = validate_strategy(strategy) if strategy else None
+    # What the researcher changed, shown next to the headline and kept in the run's brief.
+    label, text = _described(detail, brief)
+    kept = [a for a in brief.get("adjustments") or [] if not str(a).startswith(label + ":")]
+    brief["adjustments"] = [*kept, f"{label}: {text}"]
     return _refreshed(str(brief.get("original_question") or ""), brief)
+
+
+def _described(detail: str, brief: dict[str, Any]) -> tuple[str, str]:
+    strategy = brief.get("data_research") or {}
+    plan = brief.get("research_plan") or {}
+    if detail == "route":
+        return "Approach", {
+            "literature": "literature review",
+            "data": "datasets",
+            "both": "datasets and literature",
+        }[strategy["route"]]
+    if detail == "measurements":
+        return "Measurements", ", ".join(strategy.get("measurements") or []) or "none"
+    if detail == "geography":
+        places = plan.get("geography_terms") or (
+            [strategy["geography"]] if strategy.get("geography") else []
+        )
+        return "Geography", ", ".join(places) or "not restricted"
+    start, end = strategy.get("start_year"), strategy.get("end_year")
+    years = f"{start or 'earliest'}–{end or 'latest'}" if start or end else ""
+    return "Period", years or ", ".join(plan.get("time_terms") or []) or "not restricted"
 
 
 def _refreshed(question: str, brief: dict[str, Any]) -> dict[str, Any]:

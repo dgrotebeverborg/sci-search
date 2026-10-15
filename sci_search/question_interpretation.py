@@ -43,6 +43,8 @@ class QuestionBrief:
     data_research: dict[str, Any] | None = None
     # The model's raw options and clarification answers; validated by interpret_question.
     proposals: dict[str, Any] | None = None
+    # Details the researcher changed after choosing a version ("Period: 2000–2050").
+    adjustments: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -233,7 +235,7 @@ def _model_interpretation(
     body = {
         "model": analyzer.model,
         "temperature": 0,
-        "max_tokens": 2000,
+        "max_tokens": 6000,  # room for up to four complete versions of the question
         "response_format": {
             "type": "json_schema",
             "json_schema": {
