@@ -186,6 +186,20 @@ def test_adequate_evidence_is_strong():
 
 
 def data_snapshot():
+    series = [
+        {
+            "entity": "Germany: plot ORB1",
+            "label": "insect biomass",
+            "unit": "g/day",
+            "annual": [{"year": 1989, "value": 1}, {"year": 2016, "value": 0.2}],
+        },
+        {
+            "entity": "Germany: plot WAH1",
+            "label": "insect biomass",
+            "unit": "g/day",
+            "annual": [{"year": 1990, "value": 1}, {"year": 2015, "value": 0.3}],
+        },
+    ]
     investigation = {
         "question": "Is the decline in insect biomass in Germany since 1989 also seen in Dutch monitoring data?",
         "answer_summary": "Analysed 1 downloaded dataset(s).",
@@ -200,30 +214,9 @@ def data_snapshot():
                         "publisher": "PLOS ONE",
                         "url": "https://example.org/s1.csv",
                     },
-                    "components": [
-                        {
-                            "series": [
-                                {
-                                    "entity": "Germany: plot ORB1",
-                                    "label": "insect biomass",
-                                    "unit": "g/day",
-                                    "annual": [
-                                        {"year": 1989, "value": 1},
-                                        {"year": 2016, "value": 0.2},
-                                    ],
-                                },
-                                {
-                                    "entity": "Germany: plot WAH1",
-                                    "label": "insect biomass",
-                                    "unit": "g/day",
-                                    "annual": [
-                                        {"year": 1990, "value": 1},
-                                        {"year": 2015, "value": 0.3},
-                                    ],
-                                },
-                            ]
-                        }
-                    ],
+                    # Real analyses carry the series both at the top and per component.
+                    "series": series,
+                    "components": [{"series": series}],
                 }
             ],
             "assessments": [
@@ -311,3 +304,18 @@ def test_periods_and_zero_counts_read_naturally():
 def test_new_snapshots_carry_their_summary():
     snapshot = hpv_snapshot()
     assert snapshot["summary"] == summarize(snapshot)
+
+
+def test_unlabelled_checks_fall_back_to_the_recorded_missing_requirements():
+    snapshot = hpv_snapshot()
+    answer = next(b for b in snapshot["blocks"] if b["id"] == "answer")
+    answer["data"]["answer_adequacy"]["checks"].append({"required": True, "passed": False})
+    answer["data"]["answer_adequacy"]["missing_requirements"] = [
+        "hpv vaccination",
+        "Field evidence",
+    ]
+    missing = summarize(snapshot)["missing"]
+    assert "." not in missing
+    assert "Field evidence is missing." in missing
+    # A requirement already explained by its check is not repeated.
+    assert not any(m.startswith("Hpv vaccination") for m in missing)

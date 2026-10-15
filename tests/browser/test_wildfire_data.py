@@ -54,11 +54,11 @@ def test_saved_wildfire_data_has_charts_and_missing_coverage(
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=fire-data")
     expect(page.get_by_text("A reporting panel, not all Europe", exact=True)).to_be_visible()
-    expect(page.locator("#dashboard-answer svg")).to_have_count(2)
+    expect(page.locator("#dashboard-data svg")).to_have_count(2)
     expect(page.locator("#dashboard-model")).to_contain_text("no AI-generated numerical values")
     page.get_by_text("Annual values and coverage", exact=True).click()
     expect(
-        page.locator("#dashboard-answer").get_by_role("cell", name="Missing", exact=True).first
+        page.locator("#dashboard-data").get_by_role("cell", name="Missing", exact=True).first
     ).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.close()

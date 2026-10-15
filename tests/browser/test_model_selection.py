@@ -115,9 +115,7 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
         expect(page.locator("#dashboard-model")).to_contain_text(
             "Analysis model: OpenAI · chosen-model"
         )
-        expect(page.locator("#dashboard-answer")).to_contain_text(
-            "Processing complete · Insufficient evidence"
-        )
+        expect(page.locator("#dashboard-answer")).to_contain_text("Not enough evidence")
         expect(page.locator("#dashboard-answer")).to_contain_text("expert scientific validation")
         snapshot["analysis"]["fallback_reason"] = "No evidence"
         snapshot["analysis"]["method"] = "deterministic_extractive_fallback"

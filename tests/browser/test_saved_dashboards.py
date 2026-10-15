@@ -3,6 +3,15 @@ from playwright.sync_api import Browser, expect
 from sci_search.dashboard import build_dashboard
 
 
+def open_section(page, section_id):
+    """Open a collapsed results section and the sections around it."""
+    page.wait_for_selector(f"#{section_id}", state="attached")
+    page.evaluate(
+        "id => { for (let n = document.getElementById(id); n; n = n.parentElement) if (n.tagName === 'DETAILS') n.open = true; }",
+        section_id,
+    )
+
+
 def test_saved_dashboard_history_refresh_and_feedback(
     live_browser_url: str, chromium_browser: Browser
 ):
@@ -102,17 +111,17 @@ def test_saved_dashboard_history_refresh_and_feedback(
     page.goto(live_browser_url)
     page.get_by_role("button", name="Continue with development account").click()
     page.get_by_role("link", name="Question A", exact=True).click()
-    expect(page.locator("[data-dashboard-block]")).to_have_count(13)
+    expect(page.locator("[data-result-section]").first).to_be_visible()
     with page.expect_download() as download:
         page.get_by_role("link", name="Download all", exact=True).click()
     assert download.value.suggested_filename == "research-package.zip"
     expect(page.locator("#dashboard-model")).to_have_text("Analysis model: OpenAI · chosen-model")
     expect(page.locator("#dashboard-model")).to_be_visible()
     page.screenshot(path="/tmp/sci-search-model-dashboard.png", full_page=True)
-    before = page.locator("[data-dashboard-block]").all_text_contents()
+    before = page.locator("[data-result-section]").all_text_contents()
     page.reload()
-    expect(page.locator("[data-dashboard-block]")).to_have_count(13)
-    assert page.locator("[data-dashboard-block]").all_text_contents() == before
+    expect(page.locator("[data-result-section]").first).to_be_visible()
+    assert page.locator("[data-result-section]").all_text_contents() == before
     page.get_by_role("link", name="Question B", exact=True).click()
     expect(page.locator("#dashboard-question")).to_have_text("Question B")
     expect(page.locator("#dashboard-model")).to_contain_text(
@@ -121,7 +130,7 @@ def test_saved_dashboard_history_refresh_and_feedback(
     expect(page.get_by_role("link", name="Download all", exact=True)).to_have_count(0)
     page.go_back()
     expect(page.locator("#dashboard-question")).to_have_text("Question A")
-    page.get_by_role("link", name="Studies & evidence", exact=True).click()
+    open_section(page, "dashboard-studies")
     page.get_by_role("button", name="Exclude article", exact=True).click()
     page.get_by_label("Reason", exact=True).fill("Different study population")
     page.get_by_role("button", name="Save decision", exact=True).click()
@@ -198,9 +207,9 @@ def test_landscape_filters_and_historical_permissions(
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A&revision=1")
     expect(page.locator("#dashboard-question")).to_have_text("Landscape question")
-    page.get_by_role("link", name="Studies & evidence", exact=True).click()
+    open_section(page, "dashboard-studies")
     expect(page.get_by_role("button", name="Exclude article", exact=True).first).to_be_disabled()
-    page.get_by_role("link", name="Research landscape", exact=True).click()
+    open_section(page, "dashboard-landscape")
     landscape = page.locator("#dashboard-landscape")
     expect(landscape.get_by_role("cell", name="Excluded paper", exact=True)).to_be_visible()
     landscape.get_by_role("button", name="2024: 1 publications", exact=True).click()
@@ -245,7 +254,7 @@ def test_feedback_conflict_preserves_dashboard(live_browser_url: str, chromium_b
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
-    page.get_by_role("link", name="Studies & evidence", exact=True).click()
+    open_section(page, "dashboard-studies")
     page.get_by_role("button", name="Reset article decision", exact=True).click()
     page.get_by_role("button", name="Save decision", exact=True).click()
     expect(page.get_by_text("Another decision was saved.", exact=False)).to_be_visible()
@@ -293,7 +302,7 @@ def test_unrebuildable_saved_sources_disable_article_changes(
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
-    page.get_by_role("link", name="Studies & evidence", exact=True).click()
+    open_section(page, "dashboard-studies")
     expect(page.get_by_role("button", name="Exclude article", exact=True)).to_be_disabled()
     expect(
         page.get_by_text("The retained source ledger is unavailable", exact=False)
@@ -403,14 +412,12 @@ def test_dashboard_leads_with_qualified_answer_and_groups_provenance(
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
     answer = page.locator("#dashboard-answer")
-    expect(answer.locator(".answer-narrative p").first).to_have_text(
+    expect(answer.locator(".result-answer")).to_have_text(
         "Evidence is limited to one laboratory study."
     )
-    expect(
-        answer.get_by_text("The evidence does not support an overall answer.", exact=True)
-    ).to_be_visible()
-    expect(answer.get_by_text("Field evidence", exact=True)).to_be_visible()
-    page.get_by_role("link", name="Methods & exports", exact=True).click()
+    expect(answer.locator(".certainty-pill")).to_be_visible()
+    expect(page.locator("#dashboard-why")).to_contain_text("Field evidence is missing.")
+    open_section(page, "dashboard-methods")
     page.locator("#dashboard-methods").get_by_text(
         "Search and screening record", exact=True
     ).click()
@@ -462,8 +469,8 @@ def test_saved_dashboard_finding_review_uses_runtime_identity(
     page.route("**/evidence/runtime-e1/review", review)
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
-    page.get_by_role("link", name="Studies & evidence", exact=True).click()
-    page.locator("#dashboard-evidence summary").click()
+    open_section(page, "dashboard-evidence")
+    page.locator("#dashboard-evidence .evidence-card summary").first.click()
     page.get_by_role("button", name="Accept evidence", exact=True).click()
     expect(page.locator("#dashboard-evidence")).to_contain_text("accepted")
     assert edits == [{"decision": "accepted", "expected_version": 1}]
@@ -526,22 +533,22 @@ def test_real_extractive_result_renders_complete_scientific_dashboard(
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
-    expect(page.locator("[data-dashboard-block]")).to_have_count(13)
+    expect(page.locator("[data-result-section]").first).to_have_attribute(
+        "data-result-section", "answer"
+    )
+    expect(page.locator("#dashboard-navigation")).to_have_count(0)
+    open_section(page, "dashboard-literature_review")
     expect(page.locator("#dashboard-literature_review")).to_contain_text(
         "AI-assisted cited evidence review"
     )
+    if investigation["evidence"]:  # empty parts are left out of the page
+        open_section(page, "dashboard-evidence")
     assert page.locator("#dashboard-evidence .evidence-card").count() == len(
         investigation["evidence"]
     )
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-    expect(page.locator(".dashboard-stat")).to_have_count(4)
-    expect(page.locator("#dashboard-navigation a")).to_have_count(5)
     expect(page.locator("#dashboard-answer")).to_be_visible()
-    expect(page.locator("#dashboard-literature_review")).not_to_be_visible()
     expect(page.locator("#research")).not_to_be_visible()
-    page.get_by_role("link", name="Literature review", exact=True).click()
-    expect(page.locator("#dashboard-literature_review")).to_be_visible()
-    page.get_by_role("link", name="Overview", exact=True).click()
     page.get_by_role("button", name="+ New search", exact=True).click()
     expect(page.locator("#research")).to_be_visible()
     page.go_back()
@@ -773,7 +780,7 @@ def test_landscape_explains_metadata_decisions_in_saved_results(
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
-    page.get_by_role("link", name="Research landscape", exact=True).click()
+    open_section(page, "dashboard-landscape")
     landscape = page.locator("#dashboard-landscape")
     expect(landscape.get_by_text("Literature coverage is not verified", exact=True)).to_be_visible()
     expect(

@@ -10,20 +10,6 @@ export function element(tag, text = '', className = '') {
   if (className) node.className = className;
   return node;
 }
-const views = {
-  overview: ['Overview', ['answer', 'findings', 'gaps']],
-  literature: ['Literature review', ['literature_review', 'comparisons']],
-  landscape: ['Research landscape', ['landscape']],
-  studies: ['Studies & evidence', ['studies', 'evidence', 'references']],
-  methods: ['Methods & exports', ['scope', 'methods', 'validation', 'downloads']],
-};
-function showView(view) {
-  const root = document.getElementById('dashboard-blocks');
-  root.dataset.view = view;
-  for (const section of root.querySelectorAll('[data-dashboard-block]')) section.hidden = !views[view][1].includes(section.dataset.dashboardBlock);
-  root.querySelector('.dashboard-overview').hidden = view !== 'overview';
-  for (const link of document.querySelectorAll('#dashboard-navigation a')) link.setAttribute('aria-current', link.dataset.view === view ? 'page' : 'false');
-}
 const label = (key) => key.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase());
 export function safeLink(text, url) {
   const a = element('a', text);
@@ -40,10 +26,12 @@ export function evidenceLinks(ids = []) {
   ids.forEach((id) => {
     const link = element('a', `Evidence ${id}`);
     link.href = `#evidence-${encodeURIComponent(id)}`;
-    link.onclick = () => {
-      showView('studies');
+    link.onclick = (event) => {
       const target = document.getElementById(`evidence-${encodeURIComponent(id)}`);
-      if (target) { target.open = true; target.focus(); }
+      if (!target) return;
+      event.preventDefault();
+      target.open = true;
+      reveal(target);
     };
     row.append(link);
   });
@@ -162,8 +150,7 @@ function contestNote(contest, parent) {
     link.href = `#${anchor}`;
     link.addEventListener('click', (event) => {
       event.preventDefault();
-      showView('literature');
-      document.getElementById(anchor)?.scrollIntoView({block: 'start'});
+      reveal(document.getElementById(anchor));
     });
     note.append(link);
   });
@@ -182,28 +169,6 @@ function reviewBlock(data, parent) {
   if (data.conclusion?.text && data.conclusion.text !== data.executive_summary?.text) { parent.append(element('h3', 'Conclusion')); fields(data.conclusion, parent); }
   parent.append(expandable('Review coverage and quality notes', {review_type: data.review_type, corpus_overview: data.corpus_overview, quality: data.quality}));
   if (data.appendices) parent.append(expandable('Search queries and rejected model records', {search_queries: data.appendices.search_queries, rejected_model_records: data.appendices.rejected_model_records}));
-}
-function evidenceQuality(snapshot) {
-  return snapshot.result_quality || {
-    label: 'Evidence adequacy not recorded',
-    explanation: 'Evidence adequacy was not recorded for this saved result.',
-    validation_note: 'Source traceability and automated checks do not constitute expert scientific validation.',
-  };
-}
-function overview(snapshot, root) {
-  const blocks = Object.fromEntries((snapshot.blocks || []).map(block => [block.id, block.data]));
-  if (blocks.answer?.data_analysis) {
-    const d = blocks.answer.data_analysis;
-    const stats = element('p', d.kind === 'discovered' ? `${d.analyses.length} datasets analysed · ${d.status === 'blocked' ? 'Numerical answer unavailable' : 'Inspect coverage and source decisions'}` : `${d.available_years.length} available years · ${d.panel_countries.length} countries in fixed panel · Official country-reported data`, 'dashboard-overview data-overview section-intro');
-    root.append(stats);
-    if (d.strategy?.route !== 'both' && d.literature_status !== 'complete') return;
-  }
-  const paperCount = blocks.studies?.studies?.length ?? blocks.landscape?.coverage?.records ?? 0;
-  const stats = element('div', '', 'dashboard-overview'); stats.setAttribute('aria-label', 'Research overview');
-  for (const [value, title, note] of [[paperCount, 'Studies discovered', 'The literature in this search'], [(blocks.evidence || []).length, 'Evidence passages', 'Retained with source provenance'], [(blocks.references || []).length, 'Listed publications', 'Sources retained with this review'], [evidenceQuality(snapshot).label, 'Evidence coverage', 'Adequacy for this question']]) {
-    const card = element('div', '', 'dashboard-stat'); card.append(element('strong', String(value)), element('span', title), element('small', note)); stats.append(card);
-  }
-  root.append(stats);
 }
 function evidenceBlock(data, parent, snapshot, context) {
   for (const record of data || []) {
@@ -263,15 +228,153 @@ function studyBlock(data, parent, snapshot, context) {
   }
   filter.oninput = () => { for (const card of list.children) card.hidden = !card.dataset.studyTitle.includes(filter.value.toLowerCase()); };
 }
+// Open every collapsed section around a target, so links into "More details" work.
+function reveal(target) {
+  for (let node = target; node; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+  target?.scrollIntoView({block: 'start'});
+  target?.focus?.();
+}
+// A renderer that fails on an older or partial saved result affects only its own section.
+function safely(parent, draw) {
+  try { draw(); } catch (error) {
+    console.error(error);
+    parent.append(element('p', 'This part could not be shown for this saved result.', 'help'));
+  }
+}
+function resultSection(id, title, {collapsed = false, line = ''} = {}) {
+  const node = element(collapsed ? 'details' : 'section', '', collapsed ? 'result-section result-collapsed' : 'result-section');
+  node.id = `dashboard-${id}`;
+  node.dataset.resultSection = id;
+  const heading = element('h2', title);
+  if (collapsed) {
+    const summary = element('summary'); summary.append(heading);
+    if (line) summary.append(element('span', line, 'result-line'));
+    node.append(summary);
+  } else node.append(heading);
+  return node;
+}
+function sourceItem(item, note = '') {
+  const li = element('li');
+  const text = `${item.title}${item.year ? ` (${item.year})` : ''}`;
+  li.append(item.url ? safeLink(text, item.url) : element('span', text));
+  const extra = [item.publisher, note].filter(Boolean).join(' · ');
+  if (extra) li.append(element('span', ` · ${extra}`, 'help'));
+  return li;
+}
+function list(items, render) { const ul = element('ul', '', 'result-list'); for (const item of items) ul.append(render(item)); return ul; }
+// Partial findings the review could support, with their quotes, even without an overall answer.
+function investigationReview(review, parent) {
+  const details = element('details', '', 'result-more'); details.open = Boolean(review.partial_findings?.length);
+  details.append(element('summary', review.partial_findings?.length ? `Partial evidence (${review.partial_findings.length})` : 'Investigation review'));
+  if (review.qualification) details.append(element('p', review.qualification));
+  for (const finding of review.partial_findings || []) {
+    details.append(element('h3', finding.subject || ''), element('p', finding.title || ''), element('blockquote', finding.quote || ''));
+    if (finding.qualification) details.append(element('p', finding.qualification, 'help'));
+    if (finding.doi) details.append(safeLink('Source publication', 'https://doi.org/' + finding.doi));
+  }
+  for (const step of review.steps || []) details.append(element('p', `${step.decision?.reason || 'Review attempt'} · ${step.outcome?.status || 'stopped'}`, 'help'));
+  if (review.stop_reason) details.append(element('p', review.stop_reason, 'help'));
+  parent.append(details);
+}
+function answerSection(summary, answer, snapshot) {
+  const node = resultSection('answer', 'Answer');
+  const text = summary.answer?.text || answer.executive_summary?.text;
+  if (text) node.append(element('p', text, 'result-answer'));
+  const ids = summary.answer?.evidence_ids || answer.executive_summary?.evidence_ids || [];
+  if (ids.length) node.append(evidenceLinks(ids));
+  const certainty = summary.certainty || {level: 'not_assessed', label: 'Not assessed', sentence: ''};
+  const line = element('p', '', 'certainty');
+  line.append(element('span', certainty.label, `certainty-pill certainty-${certainty.level}`));
+  if (certainty.sentence) line.append(document.createTextNode(` ${certainty.sentence}`));
+  node.append(line);
+  if (snapshot.result_quality?.validation_note) node.append(element('p', snapshot.result_quality.validation_note, 'help'));
+  if (answer.investigation_review) safely(node, () => investigationReview(answer.investigation_review, node));
+  contestNote(answer.answer_contest, node);
+  if (summary.key_sources?.length) node.append(element('h3', 'Key sources'), list(summary.key_sources, item => sourceItem(item)));
+  return node;
+}
+function dataSection(summary, analysis) {
+  const node = resultSection('data', 'What the data show');
+  const datasets = summary.data.datasets || [];
+  if (datasets.length) node.append(list(datasets, d => sourceItem(d, [d.entities?.join(', '), d.first_year ? `${d.first_year}–${d.last_year}` : '', d.unit].filter(Boolean).join(' · '))));
+  else node.append(element('p', 'No dataset gave a supported numerical answer.', 'help'));
+  // Open by default: the chart is part of what the data show.
+  const more = element('details', '', 'result-more'); more.open = true;
+  more.append(element('summary', `Charts, values and sources${summary.data.not_used ? ` · ${summary.data.not_used} sources not used` : ''}`));
+  safely(more, () => renderDataResearch(analysis, more));
+  node.append(more);
+  return node;
+}
+function literatureSection(summary, blocks, snapshot) {
+  const node = resultSection('literature', 'What the literature says');
+  const l = summary.literature;
+  if (l) node.append(element('p', `${l.found} studies found · ${l.full_texts} full texts read · ${l.included} counted as evidence`, 'help'));
+  if (blocks.findings?.claims?.length) fields(blocks.findings.claims, node);
+  if (blocks.comparisons?.contradiction_groups?.length) safely(node, () => contradictionGroups(blocks.comparisons.contradiction_groups, node, snapshot));
+  if (blocks.literature_review && Object.keys(blocks.literature_review).length) {
+    const review = element('details', '', 'result-more'); review.id = 'dashboard-literature_review';
+    review.append(element('summary', 'Read the full review')); safely(review, () => reviewBlock(blocks.literature_review, review)); node.append(review);
+  }
+  return node;
+}
+function studyItem(study, withDecision) {
+  const li = sourceItem(study, withDecision ? study.decision : '');
+  if (study.reason) li.append(element('p', study.reason, 'help'));
+  return li;
+}
+function whySection(summary) {
+  if (!summary.missing?.length && !summary.included?.length && !summary.left_out?.length) return null;
+  const node = resultSection('why', 'Why this certainty');
+  if (summary.missing?.length) node.append(element('h3', 'What is missing'), list(summary.missing, text => element('li', text)));
+  if (summary.included?.length) node.append(element('h3', `Counted as evidence (${summary.included.length})`), list(summary.included, s => studyItem(s, false)));
+  if (summary.left_out?.length) node.append(element('h3', 'Read but not counted'), list(summary.left_out, s => studyItem(s, true)));
+  return node;
+}
+function landscapeSection(summary, landscape) {
+  const node = resultSection('landscape', 'Research landscape', {collapsed: true, line: summary.landscape_line || ''});
+  // Drawn on first opening: the timeline and study browser are large and usually not needed.
+  node.addEventListener('toggle', () => { if (node.open && !node.dataset.drawn) { node.dataset.drawn = 'yes'; safely(node, () => renderLandscape(landscape, node)); } });
+  return node;
+}
+function detailPart(parent, id, title, draw) {
+  const part = element('details', '', 'result-part'); part.id = `dashboard-${id}`;
+  part.append(element('summary', title)); safely(part, () => draw(part)); parent.append(part);
+}
+function detailsSection(blocks, snapshot, context) {
+  const node = resultSection('details', 'More details', {collapsed: true, line: 'Question interpretation, methods, all studies and passages, validation, references and downloads'});
+  if (blocks.scope) detailPart(node, 'scope', 'Question and scope', part => {
+    fields(blocks.scope.question_brief, part);
+    const scope = blocks.scope.research_scope || {};
+    if (scope.dimensions?.length) part.append(dataTable(scope.dimensions, [['label', 'Part of the question'], ['kind', 'Type'], ['required', 'Required']]));
+    part.append(expandable('Full question interpretation and search plan', {research_scope: scope, plan: blocks.scope.plan}));
+  });
+  if (blocks.methods) detailPart(node, 'methods', 'Search and methods', part => {
+    part.append(expandable('Search methods and selection flow', {methodology: blocks.methods.methodology, selection_flow: blocks.methods.selection_flow}));
+    const run = blocks.methods.research_run || {};
+    part.append(expandable('Search and screening record', Object.fromEntries(Object.entries(run).filter(([key]) => !['candidates', 'full_text_screening', 'study_matrix', 'acquisitions', 'acquired', 'evidence', 'authorized_uploads'].includes(key)))));
+  });
+  if (blocks.studies?.studies?.length) detailPart(node, 'studies', 'All studies and article decisions', part => studyBlock(blocks.studies, part, snapshot, context));
+  if (blocks.evidence?.length) detailPart(node, 'evidence', `Evidence passages (${blocks.evidence.length})`, part => evidenceBlock(blocks.evidence, part, snapshot, context));
+  if (blocks.validation) detailPart(node, 'validation', 'Validation', part => part.append(expandable('Validation checks and review states', blocks.validation)));
+  if (blocks.references?.length) detailPart(node, 'references', 'References', part => {
+    for (const reference of blocks.references) {
+      const p = element('p', `${reference.number ? `[${reference.number}] ` : ''}${reference.title || reference.publication_id}`);
+      const doc = snapshot.documents?.[reference.publication_id];
+      if (doc?.url || reference.source_url) p.append(document.createTextNode(' · '), safeLink('Open publication', doc?.url || reference.source_url));
+      part.append(p);
+    }
+  });
+  const artifacts = snapshot.artifacts || blocks.downloads || [];
+  if (artifacts.length) detailPart(node, 'downloads', 'Downloads', part => { for (const a of artifacts) if (a.url) part.append(safeLink(a.filename || a.id || 'Download', a.url)); });
+  return node;
+}
 export function renderDashboard(snapshot, context = {}) {
   const root = document.getElementById('dashboard-blocks');
   const key = `${context.projectId}:${snapshot.question}`;
   if (root.dataset.questionKey !== key && window.matchMedia('(max-width: 800px)').matches) document.querySelector('.history-panel').open = false;
-  const selectedView = root.dataset.questionKey === key ? root.dataset.view || 'overview' : 'overview';
   root.dataset.questionKey = key;
   root.replaceChildren();
   document.body.classList.add('dashboard-open');
-  overview(snapshot, root);
   document.getElementById('dashboard-panel').hidden = false;
   root.dataset.dashboardRevision = snapshot.revision;
   document.getElementById('dashboard-question').textContent = snapshot.question;
@@ -309,101 +412,15 @@ export function renderDashboard(snapshot, context = {}) {
     }
   }
 
-  const nav = document.getElementById('dashboard-navigation'); nav.replaceChildren();
-  for (const [view, [title]] of Object.entries(views)) {
-    if (dataset && !combined && !['overview', 'methods'].includes(view)) continue;
-    const link = element('a', title); link.href = `#dashboard-${view}`; link.dataset.view = view;
-    link.onclick = event => { event.preventDefault(); showView(view); };
-    nav.append(link);
-  }
-  const titles = {scope: 'Question and scope', answer: 'What the evidence tells us', literature_review: 'Literature review', findings: 'Key findings', comparisons: 'Study comparisons', landscape: 'Research landscape', studies: 'Studies and article relevance', gaps: 'Gaps and limitations', methods: 'Methods and selection', evidence: 'Source evidence', validation: 'Validation', references: 'References', downloads: 'Downloads'};
-  const order = ['answer', 'scope', 'gaps', 'literature_review', 'landscape', 'findings', 'comparisons', 'studies', 'evidence', 'validation', 'methods', 'references', 'downloads'];
-  for (const block of [...(snapshot.blocks || [])].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))) {
-    if (dataset && !combined && !['answer', 'scope', 'methods', 'validation', 'downloads'].includes(block.id)) continue;
-    const section = element('section', '', 'panel dashboard-block');
-    section.dataset.dashboardBlock = block.id;
-    section.id = `dashboard-${block.id}`;
-    section.append(element('h2', titles[block.id] || label(block.id)));
-    if (block.explanation && !(block.id === 'downloads' && snapshot.artifacts?.length)) section.append(element('p', block.explanation, 'empty-state'));
-    const data = block.data;
-    if (block.id === 'downloads') {
-      for (const artifact of snapshot.artifacts || data || []) if (artifact.url) section.append(safeLink(artifact.filename || artifact.id || 'Download', artifact.url));
-    } else if (block.status === 'ready') {
-      if (block.id === 'scope') {
-        fields(data.question_brief, section);
-        const scope = data.research_scope || {};
-        const plan = data.plan || {};
-        if (plan.intent) section.append(element('p', label(plan.intent), 'section-intro'));
-        const concepts = element('div', '', 'study-chips'); for (const concept of plan.concepts || []) concepts.append(element('span', typeof concept === 'string' ? concept : concept.label || concept.name || '', 'study-chip')); section.append(concepts);
-        if (scope.dimensions?.length) section.append(dataTable(scope.dimensions, [['label', 'Scope dimension'], ['kind', 'Type'], ['required', 'Required']]));
-        section.append(expandable('Full question interpretation and search plan', {research_scope: scope, plan}));
-      } else if (block.id === 'answer') {
-        renderCoverageNotice(snapshot.blocks.find(item => item.id === 'landscape')?.data?.papers || [], section);
-        if (data.data_analysis) renderDataResearch(data.data_analysis, section);
-        if (data.investigation_review) {
-          const review = data.investigation_review;
-          const details = element('details'); details.open = Boolean(review.partial_findings?.length);
-          details.append(element('summary', 'Investigation review and partial evidence'));
-          details.append(element('p', review.qualification));
-          for (const finding of review.partial_findings || []) {
-            details.append(element('h3', finding.subject), element('p', finding.title),
-              element('blockquote', finding.quote), element('p', finding.qualification));
-            if (finding.doi) details.append(safeLink('Source publication', 'https://doi.org/' + finding.doi));
-          }
-          for (const step of review.steps || []) {
-            details.append(element('p', `${step.decision?.reason || 'Review attempt'} · ${step.outcome?.status || 'stopped'}`));
-          }
-          details.append(element('p', review.stop_reason)); section.append(details);
-        }
-        const narrative = element('div', '', 'answer-narrative'); fields(data.executive_summary, narrative); section.append(narrative);
-        const adequacy = data.answer_adequacy || {};
-        if (adequacy.decision) section.append(element('p', adequacy.decision, 'adequacy-decision'));
-        const quality = evidenceQuality(snapshot);
-        section.append(element('p', `Processing complete · ${quality.label}`, 'status-badge'));
-        section.append(element('p', quality.explanation, 'adequacy-decision'));
-        section.append(element('p', quality.validation_note, 'section-intro'));
-        contestNote(data.answer_contest, section);
-        if (adequacy.missing_requirements?.length) { section.append(element('h3', 'What is still missing')); fields(adequacy.missing_requirements, section); }
-        section.append(expandable('Evidence adequacy checks', Object.fromEntries(Object.entries(adequacy).filter(([key]) => !['decision', 'status', 'missing_requirements'].includes(key)))));
-        if (!data.executive_summary && data.synthesis?.claims?.length) fields(data.synthesis.claims, section);
-      } else if (block.id === 'literature_review') reviewBlock(data, section);
-      else if (block.id === 'evidence') evidenceBlock(data, section, snapshot, context);
-      else if (block.id === 'studies') studyBlock(data, section, snapshot, context);
-      else if (block.id === 'landscape') renderLandscape(data, section);
-      else if (block.id === 'references') {
-        for (const reference of data || []) {
-          const p = element('p', `${reference.number ? `[${reference.number}] ` : ''}${reference.title || reference.publication_id}`);
-          const doc = snapshot.documents?.[reference.publication_id];
-          if (doc?.url || reference.source_url) { p.append(document.createTextNode(' · '), safeLink('Open publication', doc?.url || reference.source_url)); }
-          fields({authors: reference.authors, year: reference.year, doi: reference.doi}, p); section.append(p);
-        }
-      } else if (block.id === 'gaps') {
-        fields(data.limitations, section);
-        if (data.follow_up_questions?.length) { section.append(element('h3', 'Next questions')); fields(data.follow_up_questions, section); }
-        if (data.quality_flags?.length) section.append(expandable('Evidence limitations in detail', data.quality_flags));
-      } else if (block.id === 'findings') {
-        fields(data.claims, section);
-        if (data.measurements?.length) section.append(expandable('Measurements and their context', data.measurements));
-        if (data.thematic_findings) section.append(expandable('Findings by theme', data.thematic_findings));
-        if (!data.claims?.length) section.append(element('p', 'No supported findings were retained for this question.', 'section-intro'));
-      } else if (block.id === 'comparisons') {
-        if (data.contradiction_groups?.length) contradictionGroups(data.contradiction_groups, section, snapshot);
-        if (data.comparison_groups?.length) fields(data.comparison_groups, section);
-        else if (!data.contradiction_groups?.length) section.append(element('p', 'The retained evidence does not establish a cross-study comparison.', 'section-intro'));
-        section.append(expandable('Comparability and measurement details', {comparability: data.comparability, measurements: data.measurements}));
-      } else if (block.id === 'validation') {
-        section.append(element('p', 'Source grounding and researcher review are recorded separately. Expand the checks to inspect their outcomes.', 'section-intro'));
-        section.append(expandable('Validation checks and review states', data));
-      } else if (block.id === 'methods') {
-        section.append(element('p', 'Inspect how this search selected literature, acquired full texts, and assessed evidence.', 'section-intro'));
-        section.append(expandable('Search methods and selection flow', {methodology: data.methodology, selection_flow: data.selection_flow}));
-        const run = data.research_run || {};
-        const compact = Object.fromEntries(Object.entries(run).filter(([key]) => !['candidates', 'full_text_screening', 'study_matrix', 'acquisitions', 'acquired', 'evidence', 'authorized_uploads'].includes(key)));
-        section.append(expandable('Search and screening record', compact));
-      } else fields(data, section);
-    }
-    root.append(section);
-  }
-  showView(selectedView);
+  const blocks = Object.fromEntries((snapshot.blocks || []).filter(b => b.status === 'ready').map(b => [b.id, b.data]));
+  const summary = snapshot.summary || {};
+  root.append(answerSection(summary, blocks.answer || {}, snapshot));
+  if (summary.data && blocks.answer?.data_analysis) root.append(dataSection(summary, blocks.answer.data_analysis));
+  // Literature content can exist without screening counts, for example in older saved results.
+  const literature = summary.literature || blocks.findings?.claims?.length || blocks.comparisons?.contradiction_groups?.length || (blocks.literature_review && Object.keys(blocks.literature_review).length);
+  if (literature) root.append(literatureSection(summary, blocks, snapshot));
+  const why = whySection(summary); if (why) root.append(why);
+  if (blocks.landscape) root.append(landscapeSection(summary, blocks.landscape));
+  root.append(detailsSection(blocks, snapshot, context));
 }
 

@@ -130,11 +130,15 @@ def _left_out(studies: list[dict[str, Any]], documents: dict[str, Any]) -> list[
 def _missing(adequacy: dict[str, Any], scope: dict[str, Any], question: str) -> list[str]:
     drivers = set(_dict(scope.get("requirements")).get("alternative_driver_dimensions") or [])
     sentences: list[str] = []
+    explained: set[str] = set()
     for check in adequacy.get("checks") or []:
         if not isinstance(check, dict) or check.get("passed") or not check.get("required", True):
             continue
         identifier = str(check.get("id") or "").removeprefix("coverage:")
         label = str(check.get("label") or "")
+        if not identifier and not label:
+            continue
+        explained.add(label.casefold())
         kind = check.get("kind")
         if identifier in drivers:
             text = f"No included study links {_as_written(label, question)} to the outcome."
@@ -159,6 +163,12 @@ def _missing(adequacy: dict[str, Any], scope: dict[str, Any], question: str) -> 
         else:
             text = (label[:1].upper() + label[1:]).rstrip(".") + "."
         if text not in sentences:
+            sentences.append(text)
+    # Older results record a missing requirement without a matching labelled check.
+    for requirement in adequacy.get("missing_requirements") or []:
+        label = str(requirement).strip()
+        text = f"{label[:1].upper()}{label[1:]} is missing."
+        if label and label.casefold() not in explained and text not in sentences:
             sentences.append(text)
     return sentences
 
