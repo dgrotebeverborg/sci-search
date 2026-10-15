@@ -20,3 +20,16 @@ If backward compatibility or downgrade safety is unknown, keep workers stopped a
 
 For every release, exercise the recorded command sequence against the isolated test stack: previous image → candidate image → readiness → previous image. Confirm no duplicate evidence or artifacts after worker recovery. A command-order unit test is not a substitute for this rehearsal.
 
+
+## Dashboard and feedback rollout
+
+Migrations `0008_dashboards` and `0009_memory` add persistent revisions, feedback, and scoped memory.
+Apply them before starting the new API and worker. Roll back application images while retaining these
+additive tables and their objects. Disable `SCI_SEARCH_FEEDBACK_RANKING_ENABLED` independently to restore
+baseline acquisition ordering. Never downgrade these migrations against user data merely to disable
+the feature: that would erase revision/feedback history. Test down/up migrations only against the
+explicit disposable `sci_search_test` database, with restored backups for any data preservation rehearsal.
+
+The local preview remains temporary; `--local-research` uses a durable catalog. Stop the local server
+before importing legacy artifacts. A failed import can be rerun with the same source and project;
+it resumes publication without a new scholarly search and preserves original source files.

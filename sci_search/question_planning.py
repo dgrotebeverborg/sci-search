@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any
 
-from sci_search.profiles import DomainProfile, contains_term, detect_profile
+from sci_search.profiles import GENERIC_PROFILE, DomainProfile, contains_term, detect_profile
 
 _STOPWORDS = frozenset(
     [
@@ -200,6 +201,123 @@ class ResearchPlan:
     expanded_terms: tuple[str, ...]
     evidence_preferences: tuple[str, ...]
     comparison_dimensions: tuple[str, ...]
+    subject_terms: tuple[str, ...] = ()
+    driver_terms: tuple[str, ...] = ()
+    geography_terms: tuple[str, ...] = ()
+    exclusion_terms: tuple[str, ...] = ()
+    interpretation_method: str = "deterministic"
+    relationship_type: str = "unspecified"
+    population_terms: tuple[str, ...] = ()
+    time_terms: tuple[str, ...] | None = None
+    outcome_measure_terms: tuple[str, ...] | None = None
+
+
+RESEARCH_INTENTS = (
+    "relationship",
+    "comparison",
+    "contradiction",
+    "temporal_trend",
+    "method",
+    "limitation",
+    "assumption",
+    "gap",
+    "evidence_search",
+)
+
+
+EVIDENCE_PREFERENCES = ("empirical", "review", "model_or_assumption")
+
+
+def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan:
+    """Validate and execute the confirmed brief, with a legacy fallback.
+
+    Explicit parameters keep concurrent requests and saved-run rebuilds isolated.
+    """
+    base = plan_question(question)
+    if not brief:
+        return base
+    if brief.get("ambiguity") == "material":
+        raise ValueError("Clarify the research question before starting the review")
+    if " ".join(str(brief.get("original_question", "")).split()) != base.question:
+        raise ValueError("The confirmed brief belongs to a different question")
+    data_strategy = brief.get("data_research")
+    if data_strategy:
+        if data_strategy.get("adapter") == "discovered_data_v1":
+            from sci_search.data_research.strategy import validate_strategy
+
+            validate_strategy(data_strategy)
+        elif data_strategy.get("adapter") == "effis_reported_fires_v1":
+            from sci_search.data_research.wildfire import validate_scope
+
+            validate_scope(data_strategy)
+        else:
+            raise ValueError("Unsupported data research strategy")
+    structure = brief.get("research_plan")
+    if structure is None:
+        return base
+    if not isinstance(structure, dict) or structure.get("intent") not in RESEARCH_INTENTS:
+        raise ValueError("Invalid confirmed research intent")
+
+    def terms(key: str, *, required: bool = False) -> tuple[str, ...]:
+        values = structure.get(
+            key, [] if key in {"population_terms", "time_terms", "outcome_measure_terms"} else None
+        )
+        if not isinstance(values, (list, tuple)) or len(values) > 12:
+            raise ValueError(f"Invalid confirmed {key}")
+        if any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in values):
+            raise ValueError(f"Invalid confirmed {key}")
+        result = tuple(dict.fromkeys(" ".join(v.casefold().split()) for v in values))
+        if required and not result:
+            raise ValueError(f"Confirmed {key} is required")
+        return result
+
+    subjects = terms("subject_terms", required=True)
+    drivers = terms("driver_terms")
+    relationship = structure.get("relationship_type", "unspecified")
+    if relationship not in {"association", "influence", "unspecified"}:
+        raise ValueError("Invalid relationship type")
+    if relationship != "unspecified":
+        if structure["intent"] != "relationship" or not drivers:
+            raise ValueError("A relationship needs a separate factor and outcome")
+        if set(subjects) & set(drivers):
+            raise ValueError("The factor and outcome must be distinct")
+    population = terms("population_terms")
+    period = terms("time_terms")
+    measures = terms("outcome_measure_terms")
+    geography = terms("geography_terms")
+    preferences = terms("evidence_preferences")
+    if any(value not in EVIDENCE_PREFERENCES for value in preferences):
+        raise ValueError("Unsupported evidence filter in the confirmed research plan")
+    concepts = tuple(
+        dict.fromkeys((*subjects, *geography, *drivers, *measures, *population, *period))
+    )
+    return replace(
+        base,
+        intent=structure["intent"],
+        concepts=concepts,
+        entity_phrases=tuple(term for term in concepts if " " in term),
+        expanded_terms=tuple(
+            dict.fromkeys(
+                alias for term in concepts for alias in detect_profile(question).expand(term)
+            )
+        ),
+        subject_terms=subjects,
+        driver_terms=drivers,
+        geography_terms=geography,
+        exclusion_terms=terms("exclusion_terms"),
+        evidence_preferences=preferences,
+        interpretation_method=str(brief.get("method") or "confirmed_structured_brief"),
+        relationship_type=relationship,
+        population_terms=population,
+        time_terms=period if "time_terms" in structure else None,
+        outcome_measure_terms=measures if "outcome_measure_terms" in structure else None,
+    )
+
+
+def plan_focus(plan: ResearchPlan) -> tuple[str, tuple[str, ...], tuple[str, ...]] | None:
+    if plan.subject_terms:
+        return " ".join(plan.subject_terms), plan.driver_terms, plan.geography_terms
+    return explanatory_focus(plan.question) if plan.profile_id == "generic" else None
 
 
 def plan_question(question: str, profile: DomainProfile | None = None) -> ResearchPlan:
@@ -235,6 +353,8 @@ def plan_question(question: str, profile: DomainProfile | None = None) -> Resear
 
 
 def _intent(question: str) -> str:
+    if explanatory_focus(question):
+        return "relationship"
     if any(term in question for term in ("conflict", "contradict", "disagree")):
         return "contradiction"
     if any(term in question for term in ("what methods", "which methods", "methods are used")):
@@ -350,6 +470,10 @@ def _intent(question: str) -> str:
 
 
 def _concepts(question: str, profile: DomainProfile) -> tuple[str, ...]:
+    focus = explanatory_focus(question) if profile.id == "generic" else None
+    if focus:
+        subject, drivers, scope = focus
+        return tuple(dict.fromkeys((subject, *scope, *drivers)))
     found: list[str] = []
     for canonical, aliases in profile.vocabulary:
         if any(contains_term(question, value) for value in (canonical, *aliases)):
@@ -372,6 +496,60 @@ def _concepts(question: str, profile: DomainProfile) -> tuple[str, ...]:
         and not any(token in item for item in found)
     )
     return tuple(dict.fromkeys(found))
+
+
+def explanatory_focus(question: str) -> tuple[str, tuple[str, ...], tuple[str, ...]] | None:
+    """Keep outcome, drivers and scope distinct in explicit 'role of X in Y' questions.
+
+    This deliberately recognizes an explicit grammatical construction, rather
+    than guessing the subject from the first content word of arbitrary prose.
+    """
+    cleaned = " ".join(question.casefold().strip().rstrip("?").split())
+    if re.search(r"\b(?:compar\w*|versus|vs|contradict\w*|disagree\w*)\b", cleaned):
+        return None
+    prefixes = (
+        r"(?:what is |what's )?(?:the )?role of (?P<drivers>.+?) in ",
+        r"what role (?:do|does) (?P<drivers>.+?) play in ",
+        r"how (?:do|does) (?P<drivers>.+?) (?:influence|affect|shape) ",
+    )
+    target = r"(?:the )?(?:(?:evolution|development|formation|emergence) of )?(?P<target>.+)"
+    match = next((m for prefix in prefixes if (m := re.fullmatch(prefix + target, cleaned))), None)
+    if not match:
+        return None
+    target_subject = re.sub(r"^(?:changes?|variation|differences?) in ", "", match["target"])
+    parts = re.split(r"\s+(?:in|across|within|during|since)\s+", target_subject, maxsplit=1)
+    subject = parts[0].strip().removeprefix("the ")
+    # An unknown target in "how does X affect Y" may combine an organism,
+    # an outcome and qualifiers rather than name one indivisible subject.
+    # Keep ordinary concept/alias extraction unless the target is recognized
+    # or the question explicitly groups explanatory drivers. Confirmed briefs
+    # supply their own focus independently of this conservative fallback.
+    recognized_subject = any(
+        subject in (canonical, *aliases) for canonical, aliases in GENERIC_PROFILE.vocabulary
+    )
+    if (
+        cleaned.startswith("how ")
+        and not recognized_subject
+        and not re.search(r"\b(?:and|or|factors?)\b|,", match["drivers"])
+    ):
+        return None
+    drivers = tuple(
+        dict.fromkeys(
+            phrase
+            for group in re.split(r"\s+(?:and|or)\s+|,\s*", match["drivers"])
+            if (
+                phrase := " ".join(
+                    token
+                    for token in _phrase_tokens(group)
+                    if token not in {"the", "factor", "factors"}
+                )
+            )
+        )
+    )
+    if not subject or not drivers or subject in {"change", "changes", "variation", "differences"}:
+        return None
+    scope = (parts[1].strip().rstrip("?"),) if len(parts) == 2 else ()
+    return subject, drivers, scope
 
 
 def _entity_phrases(

@@ -44,6 +44,16 @@ jobs:
           python-version: ${{ matrix.python }}
           allow-prereleases: false
       - run: uv sync --frozen --extra dev --python "${{ steps.python.outputs.python-path }}"
+      - name: Install Python execution sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap libseccomp2
+          # Ubuntu's runner policy otherwise denies bwrap's isolated loopback setup.
+          # Enable user namespaces on this disposable CI VM; bwrap and seccomp still
+          # enforce the application's network, filesystem and process isolation.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Verify Python execution sandbox
+        run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
         run: uv run python -m playwright install --with-deps chromium
       - name: Start isolated integration services
@@ -70,6 +80,16 @@ jobs:
           version: "0.8.17"
           enable-cache: true
       - run: uv sync --frozen --extra dev --python 3.11
+      - name: Install Python execution sandbox
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap libseccomp2
+          # Ubuntu's runner policy otherwise denies bwrap's isolated loopback setup.
+          # Enable user namespaces on this disposable CI VM; bwrap and seccomp still
+          # enforce the application's network, filesystem and process isolation.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Verify Python execution sandbox
+        run: uv run python -m pytest tests/test_python_data_execution.py -q
       - name: Install browser test dependencies
         run: uv run python -m playwright install --with-deps chromium
       - name: Start isolated integration services

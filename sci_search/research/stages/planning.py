@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sci_search.discovery import plan_search_queries
 from sci_search.models import dataclass_to_dict
+from sci_search.question_planning import plan_from_brief
 from sci_search.research.stages.base import StageContext, StageResult, stage_result
 
 
@@ -12,7 +13,8 @@ class PlanningStage:
     version = "planning-v1"
 
     def run(self, context: StageContext) -> StageResult:
-        plan, queries = plan_search_queries(context.question)
+        plan = plan_from_brief(context.question, context.inputs.get("question_brief"))
+        plan, queries = plan_search_queries(context.question, plan=plan)
         return stage_result(
             self.name,
             self.version,

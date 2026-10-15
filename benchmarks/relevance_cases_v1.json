@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "source_type": "synthetic_vignettes",
+  "limitations": [
+    "Hand-authored regression cases; no real publications, DOIs, or bibliographic authenticity claims.",
+    "Offline planning and screening checks do not establish retrieval recall, causal validity, or live semantic model performance.",
+    "assertion_examples are labeled inputs for a later live semantic benchmark; this test runner does not call or evaluate an LLM."
+  ],
+  "cases": [
+    {
+      "id": "language_diversity_drivers",
+      "question": "How do social and biophysical factors explain language diversity in South America?",
+      "research_plan": {
+        "intent": "relationship",
+        "subject_terms": [
+          "language diversity"
+        ],
+        "driver_terms": [
+          "social",
+          "biophysical"
+        ],
+        "geography_terms": [
+          "South America"
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": []
+      },
+      "expected_query_purpose": "explanatory evidence",
+      "sources": [
+        {
+          "id": "language-social",
+          "synthetic": true,
+          "title": "Synthetic vignette: Social networks and language diversity in South America",
+          "abstract": "An observational study relates social isolation to language diversity in South America.",
+          "full_text": "Methods: Communities in South America were sampled using social network surveys. Results: Language diversity was associated with social isolation after adjustment for population size. Language diversity varied across communities. These observational associations do not identify a causal effect.",
+          "expected_included": true,
+          "rationale": "A study of one requested driver contributes evidence even when it does not test the other driver.",
+          "challenge": "one_of_multiple_drivers"
+        },
+        {
+          "id": "language-biophysical",
+          "synthetic": true,
+          "title": "Synthetic vignette: Biophysical variation and language diversity in South America",
+          "abstract": "Language diversity is examined against biophysical conditions in South America.",
+          "full_text": "Methods: Language diversity was mapped across South America. Results: Biophysical variation was associated with language diversity. The biophysical analysis did not measure community institutions.",
+          "expected_included": true,
+          "rationale": "A separate biophysical contribution is relevant without also measuring social drivers.",
+          "challenge": "one_of_multiple_drivers"
+        },
+        {
+          "id": "language-wrong-region",
+          "synthetic": true,
+          "title": "Synthetic vignette: Social isolation and language diversity in Africa",
+          "abstract": "Language diversity and social networks were studied in Africa.",
+          "full_text": "Methods: Language diversity was measured in African communities. Results: Social isolation was associated with language diversity. A discussion contrasts the findings with past research in South America, which was not sampled.",
+          "expected_included": false,
+          "rationale": "A passing reference to South America does not put the sampled population there.",
+          "challenge": "wrong_geography"
+        },
+        {
+          "id": "language-wrong-subject",
+          "synthetic": true,
+          "title": "Synthetic vignette: Social and biophysical correlates of bird diversity in South America",
+          "abstract": "Bird diversity is mapped across South America.",
+          "full_text": "Results: Bird diversity increased with habitat heterogeneity. Social management and biophysical conditions predicted bird diversity in South America. No linguistic variables were collected.",
+          "expected_included": false,
+          "rationale": "Sharing region and drivers is insufficient when the outcome is biodiversity rather than language diversity.",
+          "challenge": "subject_overlap"
+        }
+      ],
+      "assertion_examples": [
+        {
+          "source_id": "language-social",
+          "claim": "Social isolation was associated with language diversity in the sampled South American communities.",
+          "supported": true,
+          "rationale": "The vignette directly reports this finding; the claim preserves its design and scope."
+        },
+        {
+          "source_id": "language-social",
+          "claim": "Social isolation causes language diversity everywhere in South America.",
+          "supported": false,
+          "rationale": "The vignette does not establish this stronger causal, geographic, or comparative conclusion."
+        }
+      ]
+    },
+    {
+      "id": "pollution_public_health",
+      "question": "How does environmental pollution affect public health in Europe?",
+      "research_plan": {
+        "intent": "relationship",
+        "subject_terms": [
+          "public health"
+        ],
+        "driver_terms": [
+          "environmental pollution"
+        ],
+        "geography_terms": [
+          "Europe"
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": []
+      },
+      "expected_query_purpose": "explanatory evidence",
+      "sources": [
+        {
+          "id": "pollution-health",
+          "synthetic": true,
+          "title": "Synthetic vignette: Environmental pollution and public health in Europe",
+          "abstract": "A European cohort links environmental pollution exposure to public health outcomes.",
+          "full_text": "Methods: Public health outcomes were followed across Europe. Results: Environmental pollution exposure was associated with higher respiratory admissions. The public health association persisted after adjustment for age but residual confounding remained.",
+          "expected_included": true,
+          "rationale": "It connects the exposure to a measured human health outcome in the target region.",
+          "challenge": "direct_evidence"
+        },
+        {
+          "id": "pollution-ecosystem",
+          "synthetic": true,
+          "title": "Synthetic vignette: Environmental pollution and forest health in Europe",
+          "abstract": "Environmental pollution was measured in European forest soils.",
+          "full_text": "Methods: Soil chemistry and tree canopy loss were sampled across Europe. Results: Environmental pollution predicted forest decline. No human participants or hospital records were studied.",
+          "expected_included": false,
+          "rationale": "A scientifically legitimate ecological measurement cannot answer a human public health outcome question.",
+          "challenge": "wrong_outcome"
+        },
+        {
+          "id": "pollution-wrong-region",
+          "synthetic": true,
+          "title": "Synthetic vignette: Environmental pollution and public health in Asia",
+          "abstract": "A public health cohort assesses environmental pollution in Asia.",
+          "full_text": "Methods: Public health outcomes and environmental pollution were tracked in Asian cities. Results: Public health admissions increased with environmental pollution exposure.",
+          "expected_included": false,
+          "rationale": "The target population is outside Europe.",
+          "challenge": "wrong_geography"
+        }
+      ],
+      "assertion_examples": [
+        {
+          "source_id": "pollution-health",
+          "claim": "Environmental pollution exposure was associated with respiratory admissions in the European cohort.",
+          "supported": true,
+          "rationale": "The vignette directly reports this finding; the claim preserves its design and scope."
+        },
+        {
+          "source_id": "pollution-health",
+          "claim": "The study proves that eliminating environmental pollution prevents all respiratory disease in Europe.",
+          "supported": false,
+          "rationale": "The vignette does not establish this stronger causal, geographic, or comparative conclusion."
+        }
+      ]
+    },
+    {
+      "id": "mineral_pressure",
+      "question": "How does pressure influence mineral deposition in Europe?",
+      "research_plan": {
+        "intent": "relationship",
+        "subject_terms": [
+          "mineral deposition"
+        ],
+        "driver_terms": [
+          "pressure"
+        ],
+        "geography_terms": [
+          "Europe"
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": []
+      },
+      "expected_query_purpose": "explanatory evidence",
+      "sources": [
+        {
+          "id": "mineral-pressure",
+          "synthetic": true,
+          "title": "Synthetic vignette: Pressure and mineral deposition in Europe",
+          "abstract": "Laboratory experiments use European ore fluids to measure mineral deposition under changing pressure.",
+          "full_text": "Methods: Mineral deposition was measured in ore fluids sampled in Europe. Results: Lower pressure increased mineral deposition under controlled temperature. The laboratory result does not establish all field conditions.",
+          "expected_included": true,
+          "rationale": "Pressure is directly varied and deposition measured using materials from the target region.",
+          "challenge": "direct_evidence"
+        },
+        {
+          "id": "mineral-wrong-outcome",
+          "synthetic": true,
+          "title": "Synthetic vignette: Pressure and rock fracture in Europe",
+          "abstract": "Experiments examine pressure-induced fractures in European rocks.",
+          "full_text": "Methods: Rock samples from Europe were tested under pressure. Results: Fracture density increased with pressure. The study measured mechanical failure only; no precipitation or deposition response was measured.",
+          "expected_included": false,
+          "rationale": "An authentic-style pressure experiment on rocks is not evidence for the deposition outcome.",
+          "challenge": "wrong_outcome"
+        },
+        {
+          "id": "mineral-wrong-region",
+          "synthetic": true,
+          "title": "Synthetic vignette: Pressure and mineral deposition in Australia",
+          "abstract": "Pressure effects on mineral deposition are measured using Australian ore fluids.",
+          "full_text": "Methods: Mineral deposition was measured from Australian samples. Results: Pressure changes altered mineral deposition. The sampled deposits were in Australia.",
+          "expected_included": false,
+          "rationale": "The geographic restriction excludes this otherwise related study.",
+          "challenge": "wrong_geography"
+        }
+      ],
+      "assertion_examples": [
+        {
+          "source_id": "mineral-pressure",
+          "claim": "Reducing pressure increased mineral deposition in the laboratory experiment.",
+          "supported": true,
+          "rationale": "The vignette directly reports this finding; the claim preserves its design and scope."
+        },
+        {
+          "source_id": "mineral-pressure",
+          "claim": "Pressure is the only control on every mineral deposit in Europe.",
+          "supported": false,
+          "rationale": "The vignette does not establish this stronger causal, geographic, or comparative conclusion."
+        }
+      ]
+    },
+    {
+      "id": "agricultural_comparison",
+      "question": "How does crop yield compare between organic farming and conventional farming in Europe?",
+      "research_plan": {
+        "intent": "comparison",
+        "subject_terms": [
+          "crop yield"
+        ],
+        "driver_terms": [
+          "organic farming",
+          "conventional farming"
+        ],
+        "geography_terms": [
+          "Europe"
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": []
+      },
+      "expected_query_purpose": "empirical relationship evidence",
+      "sources": [
+        {
+          "id": "crop-comparison",
+          "synthetic": true,
+          "title": "Synthetic vignette: Crop yield in organic farming versus conventional farming in Europe",
+          "abstract": "A paired field study compares crop yield for organic farming and conventional farming across Europe.",
+          "full_text": "Methods: Crop yield was measured in paired organic farming and conventional farming fields in Europe. Results: Crop yield was lower in organic farming than conventional farming within the sampled fields. Management was not randomly assigned.",
+          "expected_included": true,
+          "rationale": "Both alternatives and a common outcome are directly compared within the target region.",
+          "challenge": "direct_comparison"
+        },
+        {
+          "id": "crop-single-arm",
+          "synthetic": true,
+          "title": "Synthetic vignette: Crop yield under organic farming in Europe",
+          "abstract": "A survey measures crop yield from organic farming in Europe.",
+          "full_text": "Methods: Crop yield was recorded in organic farming fields throughout Europe. Results: Crop yield varied with soil type. All sampled fields used organic farming and no comparator arm was enrolled.",
+          "expected_included": false,
+          "rationale": "One farming system alone cannot establish the requested between-system comparison.",
+          "challenge": "missing_comparator"
+        },
+        {
+          "id": "crop-wrong-outcome",
+          "synthetic": true,
+          "title": "Synthetic vignette: Biodiversity under organic farming and conventional farming in Europe",
+          "abstract": "A comparison measures insect species richness across farming systems.",
+          "full_text": "Methods: Insect counts were compared between organic farming and conventional farming in Europe. Results: Organic farming supported more insect species. No harvest measurements were collected.",
+          "expected_included": false,
+          "rationale": "Comparison vocabulary alone does not establish evidence about crop yield.",
+          "challenge": "wrong_outcome"
+        }
+      ],
+      "assertion_examples": [
+        {
+          "source_id": "crop-comparison",
+          "claim": "The sampled organic fields had lower crop yield than the sampled conventional fields.",
+          "supported": true,
+          "rationale": "The vignette directly reports this finding; the claim preserves its design and scope."
+        },
+        {
+          "source_id": "crop-comparison",
+          "claim": "Organic farming causes lower crop yield in every European crop and climate.",
+          "supported": false,
+          "rationale": "The vignette does not establish this stronger causal, geographic, or comparative conclusion."
+        }
+      ]
+    },
+    {
+      "id": "glacier_time_trend",
+      "question": "How has glacier mass changed in Europe between 2000 and 2020?",
+      "research_plan": {
+        "intent": "temporal_trend",
+        "subject_terms": [
+          "glacier mass"
+        ],
+        "driver_terms": [],
+        "geography_terms": [
+          "Europe"
+        ],
+        "evidence_preferences": [],
+        "exclusion_terms": []
+      },
+      "expected_query_purpose": "observed temporal evidence",
+      "sources": [
+        {
+          "id": "glacier-trend",
+          "synthetic": true,
+          "title": "Synthetic vignette: Observed glacier mass trend in Europe, 2000 to 2020",
+          "abstract": "Repeated measurements quantify glacier mass change in Europe between 2000 and 2020.",
+          "full_text": "Methods: Glacier mass was measured repeatedly in Europe from 2000 through 2020. Results: Glacier mass declined across the observation period. The observed trend varied among sampled glaciers.",
+          "expected_included": true,
+          "rationale": "Repeated measurements establish the direction of change during the requested interval.",
+          "challenge": "observed_trend"
+        },
+        {
+          "id": "glacier-snapshot",
+          "synthetic": true,
+          "title": "Synthetic vignette: Glacier mass snapshot in Europe in 2010",
+          "abstract": "A one-time inventory measures glacier mass across Europe.",
+          "full_text": "Methods: Glacier mass was surveyed in Europe during 2010 only. Results: Glacier mass differed by elevation. No repeated observations were collected.",
+          "expected_included": false,
+          "rationale": "Spatial variation at a single time does not establish temporal change.",
+          "challenge": "snapshot_not_trend"
+        },
+        {
+          "id": "glacier-wrong-period",
+          "synthetic": true,
+          "title": "Synthetic vignette: Historical glacier mass change in Europe, 1850 to 1900",
+          "abstract": "Reconstructions quantify glacier mass change in Europe between 1850 and 1900.",
+          "full_text": "Methods: Glacier mass in Europe was reconstructed for 1850 and 1900. Results: Glacier mass declined over that historical interval.",
+          "expected_included": false,
+          "rationale": "A temporal trend outside the requested interval does not answer the scoped question.",
+          "challenge": "wrong_time"
+        }
+      ],
+      "assertion_examples": [
+        {
+          "source_id": "glacier-trend",
+          "claim": "The sampled European glaciers lost mass over the observed 2000–2020 interval.",
+          "supported": true,
+          "rationale": "The vignette directly reports this finding; the claim preserves its design and scope."
+        },
+        {
+          "source_id": "glacier-trend",
+          "claim": "Every European glacier will continue losing mass at the same rate through 2100.",
+          "supported": false,
+          "rationale": "The vignette does not establish this stronger causal, geographic, or comparative conclusion."
+        }
+      ]
+    }
+  ]
+}

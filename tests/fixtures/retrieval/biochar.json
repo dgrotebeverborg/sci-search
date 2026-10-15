@@ -1,0 +1,193 @@
+{
+  "plan": {
+    "question": "How does biochar application affect crop yield, and why do results differ between studies?",
+    "profile_id": "generic",
+    "intent": "relationship",
+    "concepts": [
+      "crop yield",
+      "biochar application",
+      "yield"
+    ],
+    "entity_phrases": [
+      "crop yield",
+      "biochar application"
+    ],
+    "expanded_terms": [
+      "crop yield",
+      "biochar application",
+      "yield"
+    ],
+    "evidence_preferences": [],
+    "comparison_dimensions": [],
+    "subject_terms": [
+      "crop yield"
+    ],
+    "driver_terms": [
+      "biochar application"
+    ],
+    "geography_terms": [],
+    "exclusion_terms": [],
+    "interpretation_method": "openai_structured_question_interpretation_v1",
+    "relationship_type": "influence",
+    "population_terms": [],
+    "time_terms": [],
+    "outcome_measure_terms": [
+      "yield"
+    ]
+  },
+  "examples": [
+    {
+      "candidate": {
+        "id": "publication:03f43a13e58683291369",
+        "title": "Biochar and compost amendments promote yield in specialty crops.",
+        "abstract": "Introduction There is growing evidence for the positive impact of compost and biochar as soil amendments. However, the effect observed has varied widely, depending on the crop species and the particular biochar formulation. Few studies have evaluated more than one crop \u00d7 biochar-based amendment combination. Methods To further address this question, we conducted a series of experiments with several crop species grown in the greenhouse and/or in the field, comparing the impact on crop yield and quality of several biochar-based soil amendments, including raw biochar, co-composted biochar, and biochar admixed with compost, using more than one compost type. Results The incorporation of compost, co-composted biochar, and a combination of compost and biochar led to an enhancement in the productivity of sweet basil and strawberries. The effects differed according to the type of compost, biochar, and crop. Two basil cultivars and three composts amended with biochar were used in a greenhouse study. Specific combinations of particularly co-composted biochar led to increased biomass output compared to controls. The same amendments to the soil did not markedly influence the phytochemical content of sweet basil cultivated in either field or greenhouse, suggesting that the quality of the final product was unaffected. Co-composted biochar led to biomass increases for both basil cultivars in a field-based experiment, but the increases were not identical, suggesting a genetic component to the plant's response to the soil amendments. A strawberry experiment conducted in the greenhouse found that the average mass of single berries from plants grown with commercially produced compost plus 10% biochar was higher compared to several other treatments, particularly when it was co-composted. In a potato-based experiment, preliminary field trial data showed that co-compost amendments were the only amendment that increased potato crop production, but this was demonstrated only in fertilized split-plots. Discussion Additional experiments will need to be conducted to evaluate the mechanisms responsible for the observed enhancement in yield for these various crop \u00d7 biochar-based amendment combinations.",
+        "year": 2026,
+        "doi": "10.3389/fpls.2026.1849840",
+        "authors": [
+          "Mishra G",
+          "Gang DR",
+          "Berim A",
+          "Collins D",
+          "Jobson BT",
+          "Seefeldt S",
+          "Stacey N",
+          "Khosravi N",
+          "Hoashi-Erhardt W",
+          "Garcia-Perez M"
+        ],
+        "publication_type": "article",
+        "source_url": "https://europepmc.org/article/MED/42403400",
+        "full_text_url": null,
+        "document_fingerprint": null,
+        "author_ids": [],
+        "institutions": [],
+        "institution_ids": [],
+        "affiliations": [],
+        "openalex_id": null,
+        "pmcid": "PMC13327866",
+        "cited_by_count": 0,
+        "is_open_access": true,
+        "license": "cc by",
+        "has_pdf": true,
+        "has_structured_fulltext": true,
+        "has_local_fulltext": false,
+        "is_retracted": false,
+        "providers": [
+          "europe_pmc"
+        ],
+        "matched_query_ids": [
+          "query:65b77ebe8839"
+        ],
+        "citation_relations": [],
+        "relevance_score": 0.5892,
+        "concept_coverage": 0.6667,
+        "screening_status": "selected",
+        "screening_reason": "the explanatory subject is present; driver and geographic relevance require full-text screening"
+      },
+      "text": "To further address this question, we conducted a series of experiments with several crop species grown in the greenhouse and/or in the field, comparing the impact on crop yield and quality of several biochar-based soil amendments, including raw biochar, co-composted biochar, and biochar admixed with compost, using more than one compost type.\n\nThe incorporation of compost, co-composted biochar, and a combination of compost and biochar led to an enhancement in the productivity of sweet basil and strawberries. The effects differed according to the type of compost, biochar, and crop. Two basil cultivars and three composts amended with biochar were used in a greenhouse study. Specific combinations of particularly co-composted biochar led to increased biomass output compared to controls. The same amendments to the soil did not markedly influence the phytochemical content of sweet basil cultivated in either field or greenhouse, suggesting that the quality of the final product was unaffected. Co-composted biochar led to biomass increases for both basil cultivars in a field-based experiment, but the increases were not identical, suggesting a genetic component to the plant\u2019s response to the soil amendments. A strawberry experiment conducted in the greenhouse found that the average mass of single berries from plants grown with commercially produced compost plus 10% biochar was higher compared to several other treatments, particularly when it was co-composted. In a potato-based experiment, preliminary field trial data showed that co-compost amendments were the only amendment that increased potato crop production, but this was demonstrated only in fertilized split-plots.\n\nAdditional experiments will need to be conducted to evaluate the mechanisms responsible for the observed enhancement in yield for these various crop \u00d7 biochar-based amendment combinations.\n\nThe use of biochar-compost mixtures resulting from co-composting for agriculture is an emerging technology holding great promise ( Agegnehu et al., 2017 ). A large multi-national study recently concluded that though the effects of biochar, compost, and biochar-compost blend (biochar added at the beginning or the end of the composting process) vary depending on feedstocks, the use of compost-biochar blends led to yields comparable to those obtained with mineral fertilizer, with a cumulatively lower environmental impact ( Oldfield et al., 2018 ). Co-composted biochar increased yields, in comparison to compost-only, for oats ( Schulz et al., 2013 ) and barley ( Agegnehu et al., 2016 ). Clear benefits of co-composting in comparison to biochar added after composting (hereafter referred to as biochar plus compost) were observed in a study evaluating the biomass yield and nitrogen uptake of quinoa ( Kammann et al., 2015 ). Our previous study indicated a greater biomass yield of sweet basil grown with co-composted biochar-compost mixtures as compared to treatments where biochar was added after composting ( Gang et al., 2018 ). At the same time, some studies delivered the opposite results, suggesting that the effects of biochar-compost mixtures are highly dependent on specific application details ( Gang, 2018 ). The benefits and drawbacks of biochar application may be related to its electrochemical properties ( Chacon et al., 2017 ), its interactions with soil microbiota ( Hol et al., 2017 ), and numerous other parameters ( Agegnehu et al., 2017 ). Previous studies have also demonstrated that the effects of biochar on crop productivity, soil properties, and nutrient dynamics vary depending on feedstock type, soil conditions, crop species, and application strategy ( Yamato et al., 2006 ; Van Zwieten et al., 2010 ; Bottoms et al., 2013 ; Agegnehu et al., 2015 ; Jay et al., 2015 ; Sun et al., 2019 ). For example, biochar can adsorb herbicides and reduce their efficacy. The bioavailability of the herbicides S-metolachlor and sulfentrazone was reduced more by high surface area biochar than by low surface area biochar at the same application rate ( Graber et al., 2012 ). Surface adsorption and reduction in herbicide efficacy were lower in long-aged biochar (greater than 50 years) than in new biochar, possibly due to the formation of new surface functional groups ( Cheng et al., 2014 ). Studies are being designed and executed to help clarify the impacts of different variables and enable the prediction of effects ( Bonanomi et al., 2017 ). In addition, the properties of the agronomical environment play a crucial role in determining the effects of biochar and/or compost application. There is evidence that biochar amendment is most effective for degraded or nutrient-depleted soil ( Agegnehu et al., 2017 ).\n\nIn this study, we evaluated three types of biochar-compost products resulting from combinations of two types of compost and two sources of biochar. The goal of the experiment was to compare the effects of different biochar-compost products on crop yield and quality. Three crops were used in this current study. Sweet basil is an important high-value crop in Washington State ( Gang et al., 2018 ). In addition to biomass productivity and aroma composition, an important quality parameter for a culinary herb like sweet basil, we assessed the effect of biochar-compost amendments on the accumulation of antioxidant polyphenolics that add nutritional value for the consumer. The second specialty crop in this study was strawberry ( Fragaria x ananassa ). The Pacific Northwest region, including Oregon, Washington, and British Columbia (Canada) produces approximately 32 million pounds annually of strawberries, which are mostly processed or sold via direct market ( Samtani et al., 2019 ). The predominant areas of commercial strawberry production are in the Skagit and Nooksack valleys in Washington. Albion is the major day-neutral cultivar grown. The third crop examined in this study was potato, which is a major crop grown in Washington, with 169,000 acres of potatoes harvested in the state in 2016. The Skagit Valley of Washington is a major producer of potatoes for the fresh market. The study evaluated the impact of biochar, compost, co-composted biochar, and biochar plus compost on the productivity and quality of sweet basil in the greenhouse and the field, the productivity of strawberries in the greenhouse and the field, and the productivity of potatoes in the field. The study assessed biomass productivity, aroma composition, an important quality parameter for a culinary herb like sweet basil, and the effect of biochar-compost amendments on the accumulation of antioxidant polyphenolics that add nutritional value for the consumer.",
+      "source": "data/benchmark_results/gpt_comparison_20260928/full_runs/full--biochar--gpt-6-astra--0/20260928T193421Z-e53aa95d/corpus/papers/publication-03f43a13e58683291369.xml"
+    },
+    {
+      "candidate": {
+        "id": "publication:df0356b07bd7032eaa28",
+        "title": "Carbon farming strategies for mediterranean agriculture: the role of biochar in climate-smart agroecosystems.",
+        "abstract": "Mediterranean agriculture is increasingly constrained by climate change-driven stresses, including rising temperatures, intensified drought, and soil organic matter depletion, all of which threaten crop health and yield stability. Carbon farming has emerged as a strategy to integrate climate mitigation with agricultural resilience, and biochar represents a distinctive tool within this framework due to its capacity for long-term carbon sequestration and soil modification. This review synthesizes peer-reviewed studies published between 1999 and 2025 to assess the role of biochar in Mediterranean agroecosystems, with a specific focus on crop health outcomes. Across Mediterranean systems, biochar consistently increases soil organic carbon stocks through the addition of recalcitrant carbon forms and generally reduces nitrous oxide emissions while carbon dioxide emissions remain neutral. However, methane emissions may increase under warm and moist conditions, highlighting the importance of comprehensive greenhouse gas accounting. Biochar improves crop performance primarily when it alleviates limiting soil constraints, particularly in degraded or coarse-textured soils, under water-limited or saline conditions, and in perennial cropping systems. Long-term benefits are most evident in tree crops and vineyards, and legumes often show positive responses linked to enhanced nutrient availability and rhizosphere functioning. In contrast, cereal and leafy vegetable crops exhibit more variable responses, including neutral or negative effects under non-limiting conditions. Overall, biochar is most effective when applied selectively at moderate rates (approximately 10-30 Mg ha\u207b 1 ) and integrated with complementary climate-smart practices. Future research should prioritize long-term, crop-centered assessments and methane mitigation strategies to support context-specific biochar deployment in Mediterranean agriculture.",
+        "year": 2026,
+        "doi": "10.1007/s44297-026-00081-8",
+        "authors": [
+          "Borgatti D",
+          "Radicetti E",
+          "Mancinelli R",
+          "Coluccia L",
+          "Allam M",
+          "Jamal A",
+          "Abideen Z",
+          "Ahsan M",
+          "Hassine MB"
+        ],
+        "publication_type": "article",
+        "source_url": "https://europepmc.org/article/MED/42446759",
+        "full_text_url": null,
+        "document_fingerprint": null,
+        "author_ids": [],
+        "institutions": [],
+        "institution_ids": [],
+        "affiliations": [],
+        "openalex_id": null,
+        "pmcid": "PMC13369108",
+        "cited_by_count": 0,
+        "is_open_access": true,
+        "license": "cc by",
+        "has_pdf": true,
+        "has_structured_fulltext": true,
+        "has_local_fulltext": false,
+        "is_retracted": false,
+        "providers": [
+          "europe_pmc"
+        ],
+        "matched_query_ids": [
+          "query:65b77ebe8839"
+        ],
+        "citation_relations": [],
+        "relevance_score": 0.5058,
+        "concept_coverage": 0.6667,
+        "screening_status": "selected",
+        "screening_reason": "the explanatory subject is present; driver and geographic relevance require full-text screening"
+      },
+      "text": "Mediterranean agriculture is increasingly constrained by climate change\u2013driven stresses, including rising temperatures, intensified drought, and soil organic matter depletion, all of which threaten crop health and yield stability. Carbon farming has emerged as a strategy to integrate climate mitigation with agricultural resilience, and biochar represents a distinctive tool within this framework due to its capacity for long-term carbon sequestration and soil modification. This review synthesizes peer-reviewed studies published between 1999 and 2025 to assess the role of biochar in Mediterranean agroecosystems, with a specific focus on crop health outcomes. Across Mediterranean systems, biochar consistently increases soil organic carbon stocks through the addition of recalcitrant carbon forms and generally reduces nitrous oxide emissions while carbon dioxide emissions remain neutral. However, methane emissions may increase under warm and moist conditions, highlighting the importance of comprehensive greenhouse gas accounting. Biochar improves crop performance primarily when it alleviates limiting soil constraints, particularly in degraded or coarse-textured soils, under water-limited or saline conditions, and in perennial cropping systems. Long-term benefits are most evident in tree crops and vineyards, and legumes often show positive responses linked to enhanced nutrient availability and rhizosphere functioning. In contrast, cereal and leafy vegetable crops exhibit more variable responses, including neutral or negative effects under non-limiting conditions. Overall, biochar is most effective when applied selectively at moderate rates (approximately 10\u201330 Mg ha\u207b 1 ) and integrated with complementary climate-smart practices. Future research should prioritize long-term, crop-centered assessments and methane mitigation strategies to support context-specific biochar deployment in Mediterranean agriculture.\n\nThe mechanistic basis for biochar\u2019s multifunctional role in climate-smart Mediterranean agriculture affects the chemical, physical, and microbiological processes [ 17 ], enhancing soil fertility [ 18 ] and crop productivity [ 19 ]. Indeed, biochar porous architecture can enhance soil structure, reduce bulk density, and improve water-holding capacity, particularly relevant in Mediterranean agroenvironmental conditions where water availability is limited [ 20 ]. In addition, it is well known that biochar can increase soil pH, cation exchange capacity (CEC), and reduce nutrient leaching by adsorbing key ions such as ammonium, nitrate, and phosphate [ 21 ]. Additionally, biochar mitigates ammonia volatilization by absorbing ammonium/ammonia [ 21 ] and enhances nitrification processes [ 22 ]. Biochar also provides habitat for beneficial microorganisms, and it has been observed to have a capacity to suppress certain soil-borne pathogens and may enhance mycorrhizal associations that improve plant nutrient acquisition [ 23 , 24 ]. By modifying soil nutrient cycles, biochar ultimately improves crop production [ 25 ]. Moreover, biochar enhances crop resilience to biotic and abiotic stresses, thereby improving overall productivity [ 26 ]. Beyond these soil improvements, biochar application contributes directly to climate change mitigation by transferring atmospheric carbon into long-term terrestrial storage while potentially reducing emissions of nitrous oxide and methane from agricultural soils, although effects on these trace gases has shown to be considerably context dependent [ 27 , 28 ]. Based on these characteristics, biochar represents an innovative solution for enhancing the sustainability of agroecosystems due to its potential to convert agricultural waste in an efficient soil amendment [ 29 ].\n\nDespite these benefits, the practical implementation of biochar application in agroecosystems in the Mediterranean area remains constrained, inadequately characterized, and poorly understood [ 30 ]. The Mediterranean region presents unique environmental conditions\u2014specifically, hot, dry summers coupled with mild, wet winters\u2014that distinguish it from temperate, tropical, or continental zones, where a lot of biochar research has been conducted [ 31 ]. The existing literature on biochar in Mediterranean agriculture presents a fragmented and sometimes contradictory picture. While numerous Mediterranean studies document beneficial effects on crop yields, soil carbon accumulation, and water-use efficiency across diverse systems, including cereals, vegetables, and tree crops, others report negligible impacts or even adverse outcomes, such as reduced plant growth in certain species, increased methane emissions under specific soil moisture regimes, nutrient immobilization in particular soil types, and negative effects on beneficial soil fauna [ 32 \u2013 34 ]. However, previous reviews have not systematically examined how these factors operate specifically within Mediterranean contexts, nor have they provided clear guidance on when and how biochar should be applied in the Mediterranean area. Carbon credit markets, potentially crucial financing mechanisms for biochar implementation, remain uncertain across Mediterranean countries, with pricing trajectories difficult to monitor and inconsistent policy support frameworks [ 35 ]. This implementation gap between research evidence and agricultural practice represents a critical barrier to realizing biochar\u2019s potential contribution to climate-smart Mediterranean agriculture.\n\nRecent brief bibliographic research on the main topics related to carbon farming in the Mediterranean basin demonstrated an increment of scientific researchers\u2019 interest in applying biochar as a climate-smart strategy (Table 1 ) [ 36 \u2013 45 ]. However, this knowledge should be elucidated to farmers, who are the real actors in the Mediterranean farms. Table 1 Top 10 highly cited papers presenting results of experiments based on biochar in the Mediterranean region published from 1999 to 2026, present in the database of Scopus.* No Ref Title Source name No. of references cited 1 Graber et al. [ 36 ] Biochar impact on development and productivity of pepper and tomato grown in fertigated soilless media Plant and Soil 716 2 Ang\u0131n [ 37 ] Effect of pyrolysis temperature and heating rate on biochar obtained from pyrolysis of safflower seed press cake Bioresource Technology 660 3 Agrafioti et al. [ 38 ] Biochar production by sewage sludge pyrolysis Journal of Analytical and Applied Pyrolysis 587 4 Pallar\u00e9s et al. [ 39 ] Production and characterization of activated carbon from barley straw by physical activation with carbon dioxide and steam Biomass and Bioenergy 523 5 Fellet et al. [ 40 ] Application of biochar on mine tailings: effects and perspectives for land reclamation Chemosphere 462 6 M\u00e9ndez et al. [ 41 ] Effects of sewage sludge biochar on plant metal availability after application to a Mediterranean soil Chemosphere 450 7 \u00d6z\u00e7imen and Ersoy-Meri\u00e7boyu [ 42 ] Characterization of biochar and bio-oil samples obtained from carbonization of various biomass materials Renewable Energy 426 8 Agrafioti et al. [ 43 ] Arsenic and chromium removal from water using biochars derived from rice husk, organic solid wastes and sewage sludge Journal of Environmental Management 416 9 Vaccari et al. [ 44 ] Biochar as a strategy to sequester carbon and increase yield in durum wheat European Journal of Agronomy 388 10 Kolton et al. [ 45 ] Impact of biochar application to soil on the root-associated bacterial community structure of fully developed greenhouse pepper plants Applied and Environmental Microbiology 363 * Data access till 26 January 2026\n\nThis review addresses these critical gaps by providing the first comprehensive synthesis of biochar research specifically within the Mediterranean carbon farming context. The main aims are to (1) synthesize evidence on biochar\u2019s contribution to climate change mitigation in Mediterranean conditions, including carbon sequestration rates, long-term stability, and GHG emission dynamics (carbon dioxide, nitrous oxide, methane); (2) evaluate biochar effects on physical, chemical, and biological soil properties across the Mediterranean area; and (3) assess crop productivity and physiological responses to biochar application in Mediterranean agricultural systems.",
+      "source": "data/benchmark_results/gpt_comparison_20260928/full_runs/full--biochar--gpt-6-astra--0/20260928T193421Z-e53aa95d/corpus/papers/publication-df0356b07bd7032eaa28.xml"
+    },
+    {
+      "candidate": {
+        "id": "publication:3b8334501efdec50c58d",
+        "title": "Biochar-mediated improvements in soil fertility and wheat (Triticum Aestivum L.) productivity in the Indo-Gangetic Plains.",
+        "abstract": "Background The annual burning of 500-900 million tons of crop residues releases nearly 1.5 billion tons of CO\u2082 equivalents and severely degrades soil quality, causing 25-30% losses in soil organic carbon and 40-60% reductions in nitrogen. This unsustainable practice increases fertilizer requirements by 15-20% to sustain crop yields. Converting crop residues into biochar offers a sustainable alternative that mitigates air pollution, improves soil fertility, enhances carbon sequestration, and increases agricultural productivity. Aim This study evaluated the effect of biochar application on soil properties, wheat growth, and yield performance. Methods A two-year field experiment was conducted on wheat (PBW 824) at the Agriculture Research Farm of Lovely Professional University, Punjab, India. Treatments included a control, recommended fertilizer doses, nitrogen and phosphorus alone, and nitrogen and phosphorus combined with rice husk or rice straw biochar applied at 5, 10, and 15 t/ha. Results Biochar application significantly improved crop performance, with the most pronounced effects observed under RSB & RHB doses at 5 t/ha. Compared to non-biochar treatments, this rate increased plant height (12.8%), tillers (49.8%), leaf area index (43.3%), crop growth rate (25.4%), spike length (34.2%), grains per spike (40.6%), test weight (19.6%), biological yield (17.2%), grain yield (32.8%), and harvest index (13.4%). Conclusions Application of biochar at 5 t/ha is an effective and sustainable strategy for enhancing soil physical properties, nutrient availability, plant growth, and wheat productivity, while improving soil moisture retention and reducing soil hardness.",
+        "year": 2026,
+        "doi": "10.1186/s12870-026-09207-0",
+        "authors": [
+          "Sharma G",
+          "Gupta RK",
+          "Nishihara E",
+          "Inubushi K",
+          "Sudo S",
+          "Hayashida S",
+          "Mehta CM",
+          "Al-Dosary MA",
+          "Alamri S",
+          "Hussan MU",
+          "Siddiqui MH"
+        ],
+        "publication_type": "article",
+        "source_url": "https://europepmc.org/article/MED/42363057",
+        "full_text_url": null,
+        "document_fingerprint": null,
+        "author_ids": [],
+        "institutions": [],
+        "institution_ids": [],
+        "affiliations": [],
+        "openalex_id": null,
+        "pmcid": "PMC13321637",
+        "cited_by_count": 0,
+        "is_open_access": true,
+        "license": "cc by-nc-nd",
+        "has_pdf": true,
+        "has_structured_fulltext": true,
+        "has_local_fulltext": false,
+        "is_retracted": false,
+        "providers": [
+          "europe_pmc"
+        ],
+        "matched_query_ids": [
+          "query:65b77ebe8839"
+        ],
+        "citation_relations": [],
+        "relevance_score": 0.67,
+        "concept_coverage": 1.0,
+        "screening_status": "selected",
+        "screening_reason": "the explanatory subject is present; driver and geographic relevance require full-text screening"
+      },
+      "text": "The annual burning of 500\u2013900 million tons of crop residues releases nearly 1.5 billion tons of CO\u2082 equivalents and severely degrades soil quality, causing 25\u201330% losses in soil organic carbon and 40\u201360% reductions in nitrogen. This unsustainable practice increases fertilizer requirements by 15\u201320% to sustain crop yields. Converting crop residues into biochar offers a sustainable alternative that mitigates air pollution, improves soil fertility, enhances carbon sequestration, and increases agricultural productivity.\n\nThis study evaluated the effect of biochar application on soil properties, wheat growth, and yield performance.\n\nBiochar application significantly improved crop performance, with the most pronounced effects observed under RSB & RHB doses at 5 t/ha. Compared to non-biochar treatments, this rate increased plant height (12.8%), tillers (49.8%), leaf area index (43.3%), crop growth rate (25.4%), spike length (34.2%), grains per spike (40.6%), test weight (19.6%), biological yield (17.2%), grain yield (32.8%), and harvest index (13.4%).\n\nApplication of biochar at 5 t/ha is an effective and sustainable strategy for enhancing soil physical properties, nutrient availability, plant growth, and wheat productivity, while improving soil moisture retention and reducing soil hardness.\n\nOne potential solution is the pyrolysis of crop residues to produce biochar, a stable, carbon-rich material. Unlike direct residue addition, which may temporarily immobilize nitrogen and hinder crop growth, biochar significantly improves soil fertility by enhancing nutrient retention, water-holding capacity, and microbial activity. Research indicates that applying biochar can increase soil organic carbon (SOC), thereby significantly improving long-term soil health. Furthermore, soils treated with biochar exhibit enhanced cation exchange capacity (CEC), thereby improving nutrient availability for crops. Given the pressing need to increase agricultural productivity while mitigating environmental degradation, biochar presents a promising approach for sustainable residue management.",
+      "source": "data/benchmark_results/gpt_comparison_20260928/full_runs/full--biochar--gpt-6-astra--0/20260928T193421Z-e53aa95d/corpus/papers/publication-3b8334501efdec50c58d.xml"
+    }
+  ]
+}

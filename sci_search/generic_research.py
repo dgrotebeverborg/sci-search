@@ -101,8 +101,10 @@ class GenericResearchEngine:
         self.index = PassageIndex(documents)
         self.lifecycle_lookup = lifecycle_lookup
 
-    def investigate(self, question: str, *, session_id: str | None = None) -> GenericInvestigation:
-        plan = plan_question(question)
+    def investigate(
+        self, question: str, *, session_id: str | None = None, plan: ResearchPlan | None = None
+    ) -> GenericInvestigation:
+        plan = plan or plan_question(question)
         research_scope = decompose_question(question, plan)
         # Trend evidence is often summarized in conclusion sections that rank
         # below dense method/figure passages in lexical retrieval. Inspect a
@@ -552,34 +554,36 @@ def _diverse_top(
 def _apply_evidence_preferences(
     evidence: tuple[GenericEvidenceRecord, ...], plan: ResearchPlan
 ) -> tuple[GenericEvidenceRecord, ...]:
-    if "empirical" in plan.evidence_preferences:
-        empirical_types = {
-            "laboratory_experiment",
-            "field_experiment",
-            "observational_study",
-            "pilot_demonstration",
-        }
-        return tuple(
-            item
-            for item in evidence
-            if item.evidence_type in empirical_types
-            or "experiment" in item.study_design
-            or "observational" in item.study_design
-        )
-    if "review" in plan.evidence_preferences:
-        return tuple(
-            item
-            for item in evidence
-            if item.evidence_type == "review" or item.study_design == "review"
-        )
-    if "model_or_assumption" in plan.evidence_preferences:
-        return tuple(
-            item
-            for item in evidence
-            if item.result_nature in {"modeled", "assumed"}
-            or item.study_design == "simulation_or_model"
-        )
-    return evidence
+    if not plan.evidence_preferences:
+        return evidence
+
+    def matches(item: GenericEvidenceRecord, preference: str) -> bool:
+        if preference == "empirical":
+            return (
+                item.evidence_type
+                in {
+                    "laboratory_experiment",
+                    "field_experiment",
+                    "observational_study",
+                    "pilot_demonstration",
+                }
+                or "experiment" in item.study_design
+                or "observational" in item.study_design
+            )
+        if preference == "review":
+            return item.evidence_type == "review" or item.study_design == "review"
+        if preference == "model_or_assumption":
+            return (
+                item.result_nature in {"modeled", "assumed"}
+                or item.study_design == "simulation_or_model"
+            )
+        return False
+
+    return tuple(
+        item
+        for item in evidence
+        if any(matches(item, preference) for preference in plan.evidence_preferences)
+    )
 
 
 def _findings(

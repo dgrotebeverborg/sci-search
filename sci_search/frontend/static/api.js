@@ -1,4 +1,15 @@
 let csrfToken = null;
+export const providerLabel = provider => ({openai: 'OpenAI', mistral: 'Mistral', codex: 'Codex (ChatGPT login)'})[provider] || provider;
+let sessionUserId = null;
+export function currentUserId() { return sessionUserId; }
+let signingOut = false;
+const pendingRequests = new Set();
+
+export function beginLogout() {
+  signingOut = true;
+  for (const controller of pendingRequests) controller.abort();
+  window.dispatchEvent(new Event('workspace-logout'));
+}
 
 export class ApiError extends Error {
   constructor(message, status, payload) {
@@ -12,10 +23,12 @@ export class ApiError extends Error {
 export async function initializeSession() {
   const session = await request('/api/v1/session');
   csrfToken = session.csrf_token;
+  sessionUserId = session.user_id;
   return session;
 }
 
 export async function request(path, options = {}) {
+  if (signingOut && path !== '/api/v1/session/logout') throw new DOMException('Signing out', 'AbortError');
   const method = (options.method || 'GET').toUpperCase();
   const headers = new Headers(options.headers || {});
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
@@ -25,8 +38,21 @@ export async function request(path, options = {}) {
     headers.set('Content-Type', 'application/json');
     options = {...options, body: JSON.stringify(options.body)};
   }
-  const response = await fetch(path, {...options, method, headers, credentials: 'same-origin'});
+  const controller = new AbortController();
+  const externalSignal = options.signal;
+  const abort = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  else externalSignal?.addEventListener('abort', abort, {once: true});
+  pendingRequests.add(controller);
+  let response;
+  try {
+    response = await fetch(path, {...options, signal: controller.signal, method, headers, credentials: 'same-origin'});
+  } finally {
+    pendingRequests.delete(controller);
+    externalSignal?.removeEventListener('abort', abort);
+  }
   if (response.status === 401) {
+    if (window.location.pathname === '/app') sessionStorage.setItem('research-return-url', window.location.pathname + window.location.search);
     window.location.assign('/auth/login');
     throw new Error('Authentication required');
   }

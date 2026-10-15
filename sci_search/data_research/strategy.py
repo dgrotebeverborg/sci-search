@@ -1,0 +1,104 @@
+"""Inspectable model research strategy; contains no executable code or URLs."""
+
+import re
+from datetime import UTC, datetime
+
+SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["route", "rationale", "measurements", "geography", "start_year", "end_year"],
+    "properties": {
+        "route": {"type": "string", "enum": ["literature", "data", "both"]},
+        "rationale": {"type": "string"},
+        "measurements": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+        "geography": {"type": "string"},
+        "country_scope": {"type": "string", "enum": ["europe", "eu27", "other"]},
+        "countries": {"type": "array", "items": {"type": "string"}, "maxItems": 60},
+        "start_year": {"type": ["integer", "null"]},
+        "end_year": {"type": ["integer", "null"]},
+    },
+}
+PROMPT = (
+    " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
+    "relationships or evidence synthesis; data for descriptive numerical questions answerable "
+    "from published datasets; both when the user asks for numerical developments AND explanations. "
+    "Do not force data research onto every quantitative scientific question. Describe requested "
+    "measurements and geography faithfully. Measurements are observed base variables, not derived "
+    "changes, percentages or trends; those are calculations on the same series, not separate datasets. "
+    "Set country_scope to europe for broader Europe, eu27 ONLY when EU/European Union is explicitly "
+    "requested, and other for other geographies. Do not read a negated EU restriction as EU scope. "
+    "When the geography names specific countries, list them in countries as ISO 3166-1 alpha-3 "
+    "codes; otherwise leave countries empty. "
+    "Distinguish Europe from EU; broader Europe includes "
+    "explicit coverage gaps. Resolve 'this century' to 2001 through the last complete calendar year. "
+    "Use null years when no interval is specified; do not invent a time restriction. "
+    "Null dates mean seek the longest comparable historical series, not merely the first usable dataset. "
+    "This strategy is a proposal, not a claim that a suitable dataset exists. "
+    "Choose both for changes in hazard, risk or vulnerability: these often need study-based assessment "
+    "as well as observations, even when explanations were not explicitly requested. "
+    "For literature route measurements may be empty. Do not name a preset dataset."
+)
+
+
+def validate_strategy(value: dict, *, infer_route=False) -> dict:
+    if not isinstance(value, dict) or value.get("route") not in {"data", "literature", "both"}:
+        raise ValueError("Invalid research approach")
+    result = {"adapter": "discovered_data_v1", "route": value["route"]}
+    for key in ("rationale", "geography"):
+        if not isinstance(value.get(key), str) or len(value[key]) > 1500:
+            raise ValueError(f"Invalid research strategy {key}")
+        result[key] = value[key].strip()
+    country_scope = value.get("country_scope")
+    if country_scope is None:
+        geo = result["geography"].casefold()
+        country_scope = (
+            "eu27"
+            if re.match(r"^(?:eu(?:[- ]?27)?\b|european union\b)", geo)
+            else "europe"
+            if re.match(r"^europe\b", geo)
+            else "other"
+        )
+    if country_scope not in {"europe", "eu27", "other"}:
+        raise ValueError("Invalid country scope")
+    result["country_scope"] = country_scope
+    countries = value.get("countries") or []
+    if (
+        not isinstance(countries, list)
+        or len(countries) > 60
+        or any(not isinstance(c, str) or not re.fullmatch(r"[A-Za-z]{3}", c) for c in countries)
+        or len({c.upper() for c in countries}) != len(countries)
+    ):
+        raise ValueError("Invalid research country codes")
+    result["countries"] = [c.upper() for c in countries]
+    metrics = value.get("measurements")
+    if (
+        not isinstance(metrics, list)
+        or len(metrics) > 5
+        or any(not isinstance(m, str) or not m.strip() or len(m) > 300 for m in metrics)
+    ):
+        raise ValueError("Invalid requested measurements")
+    if value["route"] != "literature" and not metrics:
+        raise ValueError("Data research requires requested measurements")
+    result["measurements"] = metrics
+    if (
+        infer_route
+        and result["route"] == "data"
+        and any(re.search(r"\b(hazard|risk|vulnerability)\b", m, re.I) for m in metrics)
+    ):
+        result["route"] = "both"
+        if "Study-based assessment" not in result["rationale"]:
+            result["rationale"] += (
+                " Study-based assessment is needed alongside data to interpret these concepts."
+            )
+
+    for key in ("start_year", "end_year"):
+        year = value.get(key)
+        if year is not None and (
+            type(year) is not int or not 1800 <= year <= datetime.now(UTC).year
+        ):
+            raise ValueError("Invalid research years")
+        result[key] = year
+    start, end = result["start_year"], result["end_year"]
+    if start is not None and end is not None and (start > end or end - start > 200):
+        raise ValueError("Invalid research year interval")
+    return result

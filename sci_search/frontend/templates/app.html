@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sci-Search · Research workspace</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="{{ static_prefix }}/app.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to research workspace</a>
@@ -37,6 +37,15 @@
           <button disabled class="button button-primary" type="submit">Create project</button>
         </form>
       </details>
+      <details class="history-panel" open>
+        <summary>Saved scientific dashboards</summary>
+        <label for="history-search">Find a search</label>
+        <input id="history-search" type="search" placeholder="Search your questions">
+        <label class="history-hidden-toggle"><input id="history-show-hidden" type="checkbox"> Show hidden searches</label>
+        <p class="help" id="history-empty">Saved research will appear here.</p>
+        <ol id="research-history"></ol>
+        <button id="history-more" class="button button-quiet" type="button" hidden>Load more searches</button>
+      </details>
       <div class="nav-links" aria-label="Project sections">
         <a href="#research">Research</a>
         <a href="#evidence">Evidence</a>
@@ -46,6 +55,14 @@
     </nav>
 
     <main id="main-content" tabindex="-1">
+      {% if local_research_enabled %}
+      <aside id="local-research-notice" class="preview-notice" role="note">
+        <strong>Local research demo · Real results</strong>
+        <p>Ask a question to search scientific literature and build a source-linked report.
+        Your searches and scientific dashboards are saved in this local workspace. Reopen them from the left panel.
+        Reviews can take several minutes. Cancellation takes effect after the current research step.</p>
+      </aside>
+      {% endif %}
       {% if workspace_preview %}
       <aside id="workspace-preview-notice" class="preview-notice" role="note">
         <strong>Temporary workspace preview</strong>
@@ -61,32 +78,77 @@
           <label for="research-question">Research question</label>
           <div class="question-row">
             <textarea disabled id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
-            <button disabled class="button button-primary" type="submit">Start review</button>
+            <button disabled class="button button-primary" type="submit">Review question</button>
           </div>
           <div class="review-setting">
             <label for="review-depth">Review depth</label>
             <select disabled id="review-depth">
               <option value="focused">Focused review</option>
-              <option value="deep">Deep review</option>
+              <option value="deep" selected>Deep review</option>
             </select>
           </div>
+          <div class="review-setting">
+            <label for="analysis-model">Analysis model</label>
+            <select disabled id="analysis-model" aria-describedby="analysis-model-help"><option>Loading models…</option></select>
+          </div>
+          <p id="analysis-model-help" class="help">This model is used for question interpretation and research analysis.</p>
         </form>
-        <div class="status" id="global-status" aria-live="polite"></div>
+        <section id="question-brief" class="panel" hidden aria-labelledby="brief-heading">
+          <p class="eyebrow">Before we search</p>
+          <h2 id="brief-heading">Is this what you mean?</h2>
+          <p id="brief-method"></p>
+          <h3 id="brief-question"></h3>
+          <p id="brief-objective"></p>
+          <div id="brief-details"></div>
+          <p>Edit your research question above and review it again to correct the interpretation or answer a clarification.</p>
+          <p class="status" id="approval-status" role="status" aria-live="polite"></p>
+          <button class="button button-primary" id="approve-question" type="button" aria-describedby="approval-status">Approve and start review</button>
+        </section>
       </section>
+      <div class="status" id="global-status" aria-live="polite"></div>
 
-      <section class="panel" id="run-panel" hidden>
+      <section class="panel" id="run-panel" hidden aria-labelledby="run-question" tabindex="-1">
         <div class="section-heading">
           <div><p class="eyebrow">Current review</p><h2 id="run-question"></h2></div>
           <span class="status-badge" id="run-status"></span>
         </div>
-        <p id="run-progress">Preparing the research workflow…</p>
+        <p id="run-model" class="help"></p>
+        <p id="run-stage" class="eyebrow"></p>
+        <p id="run-progress" role="status" aria-live="polite">Preparing the research workflow…</p>
+        <p id="run-timing" class="help"></p>
+        <p id="run-connection" class="help" role="status"></p>
+        <div id="run-counters" class="run-counters"></div>
+        <details id="run-activity-details" open>
+          <summary>Recent activity</summary>
+          <ol id="run-activity"></ol>
+        </details>
         <div class="button-row">
           <button class="button button-secondary" id="cancel-run" type="button">Cancel review</button>
           <button class="button button-secondary" id="retry-run" type="button" hidden>Retry review</button>
+          <button class="button button-quiet" id="run-new-search" type="button">New research question</button>
         </div>
       </section>
 
-      <section class="panel" id="evidence">
+      <section id="dashboard-panel" hidden>
+        <header class="dashboard-header">
+          <div class="dashboard-topline"><p class="eyebrow">Your research / Saved dashboard</p>
+          <button id="new-search" class="button button-secondary" type="button">+ New search</button></div>
+          <h1 id="dashboard-question"></h1>
+          <p id="dashboard-model" class="help" aria-live="polite"></p>
+          <div class="dashboard-meta"><span class="saved-indicator">Saved to your workspace</span>
+          <details class="revision-menu"><summary>Version history</summary>
+          <p id="dashboard-version" class="help"></p>
+          <label for="dashboard-revisions">Dashboard revision</label>
+          <select id="dashboard-revisions"></select>
+          <button id="current-dashboard" class="button button-quiet" type="button" hidden>Open current revision</button>
+          </details></div>
+          <p id="dashboard-status" role="status" aria-live="polite"></p>
+          <button id="retry-dashboard" class="button button-secondary" type="button" hidden>Retry dashboard update</button>
+          <nav id="dashboard-navigation" aria-label="Dashboard sections"></nav>
+        </header>
+        <div id="dashboard-blocks"></div>
+      </section>
+      <section class="panel" id="evidence" hidden>
         <div class="section-heading"><div><p class="eyebrow">Source traceability</p><h2>Evidence</h2></div></div>
         <p class="empty-state" id="evidence-empty">Evidence will appear here when a review has produced source-linked findings.</p>
         <div id="evidence-list"></div>
@@ -100,18 +162,18 @@
         </div>
       </section>
 
-      <section class="panel" id="validation">
+      <section class="panel" id="validation" hidden>
         <div class="section-heading"><div><p class="eyebrow">Quality control</p><h2>Validation</h2></div></div>
         <p class="empty-state" id="validation-empty">Validation checks will show provenance, units, associations, and extraction warnings.</p>
         <div id="validation-list"></div>
       </section>
 
-      <section class="download-panel" id="exports">
+      <section class="download-panel" id="exports" hidden>
         <div><p class="eyebrow">Complete deliverable</p><h2>Download review and source package</h2><p>Original publications, cited review, landscape, evidence passages, methods, and machine-readable provenance.</p></div>
         <div class="button-row" id="export-actions"><span class="help">Downloads become available after a review.</span></div>
       </section>
     </main>
   </div>
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="{{ static_prefix }}/app.js"></script>
 </body>
 </html>

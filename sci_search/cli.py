@@ -61,6 +61,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="enable loopback-only development authentication",
     )
+    serve.add_argument(
+        "--local-research",
+        action="store_true",
+        help="run real research locally with the temporary development account",
+    )
     online = subparsers.add_parser(
         "research-online", help="discover, acquire and analyze an online evidence corpus"
     )
@@ -95,7 +100,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         load_legacy_mistral_key(Path("."))
         memory = ScientificMemory(Path("data/scientific_memory"))
         memory.bootstrap_runs(Path("data/research_runs"))
-        manager = ResearchRunManager(Path("data/research_runs"), memory=memory)
+        manager = ResearchRunManager(
+            Path("data/research_runs"),
+            memory=memory,
+            connector_cache_dir=Path("data/connector-catalogues"),
+        )
         profile = REVIEW_PROFILES[args.review_mode]
         maximum = args.max_full_texts or profile["maximum"]
         limits = ResearchLimits(
@@ -117,10 +126,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "serve":
         loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+        if args.local_research and not args.unsafe_development:
+            parser.error("--local-research requires --unsafe-development")
         if args.unsafe_development and args.host not in loopback_hosts:
             parser.error("unsafe development mode is restricted to a loopback host")
         try:
-            app = build_api_application(args.corpus, unsafe_development=args.unsafe_development)
+            options = (
+                {"local_research_root": Path("data/local_research_runs")}
+                if args.local_research
+                else {}
+            )
+            app = build_api_application(
+                args.corpus,
+                unsafe_development=args.unsafe_development,
+                **options,
+            )
         except ValueError as error:
             parser.error(str(error))
         run_api_server(app, args.host, args.port)

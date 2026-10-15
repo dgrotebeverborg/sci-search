@@ -320,3 +320,77 @@ def test_editor_can_upload_parseable_authorized_pdf(research_api: tuple) -> None
     assert response.status_code == 201
     assert response.json()["filename"] == "paper.pdf"
     assert response.json()["content_type"] == "application/pdf"
+
+
+@pytest.mark.parametrize("role", list(ProjectRole))
+def test_interpretation_requires_run_permission_without_creating_run(
+    research_api, role, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(
+        "sci_search.question_interpretation.interpret_question",
+        lambda question: calls.append(question) or {"interpreted_question": question},
+    )
+    client, headers = _client_as(research_api, role.value)
+    base = f"/api/v1/projects/project-{role.value}/runs"
+    before = client.get(base).json()
+    response = client.post(
+        base + "/interpret", headers=headers, json={"question": "Energy prices?"}
+    )
+    allowed = role in {ProjectRole.OWNER, ProjectRole.EDITOR}
+    assert response.status_code == (200 if allowed else 404)
+    assert calls == (["Energy prices?"] if allowed else [])
+    assert client.get(base).json() == before
+    assert client.post(base + "/interpret", json={"question": "Energy prices?"}).status_code == 403
+
+
+def test_model_choices_and_run_selection_are_project_scoped(research_api, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "private-test-key")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_MODELS", '{"openai":["model-a","model-b"]}')
+    client, headers = _client_as(research_api, "owner")
+    base = "/api/v1/projects/project-owner/runs"
+    catalog = client.get(base + "/models")
+    assert catalog.status_code == 200
+    assert "private-test-key" not in catalog.text
+    assert any(x["model"] == "model-b" for x in catalog.json()["items"])
+    assert client.get("/api/v1/projects/project-other/runs/models").status_code == 404
+    body = {
+        "question": "Research question?",
+        "idempotency_key": "model-choice",
+        "analysis_selection": {"provider": "openai", "model": "model-b"},
+    }
+    created = client.post(base, json=body, headers=headers)
+    assert created.status_code == 201
+    assert created.json()["analysis_selection"] == body["analysis_selection"]
+    run_id = created.json()["id"]
+    monkeypatch.setenv("OPENAI_MODEL", "a-new-server-default")
+    assert client.get(base + "/" + run_id).json()["analysis_selection"]["model"] == "model-b"
+    body["analysis_selection"]["model"] = "not-approved"
+    body["idempotency_key"] = "invalid-choice"
+    assert client.post(base, json=body, headers=headers).status_code == 422
+
+
+def test_interpretation_uses_request_selection_without_changing_default(research_api, monkeypatch):
+    from sci_search import question_interpretation
+    from sci_search.model_provider import configured_analyzer
+
+    monkeypatch.setenv("OPENAI_API_KEY", "private-test-key")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_PROVIDER", "mistral")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_MODELS", '{"openai":["model-b"]}')
+
+    def interpret(question):
+        analyzer = configured_analyzer()
+        return {"provider": analyzer.provider.name, "model": analyzer.model}
+
+    monkeypatch.setattr(question_interpretation, "interpret_question", interpret)
+    client, headers = _client_as(research_api, "owner")
+    response = client.post(
+        "/api/v1/projects/project-owner/runs/interpret",
+        headers=headers,
+        json={
+            "question": "Research question?",
+            "analysis_selection": {"provider": "openai", "model": "model-b"},
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == {"provider": "openai", "model": "model-b"}

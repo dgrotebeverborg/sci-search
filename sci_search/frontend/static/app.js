@@ -1,21 +1,25 @@
 import {setStatus} from './api.js';
 import {initializeAuth} from './auth.js';
 import {configureUploadPermissions, initializeDocumentUpload} from './documents.js';
+import {initializeHistory} from './history.js';
 import {loadEvidence} from './evidence.js';
 import {loadExports} from './exports.js';
 import {initializeProjects, onProjectChange} from './projects.js';
-import {configureRunPermissions, initializeRuns} from './runs.js';
+import {configureRunPermissions, currentRun, initializeRuns} from './runs.js';
 import {loadValidation} from './validation.js';
 
 async function start() {
   try {
     initializeRuns();
+    initializeHistory();
     initializeDocumentUpload();
     await initializeAuth();
     onProjectChange((project) => {
-      loadEvidence(project);
-      loadValidation(project);
-      loadExports(project);
+      const run = currentRun();
+      const resultsProject = run?.status === 'completed' ? project : null;
+      loadEvidence(resultsProject);
+      loadValidation(resultsProject);
+      loadExports(resultsProject);
       configureRunPermissions(project);
       configureUploadPermissions(project);
     });

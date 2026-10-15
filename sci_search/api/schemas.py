@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from sci_search.application.projects import ProjectRole
 from sci_search.domain.risk_of_bias import RiskJudgment
+from sci_search.question_interpretation import QuestionBrief
 
 
 class ApiSchema(BaseModel):
@@ -85,13 +86,27 @@ class MembershipListResponse(ApiSchema):
     items: list[MembershipResponse]
 
 
+class AnalysisSelection(ApiSchema):
+    provider: Literal["mistral", "openai", "codex"]
+    model: str = Field(min_length=1, max_length=200)
+
+
+class QuestionInterpretationCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
+    question: str = Field(min_length=3, max_length=5000)
+
+
 class RunCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
+    question_brief: QuestionBrief | None = None
     question: str = Field(min_length=3, max_length=5000)
     review_depth: Literal["focused", "deep"] = "focused"
     idempotency_key: str = Field(min_length=1, max_length=200)
 
 
 class RunResponse(ApiSchema):
+    progress: dict[str, object] | None = None
+    analysis_selection: AnalysisSelection | None = None
     id: str
     project_id: str
     question: str

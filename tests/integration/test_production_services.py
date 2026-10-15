@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -74,7 +75,10 @@ def test_database_session_and_project_services_survive_recomposition(database: D
     assert recomposed_projects.list_for_user(provisioned.user.id) == [created]
 
 
-def test_research_run_is_idempotent_durable_and_queued(database: Database) -> None:
+def test_research_run_is_idempotent_durable_and_queued(database: Database, monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-key")
+    monkeypatch.setenv("SCI_SEARCH_ANALYSIS_MODELS", '{"openai":["saved-model"]}')
+    selection = {"provider": "openai", "model": "saved-model"}
     with database.transaction() as session:
         provisioned = provision_user(
             ExternalIdentity("https://connect.surfconext.nl", "research-user"),
@@ -109,6 +113,7 @@ def test_research_run_is_idempotent_durable_and_queued(database: Database) -> No
         question="How does grazing affect shrub regeneration?",
         review_depth="research",
         idempotency_key="request-1",
+        analysis_selection=selection,
     )
     repeated = service.start_run(
         provisioned.user.id,
@@ -116,10 +121,20 @@ def test_research_run_is_idempotent_durable_and_queued(database: Database) -> No
         question="How does grazing affect shrub regeneration?",
         review_depth="research",
         idempotency_key="request-1",
+        analysis_selection=selection,
     )
 
     assert repeated.id == first.id
     assert first.status == "queued"
+    assert first.analysis_selection == selection
+    from uuid import UUID
+
+    from sci_search.infrastructure.tables import JobRow
+
+    with database.transaction() as session:
+        job = session.get(JobRow, UUID(queue.messages[0][0]))
+        assert job.input_json["analysis_selection"] == selection
+    monkeypatch.setenv("OPENAI_MODEL", "different-default")
     assert (
         DatabaseResearchApiService(
             database,
@@ -229,6 +244,8 @@ def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(
         idempotency_key="worker-run",
     )
 
+    source_timestamps = iter((NOW.timestamp(), NOW.timestamp() + 10))
+
     class Manager:
         def __init__(self, root: Path) -> None:
             self.root = root
@@ -255,6 +272,11 @@ def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(
                 ),
                 encoding="utf-8",
             )
+            # Identical content regenerated later must retain the same archive identity.
+            timestamp = next(source_timestamps)
+            for path in corpus.rglob("*"):
+                if path.is_file():
+                    os.utime(path, (timestamp, timestamp))
             return {
                 "run_id": "internal",
                 "status": "complete",
@@ -300,9 +322,403 @@ def test_production_research_stage_publishes_exact_evidence_and_artifacts_once(
         assert session.scalar(select(func.count()).select_from(DocumentRow)) == 1
         assert session.scalar(select(func.count()).select_from(ProjectDocumentGrantRow)) == 1
         assert session.scalar(select(func.count()).select_from(EvidenceRow)) == 1
-        assert session.scalar(select(func.count()).select_from(ArtifactRow)) == 3
+        assert session.scalar(select(func.count()).select_from(ArtifactRow)) == 4
         evidence = session.scalar(select(EvidenceRow))
         assert evidence is not None
         assert evidence.source_passage == (
             "Goat grazing reduced shrub seedling regeneration in the field plots."
         )
+
+
+def test_saved_dashboard_feedback_sequences_revisions_and_project_isolation(database, tmp_path):
+    from sci_search.application.research_api import ResourceVersionConflict
+    from sci_search.infrastructure.dashboard_repository import DashboardRepository
+    from sci_search.infrastructure.feedback_repository import FeedbackRepository
+    from sci_search.infrastructure.tables import ArticleFeedbackRow, DashboardRevisionRow
+
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "dash-owner"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+        other = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "dash-other"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    project = DatabaseProjectService(database, clock=lambda: NOW).create(
+        owner.user.id, owner.workspace.id, "Saved dashboards", True
+    )
+    queue = Mock()
+    api = DatabaseResearchApiService(
+        database, FilesystemBlobStore(tmp_path / "blobs"), queue, clock=lambda: NOW
+    )
+    run = api.start_run(
+        owner.user.id,
+        project.id,
+        question="Why do shrubs recover?",
+        review_depth="focused",
+        idempotency_key="dashboard",
+    )
+    with database.transaction() as session:
+        DashboardRepository(session).publish(
+            project.id,
+            run.id,
+            {"candidate_ids": ["paper-a"], "blocks": [{"id": "answer", "data": "original"}]},
+            feedback_sequence=0,
+            created_at=NOW,
+        )
+    assert api.list_runs(owner.user.id, project.id)["items"][0]["run_id"] == run.id
+    assert api.get_dashboard(owner.user.id, project.id, run.id)["blocks"][0]["data"] == "original"
+    with pytest.raises(ResourceNotFound):
+        api.get_dashboard(other.user.id, project.id, run.id)
+    event = api.record_article_feedback(
+        owner.user.id,
+        project.id,
+        run.id,
+        "paper-a",
+        decision="exclude",
+        reason="Wrong population",
+        expected_sequence=0,
+        idempotency_key="exclude",
+    )
+    duplicate = api.record_article_feedback(
+        owner.user.id,
+        project.id,
+        run.id,
+        "paper-a",
+        decision="exclude",
+        reason="Wrong population",
+        expected_sequence=0,
+        idempotency_key="exclude",
+    )
+    assert event == duplicate
+    with pytest.raises(ResourceVersionConflict):
+        api.record_article_feedback(
+            owner.user.id,
+            project.id,
+            run.id,
+            "paper-a",
+            decision="include",
+            reason="",
+            expected_sequence=0,
+            idempotency_key="stale",
+        )
+    assert (
+        api.get_dashboard(owner.user.id, project.id, run.id)["effective_decisions"]["paper-a"][
+            "decision"
+        ]
+        == "exclude"
+    )
+    with database.transaction() as session:
+        assert session.scalar(select(func.count()).select_from(ArticleFeedbackRow)) == 1
+        repo = DashboardRepository(session)
+        assert (
+            repo.publish(project.id, run.id, {"blocks": []}, feedback_sequence=0, created_at=NOW)
+            is None
+        )
+        assert (
+            repo.publish(
+                project.id,
+                run.id,
+                {"candidate_ids": ["paper-a"], "blocks": [{"id": "answer", "data": "rebuilt"}]},
+                feedback_sequence=1,
+                created_at=NOW,
+            )
+            == 2
+        )
+    assert (
+        api.get_dashboard(owner.user.id, project.id, run.id, revision=1)["blocks"][0]["data"]
+        == "original"
+    )
+    assert api.get_dashboard(owner.user.id, project.id, run.id)["blocks"][0]["data"] == "rebuilt"
+    api.record_article_feedback(
+        owner.user.id,
+        project.id,
+        run.id,
+        "paper-a",
+        decision="reset",
+        reason="",
+        expected_sequence=1,
+        idempotency_key="reset",
+    )
+    with database.transaction() as session:
+        assert FeedbackRepository(session).effective(run.id, 2) == {}
+        assert session.scalar(select(func.count()).select_from(DashboardRevisionRow)) == 2
+
+
+def test_feedback_rebuild_uses_retained_sources_and_preserves_previous_revision(database, tmp_path):
+    from sci_search.fulltext_acquisition import AcquisitionOutcome
+    from sci_search.infrastructure.dashboard_rebuild import ProductionDashboardRebuildStage
+    from sci_search.research_runs import ResearchRunManager
+    from tests.test_online_discovery import QUESTION, FakeProvider
+
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "rebuild-owner"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    project = DatabaseProjectService(database, clock=lambda: NOW).create(
+        owner.user.id, owner.workspace.id, "Rebuild", True
+    )
+    blobs = FilesystemBlobStore(tmp_path / "blobs")
+    api = DatabaseResearchApiService(database, blobs, Mock(), clock=lambda: NOW)
+    run = api.start_run(
+        owner.user.id,
+        project.id,
+        question=QUESTION,
+        review_depth="focused",
+        idempotency_key="real-rebuild",
+    )
+
+    def acquire(item, corpus):
+        (corpus / "papers").mkdir(parents=True, exist_ok=True)
+        text = "## Results\n\nGoat foraging behaviour changed with vegetation structure: goats selected taller woody plant species during the dry season.\n"
+        (corpus / "papers" / "relevant.txt").write_text(text)
+        return AcquisitionOutcome(
+            item.id,
+            "acquired",
+            "fixture",
+            "papers/relevant.txt",
+            "text/plain",
+            len(text),
+            len(text),
+        )
+
+    stage = ProductionResearchStage(
+        database,
+        blobs,
+        manager_factory=lambda root: ResearchRunManager(
+            root, providers=(FakeProvider(),), acquirer=acquire, openalex_api_key="test-key"
+        ),
+    )
+    stage(
+        StageInvocation(
+            {
+                "question": QUESTION,
+                "review_depth": "focused",
+                "project_id": project.id,
+                "run_id": run.id,
+            },
+            CancellationToken(lambda: False),
+        )
+    )
+    first = api.get_dashboard(owner.user.id, project.id, run.id)
+    source_evidence = next(b["data"] for b in first["blocks"] if b["id"] == "evidence")[0]
+    review = first["evidence_reviews"][source_evidence["id"]]
+    api.review_evidence(
+        owner.user.id,
+        project.id,
+        review["id"],
+        expected_version=review["version"],
+        decision="rejected",
+        note="Check context",
+    )
+    refreshed = api.get_dashboard(owner.user.id, project.id, run.id)
+    assert refreshed["evidence_reviews"][source_evidence["id"]]["review_decision"] == "rejected"
+    assert refreshed["evidence_reviews"][source_evidence["id"]]["version"] == 2
+    assert (
+        api.get_dashboard(owner.user.id, project.id, run.id, revision=1).get("evidence_reviews", {})
+        == {}
+    )
+    assert first["documents"]["publication:relevant"]["url"].startswith("/api/v1/")
+    api.record_article_feedback(
+        owner.user.id,
+        project.id,
+        run.id,
+        "publication:relevant",
+        decision="exclude",
+        reason="Wrong population",
+        expected_sequence=0,
+        idempotency_key="exclude",
+    )
+    rebuild = ProductionDashboardRebuildStage(database, blobs)
+    rebuilt = rebuild(
+        StageInvocation(
+            {"project_id": project.id, "run_id": run.id, "feedback_sequence": 1},
+            CancellationToken(lambda: False),
+        )
+    )
+    assert rebuilt.output["revision"] == 2
+    second = api.get_dashboard(owner.user.id, project.id, run.id)
+    assert next(b["data"] for b in second["blocks"] if b["id"] == "evidence") == []
+    from sci_search.application.research_api import ResourceVersionConflict
+
+    with pytest.raises(ResourceVersionConflict):
+        api.review_evidence(
+            owner.user.id,
+            project.id,
+            review["id"],
+            expected_version=2,
+            decision="accepted",
+            note="",
+        )
+
+    assert (
+        api.get_dashboard(owner.user.id, project.id, run.id, revision=1)["blocks"]
+        == first["blocks"]
+    )
+    api.record_article_feedback(
+        owner.user.id,
+        project.id,
+        run.id,
+        "publication:relevant",
+        decision="reset",
+        reason="",
+        expected_sequence=1,
+        idempotency_key="reset",
+    )
+    restored = rebuild(
+        StageInvocation(
+            {"project_id": project.id, "run_id": run.id, "feedback_sequence": 2},
+            CancellationToken(lambda: False),
+        )
+    )
+    assert restored.output["revision"] == 3
+    assert next(
+        b["data"]
+        for b in api.get_dashboard(owner.user.id, project.id, run.id)["blocks"]
+        if b["id"] == "evidence"
+    )
+
+
+def test_legacy_result_recovers_dashboard_without_rediscovery(database, tmp_path):
+    from sci_search.infrastructure.repositories import SqlResearchRepository
+
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "legacy-dash"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    project = DatabaseProjectService(database, clock=lambda: NOW).create(
+        owner.user.id, owner.workspace.id, "Legacy", True
+    )
+    blobs = FilesystemBlobStore(tmp_path / "blobs")
+    api = DatabaseResearchApiService(database, blobs, Mock(), clock=lambda: NOW)
+    run = api.start_run(
+        owner.user.id,
+        project.id,
+        question="Legacy research?",
+        review_depth="focused",
+        idempotency_key="legacy",
+    )
+    body = json.dumps(
+        {
+            "candidates": [{"id": "p"}],
+            "result": {
+                "question": "Legacy research?",
+                "evidence": [
+                    {"statement": "Retained exact claim", "passage": "Retained exact claim"}
+                ],
+            },
+        }
+    ).encode()
+    blob = blobs.put(BytesIO(body), len(body), content_type="application/json")
+    with database.transaction() as session:
+        SqlResearchRepository(session).add_artifact(
+            project.id,
+            run_id=run.id,
+            kind="research-run.json",
+            blob_key=blob.key,
+            input_fingerprint="legacy",
+            generator_version="old",
+            created_at=NOW,
+        )
+    recovered = api.get_dashboard(owner.user.id, project.id, run.id)
+    assert recovered["question"] == "Legacy research?"
+    assert recovered["rebuild_available"] is False
+    assert len(api.list_revisions(owner.user.id, project.id, run.id)["items"]) == 1
+    with pytest.raises(ValueError, match="source ledger"):
+        api.record_article_feedback(
+            owner.user.id,
+            project.id,
+            run.id,
+            "p",
+            decision="exclude",
+            reason="",
+            expected_sequence=0,
+            idempotency_key="blocked",
+        )
+
+
+def test_revoked_review_permission_prevents_dashboard_publication(database, tmp_path):
+    from sci_search.application.projects import ProjectRole
+    from sci_search.infrastructure.dashboard_repository import DashboardRepository
+    from sci_search.infrastructure.tables import ArticleFeedbackRow
+
+    with database.transaction() as session:
+        owner = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "auth-owner"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+        reviewer = provision_user(
+            ExternalIdentity("https://connect.surfconext.nl", "auth-reviewer"),
+            IdentityProfile(),
+            SqlUnitOfWork(session).provisioning,
+            clock=lambda: NOW,
+        )
+    projects = DatabaseProjectService(database, clock=lambda: NOW)
+    project = projects.create(owner.user.id, owner.workspace.id, "Review authorization", True)
+    projects.add_member(owner.user.id, project.id, reviewer.user.id, ProjectRole.REVIEWER)
+    api = DatabaseResearchApiService(
+        database, FilesystemBlobStore(tmp_path / "blobs"), Mock(), clock=lambda: NOW
+    )
+    run = api.start_run(
+        owner.user.id,
+        project.id,
+        question="Which population?",
+        review_depth="focused",
+        idempotency_key="auth",
+    )
+    with database.transaction() as session:
+        DashboardRepository(session).publish(
+            project.id,
+            run.id,
+            {"candidate_ids": ["p"], "source_archive_key": "sha256/sources", "blocks": []},
+            feedback_sequence=0,
+            created_at=NOW,
+        )
+    api.record_article_feedback(
+        reviewer.user.id,
+        project.id,
+        run.id,
+        "p",
+        decision="exclude",
+        reason="Wrong population",
+        expected_sequence=0,
+        idempotency_key="correction",
+    )
+    with database.transaction() as session:
+        event = session.scalar(select(ArticleFeedbackRow))
+        assert event.reviewed_revision == 1
+        assert event.context_json["question"] == "Which population?"
+        assert event.source_fingerprint == "sha256/sources"
+    from sci_search.application.research_api import ResourceVersionConflict
+
+    with pytest.raises(ResourceVersionConflict):
+        api.record_article_feedback(
+            reviewer.user.id,
+            project.id,
+            run.id,
+            "p",
+            decision="include",
+            reason="",
+            expected_sequence=1,
+            idempotency_key="stale-view",
+            reviewed_revision=99,
+        )
+    projects.change_member_role(owner.user.id, project.id, reviewer.user.id, ProjectRole.VIEWER)
+    with database.transaction() as session, pytest.raises(ResourceNotFound):
+        DashboardRepository(session).publish(
+            project.id, run.id, {"blocks": []}, feedback_sequence=1, created_at=NOW
+        )
+    assert api.get_dashboard(owner.user.id, project.id, run.id)["revision"] == 1

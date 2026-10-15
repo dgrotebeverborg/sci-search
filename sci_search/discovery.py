@@ -8,8 +8,9 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 
+from sci_search.concept_matching import concept_present
 from sci_search.profiles import PROFILES
-from sci_search.question_planning import ResearchPlan, plan_question
+from sci_search.question_planning import ResearchPlan, plan_focus, plan_question
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,14 +52,18 @@ class PublicationCandidate:
     concept_coverage: float = 0.0
     screening_status: str = "candidate"
     screening_reason: str = "not screened"
+    oa_landing_urls: tuple[str, ...] = ()
 
 
-def plan_search_queries(question: str) -> tuple[ResearchPlan, tuple[SearchQuery, ...]]:
-    plan = plan_question(question)
+def plan_search_queries(
+    question: str, *, plan: ResearchPlan | None = None
+) -> tuple[ResearchPlan, tuple[SearchQuery, ...]]:
+    plan = plan or plan_question(question)
     concepts = list(plan.concepts)
+    focus = plan_focus(plan)
     core = " ".join(concepts[:5])
     variants: list[tuple[str, str]] = [(question.strip().rstrip("?"), "natural-language question")]
-    if plan.entity_phrases:
+    if plan.entity_phrases and not focus:
         variants.append(
             (
                 " ".join(f'"{phrase}"' for phrase in plan.entity_phrases[:4]),
@@ -67,13 +72,21 @@ def plan_search_queries(question: str) -> tuple[ResearchPlan, tuple[SearchQuery,
         )
     if core:
         variants.append((core, "canonical concepts"))
+    if focus:
+        variants.append((" ".join((focus[0], *focus[2])), "explanatory subject and scope"))
     # Put task-specific strategies before broad sensitivity variants. The query
     # budget is deliberately bounded, and the previous ordering could exhaust
     # all eight slots before a diagnostic, trend, or explanatory query was
     # emitted. That produced many topic matches while missing the study designs
     # actually needed to answer the question.
     lowered_question = question.casefold()
-    if plan.intent == "temporal_trend":
+    if focus and plan.intent == "relationship":
+        variants.append(
+            (core + " association evidence", "association evidence")
+            if plan.relationship_type == "association"
+            else (core + " drivers mechanisms evidence", "explanatory evidence")
+        )
+    elif plan.intent == "temporal_trend":
         if any(term in lowered_question for term in ("project", "future", "scenario")):
             variants.append((core + " projection scenario model", "projected temporal evidence"))
         else:
@@ -122,6 +135,8 @@ def plan_search_queries(question: str) -> tuple[ResearchPlan, tuple[SearchQuery,
         # term present in the research question. Strict screening is applied after
         # discovery, so this improves recall without automatically admitting noise.
         for omitted in concepts:
+            if focus and omitted in (*plan.subject_terms, focus[0], *focus[2]):
+                continue
             relaxed = " ".join(concept for concept in concepts if concept != omitted)
             variants.append((relaxed, f"sensitivity query; omitted {omitted}"))
     if plan.profile_id != "generic":
@@ -236,6 +251,9 @@ def _combine_candidates(
         affiliations=tuple(dict.fromkeys((*existing.affiliations, *candidate.affiliations))),
         source_url=existing.source_url or candidate.source_url,
         full_text_url=existing.full_text_url or candidate.full_text_url,
+        oa_landing_urls=tuple(
+            dict.fromkeys((*existing.oa_landing_urls, *candidate.oa_landing_urls))
+        ),
         document_fingerprint=existing.document_fingerprint or candidate.document_fingerprint,
         openalex_id=existing.openalex_id or candidate.openalex_id,
         pmcid=existing.pmcid or candidate.pmcid,
@@ -297,6 +315,7 @@ def screen_candidates(
     limit: int = 30,
 ) -> tuple[PublicationCandidate, ...]:
     scored: list[PublicationCandidate] = []
+    focus = plan_focus(plan)
     query_terms = _meaningful_tokens(" ".join(plan.concepts))
     for candidate in candidates:
         searchable = f"{candidate.title} {candidate.abstract}".lower()
@@ -319,7 +338,12 @@ def screen_candidates(
             candidate.has_local_fulltext
             or candidate.pmcid
             or candidate.is_open_access
-            and (candidate.has_structured_fulltext or candidate.has_pdf or candidate.full_text_url)
+            and (
+                candidate.has_structured_fulltext
+                or candidate.has_pdf
+                or candidate.full_text_url
+                or candidate.oa_landing_urls
+            )
         )
         availability = (
             1.0
@@ -348,6 +372,11 @@ def screen_candidates(
         )
         if candidate.is_retracted:
             status, reason = "excluded", "marked retracted by a discovery provider"
+        elif any(_term_in_text(term, searchable) for term in plan.exclusion_terms):
+            status, reason = (
+                "excluded",
+                "matches an explicit exclusion in the confirmed research brief",
+            )
         elif (
             plan.profile_id == "generic"
             and plan.intent == "relationship"
@@ -358,6 +387,17 @@ def screen_candidates(
                 "excluded",
                 f"the primary relationship subject {plan.concepts[0]!r} is absent from the metadata",
             )
+        elif focus:
+            # Metadata screening is a recall gate. A study about the outcome
+            # may examine just one driver; full-text screening establishes scope.
+            if not concept_hits[0]:
+                status, reason = (
+                    "excluded",
+                    f"the explanatory subject {focus[0]!r} is absent from the metadata",
+                )
+            else:
+                status = "selected" if processable else "unavailable"
+                reason = "the explanatory subject is present; driver and geographic relevance require full-text screening"
         elif covered < required_concepts:
             status, reason = (
                 "excluded",
@@ -385,6 +425,7 @@ def screen_candidates(
                     if status == "selected"
                     else "no downloadable full text indicated"
                 )
+                + ("; abstract unavailable" if not candidate.abstract else "")
             )
         scored.append(
             replace(
@@ -417,6 +458,20 @@ def screen_candidates(
                 )
         result.append(candidate)
     return tuple(result)
+
+
+def relationship_metadata_present(candidate: PublicationCandidate, plan: ResearchPlan) -> bool:
+    """Whether metadata covers the subject and at least one requested driver.
+
+    This prioritizes acquisition, and does not replace full-text screening.
+    """
+    if plan.intent != "relationship" or not plan.subject_terms or not plan.driver_terms:
+        return False
+    searchable = f"{candidate.title} {candidate.abstract}".lower()
+    source_terms = set(_tokens(searchable))
+    return all(
+        _concept_present(term, plan, searchable, source_terms) for term in plan.subject_terms
+    ) and any(_concept_present(term, plan, searchable, source_terms) for term in plan.driver_terms)
 
 
 def _concept_present(
@@ -484,7 +539,7 @@ def _meaningful_tokens(text: str) -> set[str]:
 
 
 def _term_in_text(term: str, text: str) -> bool:
-    return re.search(rf"(?<![a-z0-9]){re.escape(term.lower())}(?![a-z0-9])", text) is not None
+    return concept_present(text, term)
 
 
 def _inflection_match(left: str, right: str) -> bool:

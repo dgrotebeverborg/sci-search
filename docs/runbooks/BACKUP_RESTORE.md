@@ -57,3 +57,18 @@ Verification must report `ok: true`. It compares the migration version, every ta
 - If decryption fails, validate key custody and the encrypted-payload checksum before retrying.
 - If `pg_restore` fails, preserve its exact exit status, inspect schema compatibility, and restore into another new empty database.
 - Delete isolated drill data only after the result has been reviewed and recorded. Production restoration requires incident-lead authorization and follows the deployment rollback runbook.
+
+## Saved dashboards and scientific memory
+
+For the laptop `--local-research` runtime, stop the server and back up the entire configured research
+root as one unit: `workspace.sqlite3`, `objects/`, project/run source directories, and project memory.
+Restore the complete root before starting the server; development login creates a fresh session while
+reusing saved ownership/projects. Failed initial runs remain in history and can be retried. Queued
+feedback rebuilds and pending memory projections recover from retained inputs. Run the importer with
+`--dry-run` to inspect older run directories before explicitly assigning them to a project.
+
+For production, include `dashboard_revisions`, `article_feedback`, the memory projection tables,
+and every referenced object in the existing coordinated database/object-store backup. Retain both
+source archives and versioned exports. Missing legacy source archives leave a read-only recovered
+dashboard; never claim those entries can rebuild. Memory is a replayable projection of authorized
+revisions/events; see `docs/operations/research-memory-rollout.md` for checkpoint retry behavior.
