@@ -212,6 +212,8 @@ evidence and downloads appear when research finishes. Questions, projects, dashb
 `data/local_research_runs`. Login sessions are renewed when you return; the workspace survives server restarts. Cancellation suppresses
 publication after the current research step finishes. This mode is loopback-only and cannot run in production.
 
+Before a search starts, the app shows a few versions of your question as cards, with the closest one first. You choose a version, then adjust its approach, measurements, geography and period by clicking the proposed choices; "Edit…" lets you type your own as the last option. "Narrower", "Broader", "More data" and "More literature" ask for new versions. When the question is unclear, the possible answers are shown as buttons. The data options are always available. Questions about the future can use projected data (for example scenario projections to 2100), and the meaning review must confirm that these are model projections.
+
 A result opens in three tabs.
 
 **Answer** comes first. It gives the answer with a certainty label ("Strong", "Moderate" or "Weak evidence", "Not enough evidence", or "Not assessed") and one sentence saying what supports it and what is missing. The key sources follow, then:
