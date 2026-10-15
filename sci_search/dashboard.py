@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from sci_search.result_quality import result_quality
+from sci_search.result_summary import summarize
 
 
 def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int) -> dict[str, Any]:
@@ -155,7 +156,7 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
     )
     add("references", review.get("references") or [])
     add("downloads", source.get("artifacts") or [])
-    return {
+    snapshot = {
         "result_quality": result_quality(source),
         "analysis": {
             "selection": source.get("analysis_selection"),
@@ -172,3 +173,5 @@ def build_dashboard(investigation: dict[str, Any], *, run_id: str, revision: int
         "question": source.get("question", ""),
         "blocks": blocks,
     }
+    snapshot["summary"] = summarize(snapshot)
+    return snapshot

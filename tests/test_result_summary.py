@@ -306,3 +306,8 @@ def test_periods_and_zero_counts_read_naturally():
     from sci_search.result_summary import _landscape_line
 
     assert _landscape_line(landscape, 0) == "12 studies found; none count as evidence."
+
+
+def test_new_snapshots_carry_their_summary():
+    snapshot = hpv_snapshot()
+    assert snapshot["summary"] == summarize(snapshot)

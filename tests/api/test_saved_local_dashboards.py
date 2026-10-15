@@ -649,3 +649,36 @@ def test_model_choice_survives_retry_restart_and_feedback(monkeypatch, tmp_path)
         assert snapshot["revision"] == 2
         assert snapshot["analysis"]["selection"] == choice
     assert calls == [("openai", "chosen-model")] * 3
+
+
+def test_dashboard_route_adds_a_summary_to_snapshots_saved_without_one(monkeypatch, tmp_path):
+    import sqlite3
+
+    app = application(monkeypatch, tmp_path)
+    with TestClient(app) as client:
+        headers = login(client)
+        project = client.get("/api/v1/projects").json()["items"][0]["id"]
+        base = f"/api/v1/projects/{project}/runs"
+        run_id = client.post(
+            base,
+            headers=headers,
+            json={
+                "question": "Question summary",
+                "review_depth": "focused",
+                "idempotency_key": "summary",
+            },
+        ).json()["id"]
+        wait_completed(client, f"{base}/{run_id}")
+        with sqlite3.connect(tmp_path / "workspace.sqlite3") as db:
+            (raw,) = db.execute(
+                "SELECT snapshot FROM dashboard_revisions WHERE run_id=?", (run_id,)
+            ).fetchone()
+            saved = json.loads(raw)
+            saved.pop("summary", None)
+            db.execute(
+                "UPDATE dashboard_revisions SET snapshot=? WHERE run_id=?",
+                (json.dumps(saved), run_id),
+            )
+        summary = client.get(f"{base}/{run_id}/dashboard").json()["summary"]
+    assert summary["answer"]["text"] == "Supported answer"
+    assert summary["certainty"]["label"] in {"Not assessed", "Not enough evidence", "Weak evidence"}

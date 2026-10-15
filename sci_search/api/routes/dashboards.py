@@ -1,11 +1,15 @@
 """Authorized saved dashboards and contextual article feedback."""
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from sci_search.api.routes.runs import CsrfPrincipal, Principal, ResearchService
+from sci_search.result_summary import summarize
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/runs", tags=["dashboards"])
 
@@ -44,7 +48,14 @@ def dashboard(
     service: ResearchService,
     revision: int | None = Query(default=None, ge=1),
 ) -> dict:
-    return service.get_dashboard(principal.user_id, project_id, run_id, revision=revision)
+    snapshot = service.get_dashboard(principal.user_id, project_id, run_id, revision=revision)
+    # Recomputed on every read, so saved runs get the current wording without a rebuild.
+    try:
+        snapshot["summary"] = summarize(snapshot)
+    except Exception:  # a summary must never block opening a saved result
+        logger.exception("Result summary failed for run %s", run_id)
+        snapshot["summary"] = None
+    return snapshot
 
 
 @router.get("/{run_id}/revisions")
