@@ -18,6 +18,7 @@ def export(result, directory, *, bundle=False):
         if any(a["kind"] == "tabular" for a in result["analyses"]):
             required.update(
                 (
+                    "cbs_odata.py",
                     "tabular.py",
                     "packages.py",
                     "preparation.py",
@@ -138,6 +139,11 @@ for directory in sorted(root.glob("source-*")):
             )
         return "data-research-and-calculations.zip", "application/zip", output.getvalue()
     sections = []
+    if result.get("coverage"):
+        lines = coverage_lines(result)
+        sections.append(
+            "<h2>Question coverage</h2>" + "".join("<p>" + escape(line) + "</p>" for line in lines)
+        )
     period = result.get("period", {})
     if period:
         sections.append(
@@ -222,6 +228,7 @@ def markdown_appendix(result):
         "These calculations and source assessments are separate from the literature synthesis.",
         "",
     ]
+    lines.extend("- " + cell(note) for note in coverage_lines(result))
     lines.extend("- " + cell(note) for note in result.get("limitations", []))
     for item in result.get("assessments", []):
         lines.append(
@@ -308,3 +315,21 @@ def markdown_appendix(result):
                 for r in analysis["annual"]
             )
     return "\n".join(lines)
+
+
+def coverage_lines(result):
+    coverage = result.get("coverage")
+    lines = []
+    if coverage:
+        cells = coverage["cells"]
+        complete = sum(c["status"] == "complete" for c in cells)
+        lines.append(f"{complete} of {len(cells)} requested combinations covered.")
+        for gap in coverage["gaps"]:
+            dimensions = ", ".join(f"{key}: {value}" for key, value in gap["dimensions"].items())
+            lines.append(
+                f"{gap['measurement']} — {gap['entity']} {dimensions}: {gap['reason']}; missing years: {gap['missing_years']}"
+            )
+        lines.append(coverage.get("qualification", ""))
+    if result.get("run_control", {}).get("stop_reason"):
+        lines.append("Stopped: " + result["run_control"]["stop_reason"])
+    return lines

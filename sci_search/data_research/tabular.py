@@ -7,6 +7,68 @@ import re
 from typing import Literal, overload
 
 CONVERSIONS = {("ha", "km2"): 0.01, ("hectares", "km²"): 0.01, ("ha", "km²"): 0.01}
+
+
+def changes(first, last, unit, label, scope):
+    """Only ratio scales with a positive baseline support ordinary percentage change."""
+    normalized = unit.casefold().strip()
+    requirement = next((r for r in scope.get("requirements", []) if r["measurement"] == label), {})
+    kind = requirement.get("measure_type", "unknown")
+    if normalized in {"°c", "°f", "degc", "degf", "celsius", "fahrenheit"} or any(
+        word in normalized for word in ("celsius", "fahrenheit", "anomaly", "anomalie")
+    ):
+        kind = "interval"
+    elif normalized in {"%", "percent", "percentage", "pct", "pc"}:
+        kind = "percentage"
+    elif kind == "unknown" and normalized in {
+        "people",
+        "persons",
+        "person",
+        "count",
+        "number",
+        "years",
+        "yr",
+        "ha",
+        "hectares",
+        "km2",
+        "km²",
+        "m2",
+        "m²",
+        "kg",
+        "tonnes",
+        "mwh",
+        "gwh",
+        "kwh",
+        "mw",
+        "kw",
+        "ppm",
+        "eur",
+        "usd",
+        "m3/s",
+        "m³/s",
+    }:
+        kind = "ratio"
+    delta = last - first if first is not None and last is not None else None
+    if delta is not None and not math.isfinite(delta):
+        delta = None
+    percent = (
+        100 * (delta / first)
+        if (delta is not None and first > 0 and kind in {"ratio", "percentage"})
+        else None
+    )
+    if percent is not None and not math.isfinite(percent):
+        percent = None
+    return {
+        "absolute_change": delta,
+        "absolute_change_unit": "percentage points" if kind == "percentage" else unit,
+        "change_percent": percent,
+        "measure_type": kind,
+        "change_note": "Relative change requires a supported ratio scale and positive, available baseline."
+        if percent is None
+        else "Relative endpoint change; not a causal or significance assessment.",
+    }
+
+
 MAPPING_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -170,14 +232,21 @@ def analyse_csv(body, mapping, scope):
         series.append(
             {
                 "entity": entity,
+                **(
+                    {
+                        "identity": {
+                            "geography": mapping.get("identity_geography", entity),
+                            "dimensions": mapping.get("identity_dimensions", {}),
+                        }
+                    }
+                    if "identity_geography" in mapping or "identity_dimensions" in mapping
+                    else {}
+                ),
                 "label": mapping["label"],
                 "unit": output,
                 "annual": annual,
                 "missing_years": [r["year"] for r in annual if r["value"] is None],
-                "absolute_change": last - first if first is not None and last is not None else None,
-                "change_percent": 100 * (last - first) / abs(first)
-                if first not in (None, 0) and last is not None
-                else None,
+                **changes(first, last, output, mapping["label"], scope),
             }
         )
     return {

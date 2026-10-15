@@ -256,6 +256,39 @@ def test_broken_documentation_response_does_not_abort_investigation(tmp_path):
     assert result["analyses"] == []
 
 
+def test_source_review_can_add_a_missing_country_for_an_existing_measurement(tmp_path, monkeypatch):
+    from sci_search.data_research import source_review
+    from sci_search.data_research.execution import digest
+    from tests.test_data_coverage_contract import SCOPE, analysis
+
+    body = b"data"
+    source = {"sha256": digest(body), "title": "Data"}
+    original = {**analysis("Netherlands"), "source": source}
+    result = {"analyses": [original], "assessments": [{"reason": "Germany not extracted"}]}
+    monkeypatch.setattr(
+        source_review, "recover", lambda *a, **k: {**analysis("Germany"), "source": source}
+    )
+    monkeypatch.setattr(source_review, "execute_analysis", lambda value, *a, **k: value)
+    outcome = source_review.reassess_source(
+        0,
+        ["life expectancy"],
+        -1,
+        1,
+        retained={0: {"body": body, "source": source, "metadata": ""}},
+        result=result,
+        question="Compare countries",
+        scope=SCOPE,
+        directory=tmp_path,
+        fetch=None,
+        complete=None,
+        progress=lambda _: None,
+        check_cancelled=lambda: None,
+    )
+    assert outcome["status"] == "retained"
+    assert len(result["analyses"]) == 2
+    assert result["analyses"][0] is original
+
+
 def test_site_level_partial_data_keeps_more_than_200_entities_without_aggregation():
     from sci_search.data_research.python_rows import analyse_observations
 

@@ -17,6 +17,8 @@ from sci_search.data_research.adaptive import research_candidates
 from sci_search.data_research.artifacts import execute_analysis, write_replay
 from sci_search.data_research.connectors import CONNECTORS, base, dataset_from_url, enabled
 from sci_search.data_research.connectors import stage as connector_stage
+from sci_search.data_research.coverage import evaluate as evaluate_coverage
+from sci_search.data_research.coverage import pending as pending_measurements
 from sci_search.data_research.discovery import complete_object, discover
 from sci_search.data_research.navigation import resolve_table_download
 from sci_search.data_research.packages import attach_provenance, prepare_table
@@ -37,6 +39,7 @@ from sci_search.data_research.retrieval import (
     post_public,
     repository_files,
 )
+from sci_search.data_research.run_control import BudgetExhausted, RunControl
 from sci_search.data_research.source_review import execution_summary, reassess_source
 from sci_search.data_research.spreadsheets import SELECTION_SCHEMA, inspect_if_workbook
 from sci_search.data_research.statistical_tables import (
@@ -128,7 +131,35 @@ def _connector_failure(failure_stage, exc, **details):
     }
 
 
-def execute(
+def execute(question, strategy, directory, *, budget_limits=None, resume_from=None, **kwargs):
+    """Execute with one budget across connectors, search, interpretation and recovery."""
+    control = RunControl(directory, budget_limits)
+    if resume_from is not None:
+        from sci_search.data_research.resume import prepare
+        control.seed = prepare(resume_from, directory, question, strategy)
+    try:
+        return _execute(question, strategy, directory, control=control, **kwargs)
+    except BudgetExhausted:
+        control.preserve_staged()
+        result = control.state
+        if result is None:
+            raise
+        result["status"] = "partial" if result["analyses"] else "blocked"
+        result["limitations"].append(control.stop_reason + "; retained sources remain available.")
+        result["coverage"] = evaluate_coverage(result["strategy"], result["analyses"])
+        result["period"] = period_summary(result["strategy"], result["analyses"])
+        result["run_control"] = control.snapshot()
+        write_replay(directory)
+        save(Path(directory) / "analysis.json", result)
+        control.checkpoint()
+        return result
+    except BaseException:
+        control.preserve_staged()
+        control.checkpoint()
+        raise
+
+
+def _execute(
     question,
     strategy,
     directory,
@@ -142,6 +173,8 @@ def execute(
     post=None,
     connectors=None,
     cache_dir=None,
+    knowledge_dir=None,
+    control=None,
 ):
     strategy = validate_strategy(strategy)
     # The web path below may narrow `strategy` to measurements no connector covered;
@@ -158,6 +191,7 @@ def execute(
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     for engine in (
+        "cbs_odata.py",
         "tabular.py",
         "wildfire.py",
         "packages.py",
@@ -170,6 +204,7 @@ def execute(
     ):
         (directory / engine).write_bytes(Path(__file__).with_name(engine).read_bytes())
     result = {
+        "question": question,
         "kind": "discovered",
         "status": "blocked",
         "strategy": strategy,
@@ -178,15 +213,39 @@ def execute(
         "limitations": [],
         "started_at": datetime.now(UTC).isoformat(),
     }
+    if control.seed:
+        for key in ("analyses", "assessments"):
+            result[key] = list(control.seed.get(key, []))
+        result["resumed"] = True
+        result["limitations"].append("Resumed retained source snapshots; existing observations were not refreshed from the network.")
+    control.state = result
+    search = control.wrap("search_calls", search)
+    complete = control.wrap("model_calls", complete)
+    fetch = control.wrap("downloads", fetch)
+    connector_fetch = control.wrap("downloads", connector_fetch)
+    search_fetch = control.wrap("downloads", search_fetch)
+    original_check = check_cancelled
+
+    def checked_cancelled():
+        original_check()
+        control.check()
+
+    check_cancelled = checked_cancelled
 
     def finish():
+        result["run_control"] = control.snapshot()
+        result["coverage"] = evaluate_coverage(full_strategy, result["analyses"])
         result["period"] = period_summary(full_strategy, result["analyses"])
         write_replay(directory)
         save(directory / "analysis.json", result)
+        control.checkpoint()
         return result
 
     def conclude(covered):
-        missing = [m for m in full_strategy["measurements"] if m not in covered]
+        represented = {s["label"] for a in result["analyses"] for s in a.get("series", [])}
+        missing = [
+            m for m in full_strategy["measurements"] if m not in represented and m not in covered
+        ]
         result["uncovered_measurements"] = missing
         result["status"] = "partial" if result["analyses"] else "blocked"
         result["limitations"] += [
@@ -205,9 +264,11 @@ def execute(
         return finish()
 
     check_cancelled()
+    if control.seed and not pending_measurements(full_strategy, result["analyses"]):
+        return conclude(set(full_strategy["measurements"]))
     available = CONNECTORS if connectors is None else connectors
     use_connectors = enabled() and bool(available)
-    post = post or post_public
+    post = control.wrap("downloads", post or post_public)
     cancellations = []
 
     def connector_check_cancelled():
@@ -225,6 +286,7 @@ def execute(
         progress("Searching official statistics catalogues.")
         # Filled by the stage as it goes, so a failure keeps the analyses it completed.
         staged = {}
+        control.staged = staged
         try:
             connector_stage.run(
                 question,
@@ -239,6 +301,7 @@ def execute(
                 connectors=available,
                 # Shared daily catalogue cache outside the run; None keeps it in the run folder.
                 cache_dir=cache_dir,
+                knowledge_dir=knowledge_dir,
                 result=staged,
             )
         except Exception as exc:
@@ -267,11 +330,18 @@ def execute(
         result["analyses"] += staged["analyses"]
         result["assessments"] += staged["assessments"]
         result["connector_search"] = staged["search"]
-        connector_covered = list(staged["covered"])
-        remaining = [m for m in strategy["measurements"] if m not in connector_covered]
+        control.staged = None
+        connector_covered = evaluate_coverage(full_strategy, result["analyses"])[
+            "complete_measurements"
+        ]
+        remaining = pending_measurements(full_strategy, result["analyses"])
         if not remaining:
             return conclude(set(connector_covered))
         strategy = {**strategy, "measurements": remaining}
+        if "requirements" in strategy:
+            strategy["requirements"] = [
+                r for r in strategy["requirements"] if r["measurement"] in remaining
+            ]
 
     progress("Searching the web for primary datasets and their definitions.")
     try:
@@ -306,11 +376,15 @@ def execute(
             complete=complete,
             progress=progress,
             check_cancelled=check_cancelled,
+            knowledge_dir=knowledge_dir,
         )
         covered.update(s["label"] for a in result["analyses"] for s in a.get("series", []))
         save(directory / "analysis.json", result)
         return outcome
 
+    existing_source_numbers = [int(match[1]) for path in directory.glob("source-*")
+                               if (match := re.match(r"source-(\d+)", path.name))]
+    source_offset = max(existing_source_numbers, default=0)
     for index, candidate in enumerate(
         research_candidates(
             question,
@@ -333,7 +407,7 @@ def execute(
         if routed and routed[0] in available:
             # A web result on a known statistics host is analysed through its API first.
             name, dataset = routed
-            for measurement in [m for m in strategy["measurements"] if m not in covered]:
+            for measurement in pending_measurements(strategy, result["analyses"]):
                 if (name, dataset, measurement) in attempted:
                     continue
                 attempted.add((name, dataset, measurement))
@@ -355,6 +429,7 @@ def execute(
                         fetch=connector_fetch,
                         post=post,
                         check_cancelled=connector_check_cancelled,
+                        knowledge_dir=knowledge_dir,
                         progress=progress,
                     )
                 except Exception as exc:
@@ -377,13 +452,13 @@ def execute(
                 if analysis:
                     result["analyses"].append(analysis)
                     covered.add(measurement)
-            if all(m in covered for m in strategy["measurements"]):
+            if not pending_measurements(strategy, result["analyses"]):
                 continue
             # Otherwise the existing web path still checks this page.
         assessment = {**candidate, "decision": "blocked", "reason": ""}
         position = len(result["assessments"])
         result["assessments"].append(assessment)
-        folder = directory / f"source-{index + 1}"
+        folder = directory / f"source-{source_offset + index + 1}"
         folder.mkdir(exist_ok=True)
         progress(f"Checking dataset {index + 1}: {candidate['title'][:120]}")
         stage = "access"
@@ -650,6 +725,7 @@ def execute(
                     folder,
                     complete=complete,
                     reason=choice["reason"],
+                    knowledge_dir=knowledge_dir,
                     metadata=page["text"],
                     check_cancelled=check_cancelled,
                     progress=progress,
@@ -1165,6 +1241,7 @@ def execute(
                         folder,
                         complete=complete,
                         reason=str(exc),
+                        knowledge_dir=knowledge_dir,
                         metadata=page["text"],
                         check_cancelled=check_cancelled,
                         progress=progress,

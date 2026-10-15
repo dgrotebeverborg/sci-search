@@ -15,6 +15,12 @@ except ImportError:  # Standalone, retained offline reproduction package.
 
 
 def prepare_table(body, selection=None):
+    if selection is not None and selection.get("reader") == "cbs_odata":
+        try:
+            from .cbs_odata import prepare_snapshot
+        except ImportError:
+            from cbs_odata import prepare_snapshot
+        return prepare_snapshot(body)
     if selection is not None and selection.get("reader") == "jsonstat2":
         try:
             from .jsonstat import prepare_jsonstat

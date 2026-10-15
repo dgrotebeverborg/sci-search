@@ -7,6 +7,7 @@ from pathlib import Path
 from sci_search.data_research.execution import digest, run_python
 
 ENGINES = (
+    "cbs_odata.py",
     "tabular.py",
     "packages.py",
     "preparation.py",
@@ -17,6 +18,7 @@ ENGINES = (
     "daily.py",
     "wildfire.py",
     "python_rows.py",
+    "verification.py",
 )
 DOWNLOAD = '''"""Optional network step. Never overwrites the retained source."""
 import argparse, hashlib, json
@@ -44,7 +46,11 @@ if hashlib.sha256(source).hexdigest()!=result["source"]["sha256"]:
     raise ValueError("Source hash mismatch")
 if result.get("python_extraction"):
     from python_rows import analyse_observations
-    calculated=analyse_observations(json.loads((root/"observations.json").read_text()),result["scope"])
+    from verification import verify_observations
+    observations=json.loads((root/"observations.json").read_text())
+    calculated=analyse_observations(observations,result["scope"])
+    if "source_verification" in result:
+        result["source_verification"]=verify_observations(source,observations)
     result.update(series=calculated["series"], components=calculated["components"])
 elif result.get("kind")=="tabular":
     from tabular import analyse_csv
@@ -156,6 +162,7 @@ def execute_analysis(analysis, folder, *, check_cancelled=lambda: None):
     evidence = folder / "python/evidence-documents.json"
     if evidence.exists():
         files.append(evidence)
+    files.extend(p for p in (folder / "python").glob("targeted-*/**/*") if p.is_file())
     if analysis.get("python_extraction"):
         files.append(folder / "observations.json")
         attempt = (folder / analysis["python_extraction"]["script"]).parent

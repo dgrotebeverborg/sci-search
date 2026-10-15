@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from sci_search.data_research.connectors import base
 from sci_search.data_research.packages import prepare_table
 from sci_search.data_research.tabular import read_csv
+from sci_search.data_research import cbs_odata
 
 NAME = "cbs"
 # Search-term languages: most CBS titles are Dutch; some tables have English editions.
@@ -49,7 +50,7 @@ def dataset_from_url(url):
     if parts.scheme != "https" or parts.hostname not in HOSTS:
         return None
     match = re.search(
-        r"/(?:cijfers/detail|figures/detail|ODataApi/OData|CSV/CBS/[a-z]{2})/(\d{5}[A-Za-z]{0,3})(?:/|$)",
+        r"/(?:cijfers/detail|figures/detail|ODataApi/OData|odata/v1/CBS|CSV/CBS/[a-z]{2})/(\d{5}[A-Za-z]{0,3})(?:/|$)",
         parts.path,
     )
     return match[1] if match else None
@@ -128,17 +129,23 @@ def describe(candidate, scope, *, fetch):
     if candidate.frequency not in {"annual", "unknown"}:
         named = candidate.frequency if candidate.frequency in FREQUENCY.values() else "not annual"
         raise base.DatasetRejected(f"dataset is {named}; no aggregation was performed")
-    raw, _, _ = fetch(url)
     try:
+        raw, _, _ = fetch(url)
         _, preparation = prepare_table(raw)  # validates the package with the existing CBS reader
     except zipfile.BadZipFile as exc:  # a truncated or non-ZIP body
         raise base.DatasetRejected("not a readable CBS package: " + str(exc)) from exc
     except ValueError as exc:  # a malformed or non-annual package, not a transport failure
-        if "non-annual" in str(exc):
-            raise base.DatasetRejected(
-                "dataset is not annual; no aggregation was performed (" + str(exc) + ")"
-            ) from exc
-        raise base.DatasetRejected(str(exc)) from exc
+        if "exceeds" in str(exc) and "limit" in str(exc):
+            root = "https://datasets.cbs.nl/odata/v1/CBS/" + _checked(candidate.dataset)
+            snapshot = cbs_odata.describe_snapshot(root, fetch)
+            raw = json.dumps(snapshot).encode()
+            preparation = {"metadata": json.dumps(cbs_odata.metadata(snapshot)), "odata_root": root}
+        else:
+            if "non-annual" in str(exc):
+                raise base.DatasetRejected(
+                    "dataset is not annual; no aggregation was performed (" + str(exc) + ")"
+                ) from exc
+            raise base.DatasetRejected(str(exc)) from exc
     metadata = json.loads(preparation["metadata"])
     measures = {m["Identifier"]: f"{m['Title']} ({m['Unit']})" for m in metadata["measures"]}
     time = next(
@@ -165,6 +172,7 @@ def describe(candidate, scope, *, fetch):
             "dataset has no annual series in the requested period; no aggregation was performed"
         )
     extra = {
+        **({"odata_root": preparation["odata_root"]} if preparation.get("odata_root") else {}),
         "other_countries": [c for c in countries if c != "NLD"],
         # _check_series: one measure, at most one series dimension; the schema follows it.
         "fixed_dimensions": ["Measure"],
@@ -207,6 +215,9 @@ def fetch(description, selection, scope, *, fetch, post):
             "CBS covers only the Netherlands; no data for: "
             + ", ".join(description.extra["other_countries"]),
         )
+    if description.extra.get("odata_root"):
+        body, request = cbs_odata.acquire(json.loads(description.payload), description.extra["odata_root"], selection, description.years, fetch)
+        return base.Fetched(raw=body, request=request, selection={"reader": "cbs_odata"}, artifact="source.json", notes=notes)
     return base.Fetched(
         raw=description.payload,
         request={"method": "GET", "url": url},

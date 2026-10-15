@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from sci_search.data_research.artifacts import execute_analysis
+from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.execution import digest, run_python
 from sci_search.data_research.python_recovery import INSPECT_CODE, recover
 from sci_search.data_research.retrieval import inspect_page
@@ -46,6 +47,7 @@ def reassess_source(
     complete,
     progress,
     check_cancelled,
+    knowledge_dir=None,
 ):
     source_record = retained.get(index)
     if source_record is None:
@@ -57,7 +59,14 @@ def reassess_source(
         if a["source"]["sha256"] == digest(source_record["body"])
         for s in a.get("series", [])
     }
-    measurements = [m for m in measurements if m not in already_retained]
+    has_explicit_scope = any(
+        scope.get(k) for k in ("geography", "countries", "requirements", "start_year", "end_year")
+    )
+    coverage = evaluate_coverage(scope, result["analyses"])
+    completed_measurements = (
+        coverage["complete_measurements"] if has_explicit_scope else already_retained
+    )
+    measurements = [m for m in measurements if m not in completed_measurements]
     if not measurements:
         return {
             "status": "already_retained",
@@ -108,9 +117,13 @@ def reassess_source(
             source_record["source"],
             folder,
             complete=complete,
-            reason="Investigation review chose a narrower subquestion and/or additional documentation. Previous result: "
+            reason="Investigation review seeks missing coverage and/or additional documentation. "
+            "Extract missing entities or breakdowns; do not repeat retained series. Coverage: "
+            + json.dumps(coverage)
+            + ". Previous result: "
             + assessment["reason"],
             metadata=metadata,
+            knowledge_dir=knowledge_dir,
             progress=progress,
             check_cancelled=check_cancelled,
         )

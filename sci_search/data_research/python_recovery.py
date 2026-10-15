@@ -3,15 +3,21 @@
 import json
 from pathlib import Path
 
-from sci_search.data_research import semantics
+from sci_search.data_research import knowledge, semantics
 from sci_search.data_research.execution import digest, run_python
+from sci_search.data_research.inspection import REQUEST_SCHEMA, inspect_source
 from sci_search.data_research.python_rows import analyse_observations
+from sci_search.data_research.verification import verify_observations
 
 CODE_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["code", "explanation"],
-    "properties": {"code": {"type": "string"}, "explanation": {"type": "string"}},
+    "required": ["code", "explanation", "inspection"],
+    "properties": {
+        "code": {"type": "string"},
+        "explanation": {"type": "string"},
+        "inspection": REQUEST_SCHEMA,
+    },
 }
 REVIEW_SCHEMA = {
     "type": "object",
@@ -94,6 +100,7 @@ def recover(
     metadata="",
     check_cancelled=lambda: None,
     progress=lambda message: None,
+    knowledge_dir=None,
 ):
     folder = Path(folder)
     root = folder / "python"
@@ -125,11 +132,20 @@ def recover(
     reflection = []
     extraction_scope = dict(scope)
     number = 0
-    for number in range(1, 4):
+    recipe_key = knowledge.recipe_key(body, scope, metadata, inspected["runtime"])
+    cached_code = knowledge.load(knowledge_dir, recipe_key)
+    reused_recipe = cached_code is not None
+    inspections = set()
+    while number < 3:
         check_cancelled()
-        progress(f"Asking the model to write Python extraction code, attempt {number} of 3.")
-        draft = complete(
+        progress(f"Asking the model to write Python extraction code, attempt {number + 1} of 3.")
+        draft = {"code": cached_code, "explanation": "Re-execute a matching retained extraction recipe"} if cached_code is not None else complete(
             "Write executable Python to extract the requested annual observations from /input/source.bin. "
+            "If the initial preview is insufficient, you may first request inspection (at most twice): "
+            "kind text for lines, pdf for pages (limit <=8), sheet for workbook rows with sheet name, "
+            "archive for text lines in a named ZIP entry. offset is zero-based and limit <=200. "
+            "Return code='' for inspection; otherwise inspection=null and executable code. "
+            "Use additional_inspections to navigate beyond the initial preview. "
             "You have the standard library and available_packages. No network, shell installation, credentials "
             "or host files. Inspect bytes with Python; never hardcode numeric observations from the prompt. "
             "Handle unfamiliar CSV, Excel sheets, JSON, XML, ZIP, HTML or PDF structure using libraries. "
@@ -142,6 +158,11 @@ def recover(
             "unit:string,measurement:exact scope.measurements member,source_reference:string}],"
             "assumptions:[string],checks:[string]}. References identify original sheet/cells, rows, JSON paths "
             "or PDF pages. Produce one record per measurement/entity/year. Read actual source values; "
+            "For directly copied JSON or CSV numbers also include source_locator: "
+            "{format:'json',path:['key',0,'value']} or "
+            "{format:'csv',line:original_1_based_line,column:'header',decimal_separator:'.'}. "
+            "These are independently checked against original bytes. For derived or converted values "
+            "or other formats omit source_locator; retain an honest source_reference instead. "
             "Preserve any supported requested measurement even when others or some years are absent. "
             "Do not require one source to answer the whole question. Keep reef/site/entity level values "
             "when an overall aggregation is not justified. Read archive README and dictionaries. "
@@ -152,6 +173,31 @@ def recover(
             + json.dumps(context),
             CODE_SCHEMA,
         )
+        cached_code = None
+        request = draft.get("inspection")
+        if request is not None:
+            key = json.dumps(request, sort_keys=True)
+            if key in inspections or len(inspections) >= 2:
+                raise ValueError("Repeated or exhausted targeted source inspection")
+            inspections.add(key)
+            try:
+                detail = inspect_source(
+                    body,
+                    request,
+                    root / f"targeted-{len(inspections)}",
+                    check_cancelled=check_cancelled,
+                )
+                context.setdefault("additional_inspections", []).append(detail)
+                documents[f"targeted:{len(inspections)}"] = detail["text"]
+                (root / "evidence-documents.json").write_text(
+                    json.dumps(documents, ensure_ascii=False)
+                )
+            except (OSError, ValueError) as error:
+                context.setdefault("additional_inspections", []).append(
+                    {"request": request, "error": str(error)[:1000]}
+                )
+            continue
+        number += 1
         code = draft["code"]
         attempt = root / f"attempt-{number}"
         progress(f"Executing the Python extraction script, attempt {number} of 3.")
@@ -165,6 +211,7 @@ def recover(
             payload = json.loads((attempt / "output/observations.json").read_text())
             analyse_observations(payload, extraction_scope)
             analysis = analyse_observations(payload, scope)
+            source_verification = verify_observations(body, payload)
             labels = list(dict.fromkeys(s["label"] for s in analysis["series"]))
             check_cancelled()
             progress(
@@ -220,7 +267,9 @@ def recover(
             analysis.update(
                 source=source,
                 semantic_review=semantic_review,
+                source_verification=source_verification,
                 python_extraction={
+                    "reused_recipe": reused_recipe,
                     "attempts": number,
                     "script": f"python/attempt-{number}/script.py",
                     "script_sha256": record["script_sha256"],
@@ -240,6 +289,8 @@ def recover(
                 analysis["limitations"].append(
                     "This source does not answer: " + ", ".join(analysis["uncovered_measurements"])
                 )
+            if not inspections:
+                knowledge.save(knowledge_dir, recipe_key, code)
             return analysis
         except (ValueError, OSError, KeyError, TypeError) as exc:
             last_error = str(exc)[:6000]

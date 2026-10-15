@@ -256,6 +256,7 @@ class LocalResearchService(LocalDashboardOperations, InMemoryResearchApiService)
             if isinstance(manager, ResearchRunManager):
                 # Statistics catalogues are cached per day for all local runs, outside run folders.
                 manager.connector_cache_dir = self.root / "connector-catalogues"
+                manager.data_knowledge_dir = self.root / project_id / "data-source-knowledge"
             configure_progress = getattr(manager, "set_progress_callback", None)
             if callable(configure_progress):
                 configure_progress(lambda progress: self._save_progress(key, progress))

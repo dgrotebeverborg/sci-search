@@ -87,6 +87,18 @@ function renderDiscovered(data, parent) {
   notice.append(element('strong', data.analyses.length ? 'Calculated from downloaded data · check coverage' : 'No supported numerical answer yet'));
   for (const note of data.limitations || []) notice.append(element('p', note));
   parent.append(notice);
+  if (data.coverage) {
+    const cells = data.coverage.cells || [];
+    parent.append(element('p', `${cells.filter(c => c.status === 'complete').length} of ${cells.length} requested combinations covered. Coverage does not establish scientific validity.`));
+    const gaps = element('details');
+    gaps.append(element('summary', 'Missing coverage and next research questions'));
+    for (const gap of data.coverage.gaps || []) {
+      gaps.append(element('p', `${gap.measurement} · ${gap.entity} · ${Object.entries(gap.dimensions || {}).map(([k,v]) => k + ': ' + v).join(', ')} — ${gap.reason}`));
+      if ((gap.missing_years || []).length) gaps.append(element('p', 'Missing years: ' + gap.missing_years.join(', ')));
+    }
+    parent.append(gaps);
+  }
+  if (data.run_control?.stop_reason) parent.append(element('p', 'Stopped: ' + data.run_control.stop_reason));
   const strategy = data.strategy || {};
   if (data.literature_fallback) parent.append(element('p', data.literature_fallback));
   for (const gap of data.connector_gaps || []) parent.append(element('p', 'Needs an API connector for ' + gap.host + ' (' + gap.measurement + ')'));
@@ -133,6 +145,10 @@ function renderDiscovered(data, parent) {
     if (analysis.kind === 'wildfire') { renderDataResearch(analysis, parent); continue; }
     parent.append(element('h3', analysis.source.title), safeLink('Open downloaded data source', analysis.source.url));
     executionDetails(analysis, parent);
+    if (analysis.source_verification) {
+      const check = analysis.source_verification;
+      parent.append(element('p', `${check.value_verified} values checked directly against source bytes; ${check.unverified} values without an independently checked numeric reference. Meaning remains a separate review.`));
+    }
     parent.append(element('p', analysis.source.definition));
     if (analysis.preparation?.format === 'statistical_tsv_v1') parent.append(element('p', 'Source status codes: b = break in time series; p = provisional; e = estimated; d = differing definition; c = confidential. Combined codes retain each qualification.'));
     for (const series of analysis.series) {
@@ -151,8 +167,9 @@ function renderDiscovered(data, parent) {
       host.append(chart(series.annual, 'value', title, unit));
       host.append(element('p', 'Unit: ' + unit + '. Missing years: ' + (series.missing_years.join(', ') || 'none') + '.'));
       if (series.comparability_note) host.append(element('p', series.comparability_note));
-      if (series.absolute_change != null) host.append(element('p', 'Change between analysed endpoint years: ' + observation(series.absolute_change) + ' ' + unit + '.'));
+      if (series.absolute_change != null) host.append(element('p', 'Change between analysed endpoint years: ' + observation(series.absolute_change) + ' ' + (series.absolute_change_unit || unit) + '.'));
       if (series.change_percent != null) host.append(element('p', 'Change between analysed endpoint years: ' + format(series.change_percent) + '%. Descriptive only.'));
+      else if (series.change_note) host.append(element('p', series.change_note));
       const table = element('details'); table.append(element('summary', 'Annual observations and source rows'));
       table.append(dataTable(series.annual.map(r => ({year:r.year,value:observation(r.value),row:r.source_reference || r.source_row || 'No source observation',status:r.source_status || 'Not specified'})), [['year','Year'],['value',unit],['row','Source row'],['status','Reporting status']]));
       host.append(table);

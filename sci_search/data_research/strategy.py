@@ -3,12 +3,15 @@
 import re
 from datetime import UTC, datetime
 
+from sci_search.data_research import requirements
+
 LAST_PROJECTED_YEAR = 2100
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "required": ["route", "rationale", "measurements", "geography", "start_year", "end_year"],
     "properties": {
+        "requirements": requirements.SCHEMA,
         "route": {"type": "string", "enum": ["literature", "data", "both"]},
         "rationale": {"type": "string"},
         "measurements": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
@@ -20,6 +23,10 @@ SCHEMA = {
     },
 }
 PROMPT = (
+    " Include requirements for each data measurement: its definition, explicitly requested "
+    "non-country entities (stations, basins, sites), breakdown dimensions with requested values, "
+    "frequency, measure_type and observation_type. Use readable labels (male/female, not invented "
+    "dataset codes). Do not invent breakdowns or infer that all requested data exists. "
     " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
     "relationships or evidence synthesis; data for descriptive numerical questions answerable "
     "from published datasets; both when the user asks for numerical developments AND explanations. "
@@ -86,6 +93,8 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
     if value["route"] != "literature" and not metrics:
         raise ValueError("Data research requires requested measurements")
     result["measurements"] = metrics
+    if "requirements" in value:
+        result["requirements"] = requirements.validate(value["requirements"], metrics)
     if (
         infer_route
         and result["route"] == "data"

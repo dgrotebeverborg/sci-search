@@ -97,6 +97,45 @@ def test_stage_produces_an_executed_analysis(tmp_path):
     assert result["assessments"][0]["decision"] == "analysed"
 
 
+def test_second_candidate_can_complete_the_same_measurement(tmp_path, monkeypatch):
+    from tests.test_data_coverage_contract import SCOPE, analysis
+
+    connector = types.SimpleNamespace(NAME="fixture")
+    candidates = {
+        key: (connector, base.DatasetCandidate("fixture", key, key, "annual"))
+        for key in ("first", "second")
+    }
+    result = {"analyses": [], "covered": [], "assessments": [], "search": {"catalogues": {}}}
+
+    def analyse(*args, **kwargs):
+        candidate = args[4]
+        entity = "Netherlands" if candidate.dataset == "first" else "Germany"
+        return analysis(entity), {"decision": "analysed", "recovery": []}
+
+    monkeypatch.setattr(stage, "analyse_dataset", analyse)
+    stage._choose_and_analyse(
+        "Compare",
+        SCOPE,
+        tmp_path,
+        candidates,
+        SCOPE["measurements"],
+        result,
+        complete=lambda *args: {
+            "choices": [
+                {"candidate": key, "measurement": "life expectancy", "reason": "complement"}
+                for key in candidates
+            ]
+        },
+        fetch=None,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda _: None,
+        skipped=[],
+    )
+    assert len(result["analyses"]) == 2
+    assert result["covered"] == ["life expectancy"]
+
+
 def test_meaning_review_receives_the_selected_codes_as_plain_text(tmp_path):
     from sci_search.data_research.connectors import eurostat
 

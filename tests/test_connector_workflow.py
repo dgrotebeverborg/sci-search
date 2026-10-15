@@ -15,6 +15,30 @@ def no_candidates(question, scope, **kwargs):
     return {"candidates": []}
 
 
+def test_partial_connector_result_keeps_missing_countries_in_the_web_investigation(tmp_path):
+    only_nl = {**GOOD, "filters": {**GOOD["filters"], "geo": ["NL"]}}
+    complete, _ = model([only_nl])
+    searched = []
+
+    def search(question, scope, **kwargs):
+        searched.append(scope)
+        return {"candidates": []}
+
+    result = workflow.execute(
+        "Life expectancy",
+        STRATEGY,
+        tmp_path,
+        search=search,
+        fetch=offline,
+        complete=complete,
+        connectors={"eurostat": eurostat},
+    )
+    assert searched, "A Dutch result must not suppress the search for Germany and Greece"
+    assert searched[0]["measurements"] == STRATEGY["measurements"]
+    assert {gap["entity"] for gap in result["coverage"]["gaps"]} == {"DEU", "GRC"}
+    assert result["analyses"]
+
+
 def test_connector_analysis_skips_web_search_when_everything_is_covered(tmp_path):
     complete, _ = model([GOOD])
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from sci_search.data_research import semantics
 from sci_search.data_research.artifacts import execute_analysis
 from sci_search.data_research.connectors import CONNECTORS, base
+from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.packages import attach_provenance, prepare_table
 from sci_search.data_research.python_recovery import recover as recover_python
 from sci_search.data_research.tabular import analyse_csv, read_csv
@@ -185,6 +186,8 @@ def _attempt_folder(directory, name, dataset, measurement):
 
 def _download(request):
     """Whether DOWNLOAD's plain GET of source["url"] can reproduce the retained bytes."""
+    if request.get("snapshot"):
+        return {"reproducible": False, "reason": "This source retains multiple API responses; replay uses the retained snapshot."}
     if request.get("method", "GET") != "GET":
         return {
             "reproducible": False,
@@ -394,6 +397,7 @@ def analyse_dataset(
     check_cancelled,
     progress,
     catalogue_sha256="",
+    knowledge_dir=None,
 ):
     check_cancelled = _Cancellation(check_cancelled)
     folder = _attempt_folder(directory, connector.NAME, candidate.dataset, measurement)
@@ -518,6 +522,7 @@ def analyse_dataset(
                     complete=complete,
                     reason="Connector reader could not read the response: " + str(exc)[:300],
                     metadata=description.definitions,
+                    knowledge_dir=knowledge_dir,
                     check_cancelled=check_cancelled,
                     progress=progress,
                 )
@@ -538,6 +543,15 @@ def analyse_dataset(
                 return analysis, assessment
             try:
                 mapping = connector.mapping(table, preparation, selection, measurement)
+                mapping["identity_dimensions"] = {
+                    d.id: d.codes[selection["filters"][d.id][0]]
+                    for d in description.dimensions
+                    if len(selection["filters"][d.id]) == 1
+                }
+                if description.extra.get("geography"):
+                    mapping["identity_geography"] = description.extra["geography"]
+                elif len(selection["filters"].get("geo", [])) == 1:
+                    mapping["identity_geography"] = mapping["identity_dimensions"]["geo"]
             except base.SelectionError as exc:
                 raise base.DatasetRejected(str(exc)) from exc
             analysis = analyse_csv(table, mapping, strategy)
@@ -677,6 +691,7 @@ def _choose_and_analyse(
     progress,
     skipped,
     recovery=(),
+    knowledge_dir=None,
 ):
     """Let the model choose among found candidates, analyse each choice; return how many were tried."""
     candidates = [
@@ -727,7 +742,10 @@ def _choose_and_analyse(
                 }
             )
             continue
-        if item["measurement"] in result["covered"]:
+        if (
+            item["measurement"]
+            in evaluate_coverage(strategy, result["analyses"])["complete_measurements"]
+        ):
             continue
         connector, candidate = found[item["candidate"]]
         attempted += 1
@@ -744,13 +762,16 @@ def _choose_and_analyse(
             check_cancelled=check_cancelled,
             progress=progress,
             catalogue_sha256=result["search"]["catalogues"].get(connector.NAME, ""),
+            knowledge_dir=knowledge_dir,
         )
         assessment["choice_reason"] = item["reason"]
         assessment["recovery"] = [*recovery, *assessment["recovery"]]
         result["assessments"].append(assessment)
         if analysis:
             result["analyses"].append(analysis)
-            result["covered"].append(item["measurement"])
+            result["coverage"] = evaluate_coverage(strategy, result["analyses"])
+            if item["measurement"] not in result["covered"]:
+                result["covered"].append(item["measurement"])
     return attempted
 
 
@@ -789,6 +810,7 @@ def run(
     cache_dir=None,
     search_fetch=None,
     result=None,
+    knowledge_dir=None,
 ):
     """Run the connector stage. A caller that passes result keeps what the stage completed,
     every analysis with its assessment, even when a later step raises."""
@@ -814,6 +836,7 @@ def run(
         }
     )
     steps = {
+        "knowledge_dir": knowledge_dir,
         "complete": complete,
         "fetch": fetch,
         "post": post,
@@ -846,7 +869,11 @@ def run(
             **steps,
         )
     # One reformulated search per measurement that is still uncovered.
-    for measurement in [m for m in strategy["measurements"] if m not in result["covered"]]:
+    for measurement in [
+        m
+        for m in strategy["measurements"]
+        if m not in evaluate_coverage(strategy, result["analyses"])["complete_measurements"]
+    ]:
         check_cancelled()
         reasons = [
             a["reason"]

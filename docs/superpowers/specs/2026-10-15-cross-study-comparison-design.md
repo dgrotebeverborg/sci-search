@@ -66,7 +66,7 @@ Not in scope:
 
 ## Architecture
 
-A new package `sci_search/cross_study/` with four pure steps and one model step. Each step reads
+A new package `sci_search/cross_study/` with four rule-based steps and two model steps. Each step reads
 and writes JSON-compatible dicts, so the package has no dependency on run state, storage or the
 web layer. That boundary is what lets sci-graph reuse it later.
 

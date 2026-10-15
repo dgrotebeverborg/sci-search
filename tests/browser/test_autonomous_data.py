@@ -111,6 +111,20 @@ def test_generic_series_preserves_small_values_and_model_provenance(
             "search_actions": [],
         },
     }
+    data["coverage"] = {
+        "cells": [{"status": "complete"}, {"status": "missing"}],
+        "gaps": [
+            {
+                "measurement": "concentration",
+                "entity": "Second station",
+                "dimensions": {},
+                "missing_years": [2001, 2002, 2003],
+                "reason": "No matching numeric observations",
+            }
+        ],
+    }
+    data["run_control"] = {"stop_reason": "Data investigation budget exhausted: model_calls"}
+    data["analyses"][0]["source_verification"] = {"value_verified": 2, "unverified": 1}
     snapshot = build_dashboard(
         investigation("Concentration", {}, data), run_id="auto-data", revision=1
     )
@@ -128,6 +142,11 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     page.goto(live_browser_url + "/app?project=development-project&run=auto-data")
     expect(page.locator("#dashboard-data svg")).to_have_count(1)
     expect(page.locator("#dashboard-model")).to_contain_text("openai · fixture")
+    expect(page.locator("#dashboard-data")).to_contain_text("1 of 2 requested combinations covered")
+    expect(page.locator("#dashboard-data")).to_contain_text("Second station")
+    expect(page.locator("#dashboard-data")).to_contain_text(
+        "2 values checked directly against source bytes"
+    )
     page.get_by_text("Executed Python and validation", exact=True).click()
     expect(
         page.get_by_text("The model wrote and executed the extraction in 2 attempt(s).", exact=True)
