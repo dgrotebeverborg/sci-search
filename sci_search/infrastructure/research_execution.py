@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 import zipfile
 from collections.abc import Callable
@@ -335,7 +336,13 @@ class ProductionResearchStage:
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as target:
             for path in sorted((root / internal_run_id).rglob("*")):
                 if path.is_file() and not path.is_symlink():
-                    target.write(path, str(path.relative_to(root)))
+                    # Archive identity depends on content, not retry time or host file modes.
+                    entry = zipfile.ZipInfo(str(path.relative_to(root)))
+                    entry.file_size = path.stat().st_size
+                    entry.compress_type = zipfile.ZIP_DEFLATED
+                    entry.external_attr = 0o100644 << 16
+                    with path.open("rb") as source, target.open(entry, "w") as destination:
+                        shutil.copyfileobj(source, destination)
         body = archive.getvalue()
         digest = hashlib.sha256(body).hexdigest()
         with self._database.transaction() as session:
