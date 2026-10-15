@@ -228,6 +228,12 @@ RESEARCH_INTENTS = (
 EVIDENCE_PREFERENCES = ("empirical", "review", "model_or_assumption")
 
 
+def research_question(question: str, brief: dict[str, Any] | None) -> str:
+    """The English question the research runs on; the question itself without a translation."""
+    english = " ".join(str((brief or {}).get("english_question") or "").split())
+    return english or " ".join(question.split())
+
+
 def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan:
     """Validate and execute the confirmed brief, with a legacy fallback.
 
@@ -240,6 +246,9 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
         raise ValueError("Clarify the research question before starting the review")
     if " ".join(str(brief.get("original_question", "")).split()) != base.question:
         raise ValueError("The confirmed brief belongs to a different question")
+    english = research_question(question, brief)
+    if english != base.question:
+        base = plan_question(english)
     data_strategy = brief.get("data_research")
     if data_strategy:
         if data_strategy.get("adapter") == "discovered_data_v1":

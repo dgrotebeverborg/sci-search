@@ -44,7 +44,7 @@ from sci_search.metadata_recall import review_metadata_candidates
 from sci_search.mistral_analysis import MistralAnalyzer, analyze_if_configured
 from sci_search.model_provider import configured_model, selected_profile
 from sci_search.models import dataclass_to_dict
-from sci_search.question_planning import ResearchPlan, plan_from_brief
+from sci_search.question_planning import ResearchPlan, plan_from_brief, research_question
 from sci_search.research.stages.acquisition import AcquisitionStage
 from sci_search.research.stages.analysis import AnalysisStage
 from sci_search.research.stages.base import StageContext
@@ -1012,7 +1012,7 @@ class ResearchRunManager:
             from sci_search.data_research.workflow import execute, investigation
 
             data_result = execute(
-                question,
+                research_question(question, brief),
                 data_strategy,
                 run_directory / "data_analysis",
                 check_cancelled=self._check_cancelled,
@@ -1029,7 +1029,7 @@ class ResearchRunManager:
                 _write_json(run_directory / "data_analysis" / "analysis.json", data_result)
                 self._update(run_id, stage="planning", message=data_result["literature_fallback"])
             if data_strategy["route"] == "data" and data_result["analyses"]:
-                payload = investigation(question, brief, data_result)
+                payload = investigation(research_question(question, brief), brief, data_result)
                 _write_json(run_directory / "investigation.json", payload)
                 self._update(
                     run_id,
@@ -1045,6 +1045,7 @@ class ResearchRunManager:
             _stage_context(run_id, question, inputs={"question_brief": brief})
         )
         plan = _research_plan(planning_checkpoint.output["plan"])
+        question = plan.question  # research continues in English (the brief's translation)
         queries = tuple(_search_query(item) for item in planning_checkpoint.output["queries"])
         memory_candidates: tuple[PublicationCandidate, ...] = ()
         memory_assessment = None

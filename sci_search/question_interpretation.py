@@ -45,6 +45,8 @@ class QuestionBrief:
     proposals: dict[str, Any] | None = None
     # Details the researcher changed after choosing a version ("Period: 2000–2050").
     adjustments: tuple[str, ...] = ()
+    # The question translated literally into English; all research runs in English.
+    english_question: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -54,6 +56,7 @@ QUESTION_BRIEF_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
+        "english_question",
         "interpreted_question",
         "objective",
         "evidence_scope",
@@ -109,6 +112,7 @@ QUESTION_BRIEF_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "english_question": {"type": "string", "minLength": 8, "maxLength": 500},
         "interpreted_question": {"type": "string", "minLength": 8, "maxLength": 500},
         "objective": {"type": "string", "minLength": 8, "maxLength": 500},
         "evidence_scope": {
@@ -254,6 +258,11 @@ def _model_interpretation(
                     "default to no exclusions. Surface only unavoidable assumptions or explicit exclusions that materially affect retrieval. Mark ambiguity material only "
                     "when different reasonable interpretations would produce substantially different corpora. Ask at most "
                     "one specific clarification question. Return the requested JSON only."
+                    " Write every field in English, whatever language the question is in: "
+                    "english_question is a literal English translation of the question (the "
+                    "question itself when it is already English), and all titles, summaries, "
+                    "search terms, measurements, places, assumptions and clarifications are "
+                    "English, because the literature and dataset catalogues are searched in English."
                     " Also return options: 2 to 4 distinct versions of the question the researcher may "
                     "mean, each with a short title, a one-sentence summary, its own interpreted_question, "
                     "objective, research_plan and research_strategy. Mark exactly the version closest "
@@ -354,6 +363,7 @@ def _model_interpretation(
     interpreted = " ".join(str(payload.get("interpreted_question") or "").split())
     objective = " ".join(str(payload.get("objective") or "").split())
     clarification = " ".join(str(payload.get("clarification_question") or "").split()) or None
+    english = " ".join(str(payload.get("english_question") or "").split()) or None
     if not interpreted or not objective or (ambiguity == "material" and not clarification):
         raise ValueError("incomplete question interpretation")
     structure = payload.get("research_plan")
@@ -391,6 +401,7 @@ def _model_interpretation(
             "options": payload.get("options"),
             "clarification_options": payload.get("clarification_options"),
         },
+        english_question=english,
     )
 
 

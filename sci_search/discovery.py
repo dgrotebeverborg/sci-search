@@ -59,6 +59,7 @@ def plan_search_queries(
     question: str, *, plan: ResearchPlan | None = None
 ) -> tuple[ResearchPlan, tuple[SearchQuery, ...]]:
     plan = plan or plan_question(question)
+    question = plan.question  # the English translation when the brief has one
     concepts = list(plan.concepts)
     focus = plan_focus(plan)
     core = " ".join(concepts[:5])
