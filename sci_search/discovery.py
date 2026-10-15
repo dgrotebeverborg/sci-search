@@ -74,6 +74,17 @@ def plan_search_queries(
         variants.append((core, "canonical concepts"))
     if focus:
         variants.append((" ".join((focus[0], *focus[2])), "explanatory subject and scope"))
+        # Studies usually cover one place or one subject part; a query naming all of them
+        # mostly finds the rare study that covers every one.
+        subjects = plan.subject_terms or (focus[0],)
+        if len(subjects) > 1:
+            for subject in subjects:
+                variants.append(
+                    (" ".join((subject, *focus[1], *focus[2])), f"subject part: {subject}")
+                )
+        if len(focus[2]) > 1:
+            for place in focus[2]:
+                variants.append((" ".join((*subjects, *focus[1], place)), f"one place: {place}"))
     # Put task-specific strategies before broad sensitivity variants. The query
     # budget is deliberately bounded, and the previous ordering could exhaust
     # all eight slots before a diagnostic, trend, or explanatory query was

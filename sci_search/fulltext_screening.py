@@ -79,7 +79,7 @@ def screen_full_text(
     mandatory = {
         int(item) for item in subject.get("mandatory_group_indexes", []) if isinstance(item, int)
     }
-    if plan.profile_id == "generic" and core_groups:
+    if plan.profile_id == "generic" and core_groups and not subject.get("parts"):
         mandatory.add(0)
     required_core = max(1, int(subject.get("minimum_group_matches") or 1))
 
@@ -151,11 +151,28 @@ def screen_full_text(
                 strong_support.add(index)
             else:
                 strong_support.discard(index)
-    support_ok = len(strong_support) >= required_support
+    # A study of one of several requested places counts; the answer as a whole is still
+    # checked for every place.
+    places = {
+        index
+        for index, (label, _) in enumerate(support_groups)
+        if dimension_by_label.get(label, {}).get("kind") == "geography"
+    }
+    place_alternatives = bool(plan.subject_terms) and len(places) > 1
+    covered = (
+        len(strong_support - places) + bool(strong_support & places)
+        if place_alternatives
+        else len(strong_support)
+    )
+    if place_alternatives and required_support == len(support_groups):
+        required_support -= len(places) - 1
+    support_ok = covered >= required_support
     missing_strict_scope = {
         label
         for index, (label, _) in enumerate(support_groups)
-        if label in strict_scope_labels and index not in strong_support
+        if label in strict_scope_labels
+        and index not in strong_support
+        and not (place_alternatives and index in places and strong_support & places)
     }
     core_title_focus = any(
         _contains(title, alias) for _, aliases in core_groups for alias in aliases
@@ -231,7 +248,7 @@ def screen_full_text(
         required_core,
         len(strong_core),
         required_support,
-        len(strong_support),
+        covered,
         matched,
         missing,
     )
@@ -320,7 +337,7 @@ def _support_groups(
     for dimension in dimensions:
         kind = str(dimension.get("kind") or "")
         label = str(dimension.get("label") or kind)
-        if kind in {"subject", "task"} or (
+        if kind in {"subject", "subject_part", "task"} or (
             kind == "topic" and label.casefold() in _WEAK_GENERIC_LABELS
         ):
             continue

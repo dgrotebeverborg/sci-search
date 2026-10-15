@@ -245,6 +245,8 @@ def _model_interpretation(
                     "Do not encode a hypothesized direction (lower/higher) as an outcome_measure_terms filter. "
                     "population_terms names ONLY explicitly requested people or study units; time_terms names ONLY "
                     "explicitly requested study periods. Leave both arrays empty when unspecified. "
+                    "Places belong only in geography_terms: write subject_terms without them, for "
+                    "example ['insect biomass'] rather than ['insect biomass in Germany']. "
                     "evidence_scope must describe studies that measure or compare the factor and outcome, "
                     "not repeat the topic keywords, and must allow supportive, null and opposing results."
                     + STRATEGY_PROMPT
