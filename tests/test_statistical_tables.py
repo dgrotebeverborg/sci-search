@@ -144,7 +144,11 @@ def test_gzip_generic_csv_replay_keeps_original_container():
         "https://ec.europa.eu/eurostat/databrowser/view/demo_mlexpec/default/table?lang=en",
     ],
 )
-def test_statistical_workflow_and_offline_export(tmp_path, source_url):
+@pytest.mark.parametrize(
+    "extra_identity",
+    [[], [{"source_entity": "NL", "geography": "Netherlands", "evidence": "NL = Netherlands"}]],
+)
+def test_statistical_workflow_and_offline_export(tmp_path, source_url, extra_identity):
     import io
     import subprocess
     import sys
@@ -177,6 +181,7 @@ def test_statistical_workflow_and_offline_export(tmp_path, source_url):
                 reason="Available years only",
                 measurement="life expectancy",
                 unit_evidence="YR",
+                entity_identities=extra_identity,
                 mapping=dict(
                     year_column="Year",
                     value_column="Value",

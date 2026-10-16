@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import re
+import zlib
 from typing import Any
 
 # These suffixes occur in publisher code labels when a table has no unit dimension.
@@ -70,7 +71,7 @@ def decompress(body):
     try:
         with gzip.GzipFile(fileobj=io.BytesIO(body)) as stream:
             expanded = stream.read(MAX_EXPANDED + 1)
-    except (OSError, EOFError) as exc:
+    except (OSError, EOFError, zlib.error) as exc:
         raise ValueError("Invalid GZIP dataset") from exc
     if len(expanded) > MAX_EXPANDED:
         raise ValueError("GZIP dataset exceeds the expanded-size limit")

@@ -103,7 +103,11 @@ MAP_SCHEMA = {
 MAP_SCHEMA["required"] = list(MAP_SCHEMA["properties"])
 STATISTICAL_MAP_SCHEMA = {
     **MAP_SCHEMA,
-    "properties": {k: v for k, v in MAP_SCHEMA["properties"].items() if k != "mapping"},
+    "properties": {
+        k: v
+        for k, v in MAP_SCHEMA["properties"].items()
+        if k not in {"mapping", "entity_identities"}
+    },
 }
 STATISTICAL_MAP_SCHEMA["required"] = list(STATISTICAL_MAP_SCHEMA["properties"])
 
@@ -1068,6 +1072,7 @@ def _execute(
                                 "a subset of the requested technologies is valid PARTIAL evidence: select it and explain "
                                 "the omitted types in reason. Keep charging, discharge, capacity and power distinct. "
                                 "For statistical TSV tables, use Year, Value and Series columns with ALL observed Series values. "
+                                "Their identities come from the selected source dimensions and publisher code labels. "
                                 "The Unit column is authoritative; use its source code unchanged as unit and output_unit. "
                                 "Do not filter away a sex or country that was selected during preparation. "
                                 "For normalized CBS tables, the Unit column is authoritative and Measure must be filtered "
@@ -1116,7 +1121,9 @@ def _execute(
                             mapping = semantics.bind_mapping(
                                 mapped["mapping"],
                                 measurement,
-                                mapped.get("entity_identities", []),
+                                []
+                                if preparation["format"] == "statistical_tsv_v1"
+                                else mapped.get("entity_identities", []),
                                 [
                                     measurement_metadata,
                                     json.dumps(measurement_sample, ensure_ascii=False),

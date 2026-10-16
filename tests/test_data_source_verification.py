@@ -1,3 +1,4 @@
+import gzip
 import json
 
 import pytest
@@ -48,3 +49,35 @@ def test_boolean_is_not_accepted_as_a_numeric_source():
             json.dumps({"value": True}).encode(),
             {"value": 1, "source_locator": {"format": "json", "path": ["value"]}},
         )
+
+
+@pytest.mark.parametrize("kind", ["text", "csv", "json"])
+def test_gzip_numeric_references_resolve_and_reject_changed_values(kind):
+    sources = {
+        "text": (b"Year\tValue\n2020\t12.5\n", {"line": 2, "column": 2, "delimiter": "\t"}),
+        "csv": (b"Year,Value\n2020,12.5\n", {"line": 2, "column": "Value"}),
+        "json": (b'{"value":12.5}', {"path": ["value"]}),
+    }
+    raw, locator = sources[kind]
+    row = {"value": 12.5, "source_locator": {"format": kind, **locator}}
+    body = gzip.compress(raw)
+    assert verify(body, row)["value_verified"] == 1
+    with pytest.raises(ValueError, match="differs"):
+        verify(body, {**row, "value": 13})
+
+
+def test_gzip_reference_expansion_is_bounded(monkeypatch):
+    from sci_search.data_research import statistical_tables
+
+    monkeypatch.setattr(statistical_tables, "MAX_EXPANDED", 10)
+    with pytest.raises(ValueError, match="expanded-size limit"):
+        verify(
+            gzip.compress(b"1 " * 100),
+            {"value": 1, "source_locator": {"format": "text", "line": 1, "column": 1}},
+        )
+
+
+def test_corrupt_gzip_reference_is_a_validation_error():
+    body = bytes.fromhex("1f8b0800000000000003") + b"\xff" * 20
+    with pytest.raises(ValueError, match="Invalid GZIP"):
+        verify(body, {"value": 1, "source_locator": {"format": "text", "line": 1, "column": 1}})

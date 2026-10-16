@@ -9,8 +9,10 @@ import math
 from decimal import Decimal
 
 try:
+    from .statistical_tables import decompress
     from .tabular import read_csv
 except ImportError:
+    from statistical_tables import decompress
     from tabular import read_csv
 
 
@@ -27,9 +29,14 @@ def verify_observations(body, payload):
             raise ValueError("Malformed numeric source reference")
         kind = locator.get("format")
         try:
+            # Locators address the logical source, just as the extraction reader does.
+            # Decode lazily so absent locators remain explicitly unverified.
+            if "body" not in documents:
+                documents["body"] = decompress(body)
+            source = documents["body"]
             if kind == "json":
                 if "json" not in documents:
-                    documents["json"] = json.loads(body)
+                    documents["json"] = json.loads(source)
                 value = documents["json"]
                 path = locator.get("path")
                 if not isinstance(path, list) or not path or len(path) > 40:
@@ -43,14 +50,14 @@ def verify_observations(body, payload):
                     value = value[key]
             elif kind == "csv":
                 if "csv" not in documents:
-                    _, rows, numbers = read_csv(body, with_line_numbers=True)
+                    _, rows, numbers = read_csv(source, with_line_numbers=True)
                     documents["csv"] = dict(zip(numbers, rows, strict=True))
                 if type(locator.get("line")) is not int:
                     raise ValueError("Invalid CSV reference line")
                 value = documents["csv"][locator["line"]][locator["column"]]
             elif kind == "text":
                 if "lines" not in documents:
-                    documents["lines"] = body.decode("utf-8-sig").splitlines()
+                    documents["lines"] = source.decode("utf-8-sig").splitlines()
                 line, column = locator.get("line"), locator.get("column")
                 if type(line) is not int or line < 1 or type(column) is not int or column < 1:
                     raise ValueError("Invalid text reference line or column")
