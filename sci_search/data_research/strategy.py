@@ -13,6 +13,11 @@ SCHEMA = {
     "properties": {
         "requirements": requirements.SCHEMA,
         "calculations": calculation_contract.SCHEMA,
+        "unresolved_calculations": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {"type": "string", "minLength": 1, "maxLength": 500},
+        },
         "route": {"type": "string", "enum": ["literature", "data", "both"]},
         "rationale": {"type": "string"},
         "measurements": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
@@ -46,6 +51,14 @@ PROMPT = (
     "convert (requested physical unit), share (numerator as percent of denominator). When a physical output unit is explicitly requested, include convert with that target unit even if a source might already use it; compatible identity conversions are valid. Use stable "
     "unique id and readable label; base_year is required only for index/real_index/deflate; "
     "target_unit only for convert; use null for irrelevant reference/base_year/target_unit. "
+    " Always include unresolved_calculations (empty when none): retain each explicitly requested "
+    "numerical calculation or cross-check that these operations cannot execute, with a short "
+    "description and reason. Do not silently omit it, substitute a different operation, or present "
+    "an unsupported derived output as if it were a published input dataset. Examples include "
+    "production divided by area, per-population recomputation, and subtraction of a multi-year "
+    "reference mean. Share is only a percentage of a compatible total, not a general division. "
+    "Existing endpoint differences and percentage-point changes of published series are supported "
+    "and need no unresolved entry; per-year differences are not executed automatically. "
     "Retain published percentages directly, without requesting a share calculation. Explanations "
     "of methods or missing years belong in definitions, never as numerical measurements. "
     " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
@@ -117,6 +130,18 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
     result["measurements"] = metrics
     if "calculations" in value:
         result["calculations"] = calculation_contract.validate(value["calculations"], metrics)
+    if "unresolved_calculations" in value:
+        unresolved = value["unresolved_calculations"]
+        if (
+            not isinstance(unresolved, list)
+            or len(unresolved) > 10
+            or any(
+                not isinstance(item, str) or not item.strip() or len(item) > 500
+                for item in unresolved
+            )
+        ):
+            raise ValueError("Invalid unresolved calculations")
+        result["unresolved_calculations"] = list(dict.fromkeys(item.strip() for item in unresolved))
     if "requirements" in value:
         result["requirements"] = requirements.normalize_geography(
             requirements.validate(value["requirements"], metrics),

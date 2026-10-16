@@ -335,3 +335,25 @@ def test_ordinary_and_is_not_the_country_code_for_andorra():
     assert coverage({**SCOPE, "countries": ["NLD"]}, [analysis("Netherlands women and girls")])[
         "complete_measurements"
     ]
+
+
+@pytest.mark.parametrize("values", [("women", "men"), ("Females", "Males"), ("vrouwen", "mannen")])
+def test_sex_aliases_in_question_match_source_and_keep_opposite_sexes_separate(values):
+    scope = {
+        **SCOPE,
+        "countries": ["NLD"],
+        "requirements": [
+            {
+                "measurement": "life expectancy",
+                "breakdowns": [{"dimension": "sex", "values": list(values)}],
+            }
+        ],
+    }
+    result = coverage(scope, [analysis("Netherlands females")])
+    assert len(result["gaps"]) == 1
+    assert result["gaps"][0]["dimensions"] == {"sex": "male"}
+    assert (
+        coverage(scope, [analysis("Netherlands females"), analysis("Netherlands males")])["gaps"]
+        == []
+    )
+    assert len(coverage(scope, [analysis("Netherlands females and males")])["gaps"]) == 2

@@ -39,7 +39,12 @@ The model selects a bounded operation and named inputs; fixed Python performs th
 The dashboard reports input coverage, calculation availability and numerical-answer completeness
 separately. A complete collection of raw observations does not imply the requested index or share
 has been produced. Existing saved scopes without a calculation plan remain explicitly unassessed;
-an explicit empty plan means no additional calculations were requested.
+an explicit empty plan means no additional calculations were requested, unless the scope also
+records `unresolved_calculations`. These retain requested numerical operations that the engine
+cannot execute, such as a general production/area ratio or subtraction of a multi-year mean.
+They keep numerical completion partial even when all inputs and supported calculations are
+available. Interpretation still depends on the model retaining every request; this is not a
+proof that no operation was omitted. See the [five-question validation](operations/data-five-new-validation-20261016.md).
 
 Calculations require an explicit annual output period and one unambiguous source series per input,
 country and requested breakdown. They never splice sources, interpolate missing years, substitute

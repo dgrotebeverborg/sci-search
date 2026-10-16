@@ -124,8 +124,15 @@ def compute(payload):
         if job.get("review"):
             output["semantic_review"] = job["review"]
         outputs.append(output)
+    unresolved = scope.get("unresolved_calculations", [])
     status = (
-        "not_assessed"
+        (
+            "partial"
+            if any(r["value"] is not None for o in outputs for r in o["annual"])
+            else "blocked"
+        )
+        if unresolved
+        else "not_assessed"
         if "calculations" not in scope
         else "not_requested"
         if not scope["calculations"]
@@ -139,6 +146,10 @@ def compute(payload):
         "version": 1,
         "status": status,
         "outputs": outputs,
+        "unresolved_calculations": unresolved,
+        "reason": "Unsupported requested calculations: " + "; ".join(unresolved)
+        if unresolved
+        else "",
         "qualification": "Computed from retained observations. Missing inputs are not filled; scientific interpretation remains a separate assessment.",
     }
 

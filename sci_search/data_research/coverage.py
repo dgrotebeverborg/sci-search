@@ -37,7 +37,19 @@ def evaluate(scope, analyses):
     for measurement in scope.get("measurements", []):
         requirement = requirements.get(measurement, {})
         entities = requirement.get("entities") or countries or [scope.get("geography") or ""]
-        dims = requirement.get("breakdowns", [])
+        # Normalize only the sex dimension; preserve unrelated category and entity names.
+        sex_aliases = {alias: key for key in ("female", "male") for alias in ALIASES[key]}
+        dims = [
+            {
+                **dimension,
+                "values": list(
+                    dict.fromkeys(sex_aliases.get(v.casefold(), v) for v in dimension["values"])
+                ),
+            }
+            if dimension["dimension"] == "sex"
+            else dimension
+            for dimension in requirement.get("breakdowns", [])
+        ]
         combinations = list(itertools.product(*(d["values"] for d in dims)))
         for entity, values in itertools.product(entities, combinations):
             other_entities = set(entities)
