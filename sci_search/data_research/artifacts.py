@@ -7,6 +7,7 @@ from pathlib import Path
 from sci_search.data_research.execution import digest, run_python
 
 ENGINES = (
+    "calculations.py",
     "cbs_odata.py",
     "tabular.py",
     "packages.py",

@@ -348,3 +348,31 @@ def test_describe_labels_dimensions_with_their_concept_names():
     assert labels["geo"] == "Geopolitical entity (reporting)"
     assert "Age class: Y_LT1 = Less than 1 year" in description.definitions
     assert "Age class (age): This code list contains periods of time" in description.definitions
+
+
+def test_series_discovery_is_filtered_to_requested_countries_and_period():
+    from urllib.parse import parse_qs, urlsplit
+
+    urls = []
+
+    def fetch(url):
+        urls.append(url)
+        return offline(url)
+
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+    eurostat.describe(candidate, SCOPE, fetch=fetch)
+    request = next(u for u in urls if "serieskeysonly" in u)
+    assert "/A....DE+EL+NL/" in request
+    assert parse_qs(urlsplit(request).query)["endPeriod"] == ["2024"]
+
+
+def test_series_discovery_rejects_malformed_response_instead_of_claiming_missing_countries():
+    candidate = base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "unknown")
+
+    def fetch(url):
+        if "serieskeysonly" in url:
+            return b"<html>Service temporarily unavailable</html>", "text/html", url
+        return offline(url)
+
+    with pytest.raises(base.DatasetRejected, match="series-key response"):
+        eurostat.describe(candidate, SCOPE, fetch=fetch)

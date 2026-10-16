@@ -146,6 +146,8 @@ def _series_rows(dataset, order, filters, scope, fetch):
     query = {"format": "TSV", "detail": "serieskeysonly"}
     if scope.get("start_year"):
         query["startPeriod"] = str(scope["start_year"])
+    if scope.get("end_year"):
+        query["endPeriod"] = str(scope["end_year"])
     try:
         body, _, _ = fetch(f"{API}/data/{dataset}/{_key(order, filters)}/?{urlencode(query)}")
     except ValueError as exc:
@@ -154,10 +156,14 @@ def _series_rows(dataset, order, filters, scope, fetch):
         raise
     lines = body.decode("utf-8-sig").splitlines()
     header = lines[0].split(",") if lines else []
-    return [
-        {d: code.strip() for d, code in zip(header, line.split(","), strict=False)}
-        for line in lines[1:]
-    ]
+    rows = [line.split(",") for line in lines[1:] if line.strip()]
+    if header != order or any(
+        len(row) != len(header) or any(not code.strip() for code in row) for row in rows
+    ):
+        raise base.DatasetRejected(
+            "Malformed Eurostat series-key response; availability is unknown"
+        )
+    return [{d: code.strip() for d, code in zip(header, row, strict=True)} for row in rows]
 
 
 def _series_keys(dataset, order, filters, scope, fetch):
@@ -171,11 +177,17 @@ def _series_keys(dataset, order, filters, scope, fetch):
 def describe(candidate, scope, *, fetch):
     order, title = _structure(candidate.dataset, fetch)
     keys = [d for d, *_ in order]
-    observed = _series_keys(candidate.dataset, keys, {"freq": ["A"]}, scope, fetch)
+    wanted_geo = sorted({ISO3_TO_GEO[c] for c in scope.get("countries", []) if c in ISO3_TO_GEO})
+    geographic_filter = {"geo": wanted_geo} if wanted_geo and "geo" in keys else {}
+    observed = _series_keys(
+        candidate.dataset, keys, {"freq": ["A"], **geographic_filter}, scope, fetch
+    )
     if not observed:
         # Name what the dataset does publish, so the rejection states the frequency.
         labels = next((codes for d, *_, codes in order if d == "freq"), {})
-        found = _series_keys(candidate.dataset, keys, {}, scope, fetch).get("freq", set())
+        found = _series_keys(candidate.dataset, keys, geographic_filter, scope, fetch).get(
+            "freq", set()
+        )
         if "A" in found or not found:
             raise base.DatasetRejected(
                 "dataset has no annual series in the requested period; no aggregation was performed"

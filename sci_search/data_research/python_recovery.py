@@ -216,6 +216,8 @@ def recover(
                 "physical quantities, unexplained units or guessed definitions. Omit this field for direct matches. "
                 "If scope.retained_years or scope.retained_entities is nonempty, extract only those "
                 "years/entities; other observations remain explicitly missing in the final result. "
+                "Do not produce the separate scope.calculations outputs or unresolved cross-checks here; "
+                "extract their published inputs. The calculation stage handles those outputs. "
                 "Do not require one source to answer the whole question. Keep reef/site/entity level values "
                 "when an overall aggregation is not justified. Read archive README and dictionaries. "
                 "Do not derive or rename measures from ambiguous or contradictory definitions. "
@@ -313,8 +315,11 @@ def recover(
                 + "\n"
                 + json.dumps(
                     {
-                        "question": question,
-                        "scope": scope,
+                        "question": "Validate only this extraction and its actual transformations; overall answer completeness is assessed separately.",
+                        "research_question": question,
+                        "scope": semantics.input_scope(
+                            scope, list(dict.fromkeys([*labels, *definitions.keys()]))
+                        ),
                         "evidence_documents": documents,
                         "measurements": labels,
                         "measurement_definitions": list(definitions.values()),

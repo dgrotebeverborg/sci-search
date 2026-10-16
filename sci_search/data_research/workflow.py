@@ -86,6 +86,18 @@ MAP_SCHEMA = {
         "unit_evidence": {"type": "string"},
         "measurement": {"type": "string"},
         "mapping": MODEL_MAPPING_SCHEMA,
+        "entity_identities": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    k: {"type": "string"} for k in ("source_entity", "geography", "evidence")
+                },
+                "required": ["source_entity", "geography", "evidence"],
+            },
+        },
     },
 }
 MAP_SCHEMA["required"] = list(MAP_SCHEMA["properties"])
@@ -1044,7 +1056,10 @@ def _execute(
                                 "when comparing countries; never claim a selected subset is all Europe. "
                                 "unit_evidence must be an exact substring of metadata or a CSV header establishing "
                                 "the numeric unit; otherwise suitable=false. Missing markers must be observed. "
-                                "Supported unit conversions: identical units, ha to km2/km², hectares to km². "
+                                "Use an explicit source unit and output unit. Supported conversions include area, mass, "
+                                "tonnes/hectare, passenger-kilometres and decimal Celsius scales; never infer a denominator. "
+                                "Return entity_identities only for selected source codes with an exact metadata quote naming "
+                                "both that code and its geographic identity (e.g. station); otherwise return an empty list. "
                                 "Use decimal_separator '.' unless documented comma decimals. "
                                 "An empty entity_column means one series only. Filters are exact column/value pairs. "
                                 "Do not reject a valid measurement solely because the source covers only one requested country "
@@ -1098,7 +1113,15 @@ def _execute(
                                     missing_values=[":"],
                                     decimal_separator=".",
                                 )
-                            mapping = mapped["mapping"]
+                            mapping = semantics.bind_mapping(
+                                mapped["mapping"],
+                                measurement,
+                                mapped.get("entity_identities", []),
+                                [
+                                    measurement_metadata,
+                                    json.dumps(measurement_sample, ensure_ascii=False),
+                                ],
+                            )
                             if preparation["format"] == "statistical_tsv_v1":
                                 expected_series = list(dict.fromkeys(row["Series"] for row in rows))
                                 if (

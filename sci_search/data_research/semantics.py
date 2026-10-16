@@ -6,6 +6,7 @@ an interpretation remains an explicitly recorded model assessment.
 
 import copy
 import json
+import re
 
 ASPECTS = ("definition", "unit", "geography", "time", "calculation")
 
@@ -84,7 +85,9 @@ def review_schema(measurements):
 
 
 INSTRUCTIONS = (
-    "Independently assess the meaning of every published measurement. Return exactly one entry per "
+    "Independently assess the meaning of every published measurement. The research_question "
+    "preserves definition constraints and exclusions; it does not require this source to supply "
+    "missing measurements or execute downstream calculations. Return exactly one entry per "
     "listed measurement, named exactly as listed, and exactly one check for each aspect: definition, "
     "unit, geography, time, calculation. Countries, sexes, ages or other series of one measurement "
     "are not separate measurements: mention any series-specific finding inside that one entry's "
@@ -275,6 +278,45 @@ def _ends(series, keep=4):
     }
 
 
+def input_scope(scope, measurements):
+    """Review the published input, preserving its constraints but excluding other outputs."""
+    result = {
+        k: v
+        for k, v in scope.items()
+        if k in {"geography", "countries", "country_scope", "start_year", "end_year"}
+    }
+    result["measurements"] = list(measurements)
+    result["requirements"] = [
+        r for r in scope.get("requirements", []) if r["measurement"] in measurements
+    ]
+    return result
+
+
+def bind_mapping(mapping, measurement, identities, documents):
+    """Bind a selected measurement and retain cited geography without altering source codes."""
+    result = {**mapping, "label": measurement}
+    labels = {}
+    for item in identities:
+        entity, geography, quote = (item.get(k) for k in ("source_entity", "geography", "evidence"))
+        if (
+            not all(isinstance(v, str) and v.strip() for v in (entity, geography, quote))
+            or entity not in mapping.get("entities", [])
+            or entity in labels
+            or not any(_spaced(quote) in _spaced(d) for d in documents)
+            or not all(
+                re.search(r"(?<!\w)" + re.escape(_spaced(v)) + r"(?!\w)", _spaced(quote), re.I)
+                for v in (entity, geography)
+            )
+        ):
+            raise ValueError(
+                "Entity identity lacks an exact source citation for its code and geography"
+            )
+        labels[entity] = geography
+    if labels:
+        result["entity_identities"] = labels
+    return result
+
+
 def assess(*, question, scope, analysis, documents, complete):
     series = analysis.get("series", [])
     measurements = list(dict.fromkeys(s["label"] for s in series))
@@ -287,8 +329,9 @@ def assess(*, question, scope, analysis, documents, complete):
         + "\n"
         + json.dumps(
             {
-                "question": question,
-                "scope": scope,
+                "question": "Validate the supplied observations and their actual transformations; overall answer completeness is assessed separately.",
+                "research_question": question,
+                "scope": input_scope(scope, measurements),
                 "measurements": measurements,
                 "proposal": proposal,
                 "evidence_documents": documents,

@@ -11,6 +11,24 @@ import json
 import re
 from typing import Any
 
+# These suffixes occur in publisher code labels when a table has no unit dimension.
+# Never infer a unit from an opaque code or an arbitrary mention in a description.
+DECLARED_UNITS = {"thousand hectares", "thousand tonnes", "tonnes per hectare", "percentage"}
+
+
+def declared_unit(codes, labels):
+    if "unit" in codes:
+        return codes["unit"]
+    units = {
+        label.rpartition(" - ")[2]
+        for dimension, code in codes.items()
+        if (label := labels.get(dimension, {}).get(code, ""))
+        and label.rpartition(" - ")[1]
+        and label.rpartition(" - ")[2] in DECLARED_UNITS
+    }
+    return next(iter(units)) if len(units) == 1 else ""
+
+
 MAX_EXPANDED = 10_000_000
 SELECTION_SCHEMA = {
     "type": "object",
@@ -197,7 +215,7 @@ def prepare_statistics(body, selection):
                 numeric += 1
             if status:
                 flag_counts[status] = flag_counts.get(status, 0) + 1
-            unit = codes.get("unit", "")
+            unit = declared_unit(codes, labels)
             writer.writerow([year, entity, *[codes[d] for d in dimensions], value, unit, status])
             provenance[str(line_out)] = {
                 "source_reference": f"line:{line}; period:{year}",
@@ -227,7 +245,7 @@ def prepare_statistics(body, selection):
                 "dimension_codes": preview["dimension_values"],
                 "code_labels": labels,
                 "selected_filters": filters,
-                "unit_column": "Unit contains authoritative source unit codes; YR denotes years in Eurostat tables.",
+                "unit_column": "Unit retains the source unit code when present. Without a unit dimension, only an explicit recognized unit suffix in a selected code label is retained. YR denotes years in Eurostat tables.",
                 "status_flags": "Original status codes retained; colon means missing. b = break in time series; p = provisional; e = estimated; d = differing definition. Unknown codes are retained.",
             },
             ensure_ascii=False,

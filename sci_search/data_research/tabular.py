@@ -6,7 +6,10 @@ import math
 import re
 from typing import Literal, overload
 
-CONVERSIONS = {("ha", "km2"): 0.01, ("hectares", "km²"): 0.01, ("ha", "km²"): 0.01}
+try:
+    from .calculations import factor as unit_factor
+except ImportError:  # Retained offline execution.
+    from calculations import factor as unit_factor
 
 
 def changes(first, last, unit, label, scope):
@@ -177,9 +180,10 @@ def analyse_csv(body, mapping, scope):
     ):
         raise ValueError("Mapping names columns absent from downloaded CSV")
     unit, output = mapping["unit"], mapping["output_unit"]
-    factor = 1 if unit == output else CONVERSIONS.get((unit, output))
-    if factor is None or not unit:
-        raise ValueError("Unsupported or unspecified unit conversion")
+    try:
+        factor = unit_factor(unit, output)
+    except ValueError as exc:
+        raise ValueError("Unsupported or unspecified unit conversion") from exc
     decimal = mapping.get("decimal_separator", ".")
     if decimal not in {".", ","}:
         raise ValueError("Unsupported decimal separator")
@@ -235,11 +239,15 @@ def analyse_csv(body, mapping, scope):
                 **(
                     {
                         "identity": {
-                            "geography": mapping.get("identity_geography", entity),
+                            "geography": mapping.get("entity_identities", {}).get(
+                                entity, mapping.get("identity_geography", entity)
+                            ),
                             "dimensions": mapping.get("identity_dimensions", {}),
                         }
                     }
-                    if "identity_geography" in mapping or "identity_dimensions" in mapping
+                    if "identity_geography" in mapping
+                    or "identity_dimensions" in mapping
+                    or entity in mapping.get("entity_identities", {})
                     else {}
                 ),
                 "label": mapping["label"],

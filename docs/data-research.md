@@ -29,6 +29,28 @@ For CSV downloads, up to three further HTML pages can be followed using observed
 loops and unresolved viewers remain explicit source gaps. Downloads are limited to 50 MB and public HTTP(S) addresses. DNS is validated and pinned for each
 redirect; credentials are not sent to dataset hosts.
 
+## Source selection, definitions and units
+
+Eurostat series discovery filters the requested countries and time range before exposing codes
+for selection. A malformed series-key response is an availability error, not proof that a country
+has no data. Tables without a separate unit dimension can retain an explicit recognized unit
+suffix from a selected publisher code label; opaque measure codes do not imply units.
+
+CSV mapping binds the output to the selected requested measurement. A station code can retain a
+separate geographic identity only with an exact source quotation naming both code and geography;
+the subsequent meaning review still has to substantiate it. Original source codes remain visible.
+
+Raw-source reviews receive the published input measurements and their constraints separately
+from downstream calculations. The original question remains available for definition qualifiers.
+Coverage and unsupported calculations are still assessed separately, and model interpretation
+can still fail. Neither a successful download nor a plausible value substitutes for source evidence.
+
+CSV and derived calculations share bounded unit factors for energy, currency, mass, area,
+mass per hectare, passenger-distance and decimal Celsius scales. Case-sensitive symbols are
+explicitly enumerated; unknown units allow exact identity only. No denominator is invented,
+no general population rate is inferred from `RT`, and offset conversions are unsupported.
+See the [source-quality validation](operations/data-source-quality-validation-20261016.md).
+
 ## Requested numerical outputs
 
 The interpreted data scope can contain an explicit `calculations` list alongside the published

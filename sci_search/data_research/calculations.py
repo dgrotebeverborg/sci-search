@@ -19,6 +19,26 @@ UNITS = {
     "us$": ("USD", 1),
 }
 
+# Explicit physical units only. Rates need their denominator in the unit itself.
+for dimension, scale, names in (
+    ("mass", 1, ("kg", "kilograms")),
+    ("mass", 1000, ("t", "tonne", "tonnes", "1000 kg")),
+    ("mass", 1e6, ("thousand tonnes",)),
+    ("area", 1, ("ha", "hectares")),
+    ("area", 100, ("km2", "km²")),
+    ("area", 1000, ("thousand hectares",)),
+    ("mass/area", 1, ("t/ha", "tonnes per hectare", "tonnes/ha")),
+    ("mass/area", 0.001, ("kg/ha", "kilograms per hectare")),
+    ("celsius", 1, ("°C", "degrees Celsius", "degree Celsius")),
+    ("celsius", 0.1, ("0.1 degrees Celsius", "0.1 °C")),
+    ("passenger-distance", 1, ("passenger-kilometres", "passenger-kilometers")),
+    ("passenger-distance", 1e6, ("million passenger-kilometres", "million passenger-kilometers")),
+    ("passenger-distance", 1e9, ("billion passenger-kilometres", "billion passenger-kilometers")),
+):
+    for name in names:
+        UNITS["".join(name.lower().split())] = (dimension, scale)
+
+
 for name, symbol in (
     ("watt", "wh"),
     ("kilowatt", "kwh"),
@@ -34,13 +54,46 @@ def finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+# SI symbols are case-sensitive; lowercase and all-uppercase energy abbreviations
+# below are explicitly retained application aliases, not arbitrary case folding.
+SYMBOL_ALIASES = {
+    **{
+        s: s.lower()
+        for s in (
+            "Wh",
+            "wh",
+            "WH",
+            "kWh",
+            "kwh",
+            "KWH",
+            "MWh",
+            "mwh",
+            "MWH",
+            "GWh",
+            "gwh",
+            "GWH",
+            "TWh",
+            "twh",
+            "TWH",
+        )
+    },
+    **{s: s for s in ("kg", "t", "ha", "km2", "km²", "t/ha", "kg/ha")},
+    "°C": "°c",
+    "°c": "°c",
+}
+
+
 def unit_key(unit):
-    return "".join(str(unit).lower().split())
+    compact = "".join(str(unit).split())
+    lowered = compact.lower()
+    if lowered in SYMBOL_ALIASES.values():
+        return SYMBOL_ALIASES.get(compact, "unsupported:" + compact)
+    return lowered
 
 
 def factor(source, target):
     left, right = unit_key(source), unit_key(target)
-    if left and left == right:
+    if str(source).strip() and str(source).strip() == str(target).strip():
         return 1
     if left not in UNITS or right not in UNITS or UNITS[left][0] != UNITS[right][0]:
         raise ValueError("Units are incompatible or conversion is unsupported")
