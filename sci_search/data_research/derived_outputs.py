@@ -57,6 +57,11 @@ def prepare_jobs(scope, analyses):
             start, end = scope.get("start_year"), scope.get("end_year")
             if start is None or end is None:
                 reason = "An explicit output period is required to certify calculation coverage"
+            elif (
+                plan["operation"] in {"difference", "percentage_point_change"}
+                and plan["base_year"] is None
+            ):
+                start += 1
             jobs.append(
                 {
                     "plan": plan,

@@ -121,6 +121,10 @@ function renderDiscovered(data, parent) {
   if (data.coverage) {
     const cells = data.coverage.cells || [];
     parent.append(element('p', `${cells.filter(c => c.status === 'complete').length} of ${cells.length} requested combinations covered. Coverage does not establish scientific validity.`));
+    for (const [measurement, choice] of Object.entries(data.coverage.source_choices || {})) {
+      const source = data.analyses[choice.source_index].source;
+      parent.append(element('p', `Chosen definition for ${measurement}: ${choice.definition}. Source: ${source.title}. Alternative sources remain separate and are not combined in this comparison.`));
+    }
     const gaps = element('details');
     gaps.append(element('summary', 'Missing coverage and next research questions'));
     for (const gap of data.coverage.gaps || []) {

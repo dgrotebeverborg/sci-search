@@ -26,7 +26,61 @@ def _finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def _source_choices(scope, analyses):
+    """Only a delegated definition choice may prefer one complete reviewed source.
+
+    Pick the first complete source as one whole comparison panel. Never splice
+    countries/years or silently resolve conflicts under the default strict policy.
+    """
+    choices = {}
+    for requirement in scope.get("requirements", []):
+        if requirement.get("definition_policy") != "choose_documented":
+            continue
+        name = requirement["measurement"]
+        if name not in scope.get("measurements", []):
+            continue
+        strict = {
+            **scope,
+            "measurements": [name],
+            "requirements": [{**requirement, "definition_policy": "specified"}],
+        }
+        for index, analysis in enumerate(analyses):
+            if analysis.get("execution", {}).get("status") != "verified":
+                continue
+            reviews = [analysis.get("semantic_review", {})] + [
+                c.get("semantic_review", {}) for c in analysis.get("components", [])
+            ]
+            evidence = [
+                e
+                for review in reviews
+                if review.get("accepted")
+                for item in review.get("measurements", [])
+                if item.get("measurement") == name
+                for check in item.get("checks", [])
+                if check.get("aspect") == "definition" and check.get("status") == "supported"
+                for e in check.get("evidence", [])
+                if e.get("quote")
+            ]
+            if not evidence or name not in evaluate(strict, [analysis])["complete_measurements"]:
+                continue
+            choices[name] = {
+                "source_index": index,
+                "source_sha256": analysis.get("source", {}).get("sha256", ""),
+                "definition": "\n".join(dict.fromkeys(e["quote"] for e in evidence)),
+                "evidence": evidence,
+                "reason": "The question permits a documented definition choice. This first reviewed source covers the entire requested comparison; alternative definitions are retained separately.",
+                "alternative_source_indexes": [
+                    i
+                    for i, a in enumerate(analyses)
+                    if i != index and any(s.get("label") == name for s in a.get("series", []))
+                ],
+            }
+            break
+    return choices
+
+
 def evaluate(scope, analyses):
+    choices = _source_choices(scope, analyses)
     requirements = {r["measurement"]: r for r in scope.get("requirements", [])}
     # A regional request is not an implicit request for every constituent country.
     # Explicit country lists and per-measurement entities still take precedence.
@@ -60,6 +114,8 @@ def evaluate(scope, analyses):
             dimensions = dict(zip((d["dimension"] for d in dims), values, strict=True))
             matches = []
             for source_index, analysis in enumerate(analyses):
+                if measurement in choices and source_index != choices[measurement]["source_index"]:
+                    continue
                 for series in analysis.get("series", []):
                     if series.get("label") != measurement:
                         continue
@@ -143,6 +199,11 @@ def evaluate(scope, analyses):
                 reason = "Requested frequency is not supported by the annual output contract"
             elif not years:
                 reason = "No matching numeric observations"
+            elif (
+                requirement.get("definition_policy") == "choose_documented"
+                and measurement not in choices
+            ):
+                reason = "No single reviewed source covers the requested comparison under one documented definition"
             elif conflicts:
                 reason = "Overlapping sources differ; definitions, units or revisions need reconciliation"
             elif requested_years is None:
@@ -175,6 +236,7 @@ def evaluate(scope, analyses):
         "cells": cells,
         "gaps": gaps,
         "complete_measurements": complete,
+        **({"source_choices": choices} if choices else {}),
         "qualification": "Coverage describes retained observations, not exhaustive discovery or scientific validation.",
     }
 

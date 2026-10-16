@@ -43,6 +43,7 @@ def normalize_geography(items, countries, geography):
 
 
 ENUMS = {
+    "definition_policy": ("choose_documented", "specified"),
     "frequency": ("annual", "monthly", "daily", "unspecified"),
     "measure_type": ("ratio", "interval", "percentage", "index", "unknown"),
     "observation_type": ("observed", "projected", "unspecified"),

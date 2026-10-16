@@ -324,6 +324,11 @@ def coverage_lines(result):
         cells = coverage["cells"]
         complete = sum(c["status"] == "complete" for c in cells)
         lines.append(f"{complete} of {len(cells)} requested combinations covered.")
+        for measurement, choice in coverage.get("source_choices", {}).items():
+            source = result["analyses"][choice["source_index"]]["source"]
+            lines.append(
+                f"Chosen definition for {measurement}: {choice['definition']}. Source: {source['title']} ({source['url']}). Alternative sources are retained separately and are not combined in this comparison."
+            )
         for gap in coverage["gaps"]:
             dimensions = ", ".join(f"{key}: {value}" for key, value in gap["dimensions"].items())
             lines.append(

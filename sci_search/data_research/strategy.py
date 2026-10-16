@@ -9,10 +9,21 @@ LAST_PROJECTED_YEAR = 2100
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["route", "rationale", "measurements", "geography", "start_year", "end_year"],
+    "required": [
+        "route",
+        "rationale",
+        "measurements",
+        "geography",
+        "start_year",
+        "end_year",
+        "calculations",
+        "calculation_requests",
+        "unresolved_calculations",
+    ],
     "properties": {
         "requirements": requirements.SCHEMA,
         "calculations": calculation_contract.SCHEMA,
+        "calculation_requests": calculation_contract.REQUEST_SCHEMA,
         "unresolved_calculations": {
             "type": "array",
             "maxItems": 10,
@@ -57,8 +68,22 @@ PROMPT = (
     "an unsupported derived output as if it were a published input dataset. Examples include "
     "production divided by area, per-population recomputation, and subtraction of a multi-year "
     "reference mean. Share is only a percentage of a compatible total, not a general division. "
-    "Existing endpoint differences and percentage-point changes of published series are supported "
-    "and need no unresolved entry; per-year differences are not executed automatically. "
+    "Operations also include difference (subtraction in the original unit) and percentage_point_change "
+    "(subtraction of published percentages, NOT relative percent change). For these operations "
+    "base_year=null requests year-on-year differences within the requested interval; an explicit "
+    "base_year requests differences from that year's value. Use null reference and target_unit. "
+    "Explicitly requested percentage-point changes MUST have a percentage_point_change calculation. "
+    "For annual changes and an endpoint comparison, include two calculations. If timing is ambiguous, "
+    "state the chosen interpretation in assumptions. Do not rely on descriptive endpoint summaries "
+    "as a replacement for requested numerical outputs. "
+    "Include calculation_requests: enumerate EVERY numerical transformation or cross-check requested "
+    "in the original question, each with description and matching calculation_ids; use an empty "
+    "unresolved_reason when executable, otherwise empty calculation_ids and the explicit unresolved_reason. "
+    "Only use an empty list when the question requests no calculations. "
+    "Each requirement has definition_policy: specified by default. Use choose_documented ONLY when "
+    "the question explicitly permits choosing a source definition and stating which was used. "
+    "Never use it when the question specifies a denominator/definition, asks to compare definitions, "
+    "or reconcile competing sources. A chosen source must still satisfy all other constraints. "
     "Retain published percentages directly, without requesting a share calculation. Explanations "
     "of methods or missing years belong in definitions, never as numerical measurements. "
     " Also choose research_strategy: literature for explanations, mechanisms, interventions, "
@@ -147,6 +172,14 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
             requirements.validate(value["requirements"], metrics),
             result["countries"],
             result["geography"],
+        )
+    if "calculation_requests" in value:
+        unresolved = calculation_contract.validate_requests(
+            value["calculation_requests"], result.get("calculations", [])
+        )
+        result["calculation_requests"] = [dict(r) for r in value["calculation_requests"]]
+        result["unresolved_calculations"] = list(
+            dict.fromkeys([*result.get("unresolved_calculations", []), *unresolved])
         )
     if (
         infer_route

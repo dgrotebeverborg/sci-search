@@ -55,8 +55,18 @@ See the [source-quality validation](operations/data-source-quality-validation-20
 
 The interpreted data scope can contain an explicit `calculations` list alongside the published
 input measurements. Supported operations are nominal base-year indices, inflation-adjusted indices,
-constant-base-year monetary values, compatible unit conversions, and numerator/denominator shares.
+constant-base-year monetary values, compatible unit conversions, numerator/denominator shares,
+differences in the original unit, and percentage-point changes of documented percentages.
 The model selects a bounded operation and named inputs; fixed Python performs the arithmetic.
+For differences, a null base year means consecutive calendar years within the requested period
+(the first output year is start + 1); an explicit base year means subtraction from that year.
+Missing preceding observations and comparability breaks block the affected calculation rather
+than substituting a different observation. Percentage-point changes are not relative percent changes.
+
+New interpretations include `calculation_requests`, an inventory linking each requested numerical
+transformation to executable calculation IDs or an explicit unresolved reason. Validation rejects
+unassigned requests, unknown IDs and unaccounted executable plans. Older saved scopes retain their
+historical contracts; reinterpret the original question to obtain the new inventory.
 
 The dashboard reports input coverage, calculation availability and numerical-answer completeness
 separately. A complete collection of raw observations does not imply the requested index or share
@@ -318,6 +328,15 @@ for each requested entity/breakdown/year combination, not simply whether a measu
 an analysis. Missing values and conflicting sources keep coverage open. Disjoint source series
 are not spliced together to claim completeness. Model semantic review is still required; coverage
 is not independent proof of definitions or scientific validity.
+
+The default `definition_policy=specified` preserves conflicting sources as gaps. Only when the
+question delegates a choice of documented definition may interpretation set `choose_documented`.
+Coverage then selects the first executed, semantically reviewed single source covering the entire
+requested measurement panel. It never assembles the choice from different countries or periods.
+The chosen source, cited definition and alternatives appear in `coverage.source_choices`; reports
+and the dashboard disclose the definition. Calculations use that same source, while original
+alternative analyses remain retained separately. A complete source is not automatically the best
+available source, and consistency of its definitions still relies on source-grounded model review.
 
 The planner receives up to 60 example gaps plus total counts. Connectors and web fallback pursue
 remaining measurements, and resumed connector selection targets missing countries. Reports and

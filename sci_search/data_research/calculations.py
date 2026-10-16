@@ -130,6 +130,10 @@ def calculate(plan, source, reference=None, *, years):
         or (
             "%"
             if op == "share"
+            else "percentage points"
+            if op == "percentage_point_change"
+            else source.get("unit", "")
+            if op == "difference"
             else f"{base} = 100"
             if op in {"index", "real_index"}
             else f"{source.get('unit', '')} at {base} prices"
@@ -140,6 +144,8 @@ def calculate(plan, source, reference=None, *, years):
             "deflate": "x[t] * CPI[base] / CPI[t]",
             "convert": "x[t] * unit_conversion_factor",
             "share": "100 * numerator[t] * unit_conversion_factor / denominator[t]",
+            "difference": "x[t] - x[base]" if base is not None else "x[t] - x[t-1]",
+            "percentage_point_change": "x[t] - x[base]" if base is not None else "x[t] - x[t-1]",
         }[op],
         "base_year": base,
         "status": "blocked",
@@ -151,10 +157,25 @@ def calculate(plan, source, reference=None, *, years):
     try:
         rows = observations(source)
         refs = observations(reference) if reference is not None else {}
-        if op in {"index", "real_index", "deflate"} and (
+        if op in {"index", "real_index", "deflate", "difference", "percentage_point_change"} and (
             not comparable(source) or (reference is not None and not comparable(reference))
         ):
             raise ValueError("Source comparability flags prevent comparison with the base year")
+        if op == "percentage_point_change" and (
+            source.get("measure_type") != "percentage"
+            or str(source.get("unit", "")).strip().casefold()
+            not in {"%", "pc", "percent", "percentage", "per cent"}
+        ):
+            raise ValueError(
+                "Percentage-point changes require a documented percentage scale and unit"
+            )
+        if op == "difference" and source.get("measure_type") not in {
+            "ratio",
+            "interval",
+            "index",
+            "percentage",
+        }:
+            raise ValueError("Differences require a documented numeric scale")
         if op in {"index", "real_index"}:
             baseline = rows.get(base, {}).get("value")
             if not finite(baseline) or baseline <= 0:
@@ -189,6 +210,14 @@ def calculate(plan, source, reference=None, *, years):
         row, ref = rows.get(year, {}), refs.get(year, {})
         value, other = row.get("value"), ref.get("value")
         reason = failure
+        comparison_year = base if base is not None else year - 1
+        comparison = rows.get(comparison_year, {})
+        if (
+            not reason
+            and op in {"difference", "percentage_point_change"}
+            and not finite(comparison.get("value"))
+        ):
+            reason = f"Comparison observation missing for {comparison_year}"
         if not reason and not finite(value):
             reason = "Input observation missing or non-finite"
         if (
@@ -208,6 +237,8 @@ def calculate(plan, source, reference=None, *, years):
                     output = value * price_base / other
                 elif op == "convert":
                     output = value * multiplier
+                elif op in {"difference", "percentage_point_change"}:
+                    output = value - comparison["value"]
                 else:
                     output = 100 * value * multiplier / other
                 if not finite(output) or (op == "share" and not 0 <= output <= 100):
@@ -215,6 +246,10 @@ def calculate(plan, source, reference=None, *, years):
             except (ArithmeticError, ValueError):
                 reason, output = "Calculation outside the finite, valid range", None
         inputs = [{"role": "input", "year": year, "observation": row}]
+        if op in {"difference", "percentage_point_change"}:
+            inputs.append(
+                {"role": "comparison", "year": comparison_year, "observation": comparison}
+            )
         if reference is not None:
             inputs.append({"role": "reference", "year": year, "observation": ref})
         if base is not None:
