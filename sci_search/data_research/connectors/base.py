@@ -134,6 +134,12 @@ def validate_selection(description, selection, *, max_entities=60):
         raise SelectionError(
             "Series dimensions must be observed dimensions", {"dimensions": sorted(dims)}
         )
+    for d in description.extra.get("fixed_dimensions", ()):
+        if d in series or len(filters.get(d, [])) != 1:
+            raise SelectionError(
+                f"Dimension {d} is fixed and needs exactly one code",
+                {"valid_codes": valid},
+            )
     for d, codes in filters.items():
         if d not in series and len(codes) != 1:
             raise SelectionError(
@@ -177,6 +183,11 @@ def series_mapping(table, label):
     if len(units) != 1:
         raise SelectionError("Select one unit; the slice contains " + ", ".join(sorted(units)))
     unit = units.pop()
+    if not unit.strip():
+        raise SelectionError(
+            "The selected source does not declare a unit. Choose a dataset with an explicit "
+            "unit or obtain publisher unit documentation; do not infer it from the question."
+        )
     return dict(
         year_column="Year",
         value_column="Value",

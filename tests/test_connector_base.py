@@ -250,3 +250,8 @@ def test_selection_evidence_states_a_geography_the_connector_establishes():
         national, selection()
     )
     assert "Geography" not in base.selection_evidence(description(), selection())
+
+
+def test_missing_publisher_unit_is_reported_before_arithmetic():
+    with pytest.raises(base.SelectionError, match="does not declare a unit"):
+        base.series_mapping(b"Year,Series,Value,Unit,Status\n2020,NL,17407585,,\n", "population")

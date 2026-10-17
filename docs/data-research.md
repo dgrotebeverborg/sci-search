@@ -222,6 +222,14 @@ Python semantic review now uses the same structured evidence contract.
 
 ## Statistical API connectors
 
+Dataset choice schemas restrict candidates and measurement names to the current search. Code
+selection receives only the measurement being selected and its requirements. Fixed dimensions
+are checked before a download, so a repairable selection cannot become a late reader failure.
+For Eurostat, frequency and unit are fixed dimensions: counts and rates require separate slices.
+Official ESMS links published in the dataflow structure take precedence over metadata URLs
+constructed from dataset names. An absent unit is reported as missing publisher evidence, not
+as a failed conversion; it is never inferred from the requested measurement.
+
 Before web search, `workflow.execute` runs a connector stage that queries four statistical APIs
 directly. Each connector has a fixed host set and never requests a URL supplied by the model;
 dataset IDs must match a per-connector pattern. All traffic goes through the same public-address,

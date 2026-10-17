@@ -760,3 +760,48 @@ def test_a_dimension_with_1000_codes_is_offered_to_the_model():
         publisher="X",
     )
     stage._check_code_counts(description)  # does not raise
+
+
+def test_dataset_choices_are_constrained_to_current_candidates_and_measurements(tmp_path):
+    def complete(prompt, schema):
+        if schema["title"] == "connector_choice":
+            props = schema["properties"]["choices"]["items"]["properties"]
+            payload = json.loads(prompt[prompt.index("{") :])
+            assert props["candidate"].get("enum") == [c["key"] for c in payload["candidates"]]
+            assert props["measurement"].get("enum") == STRATEGY["measurements"]
+        return scripted(prompt, schema)
+
+    result = run_stage(tmp_path, complete)
+    assert result["analyses"]
+
+
+def test_selection_scope_contains_only_the_input_being_selected(tmp_path):
+    from sci_search.data_research.connectors import eurostat
+
+    scope = {
+        **STRATEGY,
+        "measurements": [*STRATEGY["measurements"], "population"],
+        "calculations": [{"operation": "difference"}],
+    }
+
+    def complete(prompt, schema):
+        if schema["title"] == "connector_selection":
+            payload = json.loads(prompt[prompt.index("{") :])
+            assert payload["scope"]["measurements"] == STRATEGY["measurements"]
+            assert "calculations" not in payload["scope"]
+        return scripted(prompt, schema)
+
+    analysis, _ = stage.analyse_dataset(
+        "Life expectancy and population",
+        scope,
+        tmp_path,
+        eurostat,
+        base.DatasetCandidate("eurostat", "demo_mlexpec", "Life expectancy", "annual"),
+        STRATEGY["measurements"][0],
+        complete=with_positive_meaning_review(complete),
+        fetch=offline,
+        post=None,
+        check_cancelled=lambda: None,
+        progress=lambda _: None,
+    )
+    assert analysis

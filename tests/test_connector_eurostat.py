@@ -376,3 +376,69 @@ def test_series_discovery_rejects_malformed_response_instead_of_claiming_missing
 
     with pytest.raises(base.DatasetRejected, match="series-key response"):
         eurostat.describe(candidate, SCOPE, fetch=fetch)
+
+
+def test_eurostat_unit_cannot_be_selected_as_a_comparison_dimension():
+    from dataclasses import replace
+
+    from sci_search.data_research.connectors.stage import selection_schema
+
+    _, description = _described()
+    description = replace(
+        description,
+        dimensions=tuple(
+            base.Dimension(d.id, d.label, {"NR": "Number", "P_MHAB": "Per million inhabitants"})
+            if d.id == "unit"
+            else d
+            for d in description.dimensions
+        ),
+    )
+    proposal = {
+        "filters": {
+            "freq": ["A"],
+            "unit": ["NR", "P_MHAB"],
+            "sex": ["T"],
+            "age": ["Y_LT1"],
+            "geo": ["NL"],
+        },
+        "series_dimensions": ["unit", "geo"],
+        "reason": "Both units",
+    }
+    with pytest.raises(base.SelectionError, match="fixed"):
+        base.validate_selection(description, proposal)
+    schema = selection_schema(description)["properties"]
+    assert schema["filters"]["properties"]["unit"]["maxItems"] == 1
+    assert "unit" not in schema["series_dimensions"]["items"]["enum"]
+
+
+def test_documentation_uses_publisher_link_when_metadata_has_another_dataset_name():
+    metadata_url = "https://ec.europa.eu/eurostat/cache/metadata/en/demo_gind_esms.htm"
+
+    def structure_with_link(url):
+        body, kind, final = offline(url)
+        if "/dataflow/ESTAT/demo_mlexpec" in url:
+            from xml.etree import ElementTree as ET
+
+            root = ET.fromstring(body)
+            flow = next(root.iter("{" + eurostat.NS["s"] + "}Dataflow"))
+            for old in flow.findall("c:Annotations", eurostat.NS):
+                flow.remove(old)
+            annotations = ET.SubElement(flow, "{" + eurostat.NS["c"] + "}Annotations")
+            annotation = ET.SubElement(annotations, "{" + eurostat.NS["c"] + "}Annotation")
+            ET.SubElement(annotation, "{" + eurostat.NS["c"] + "}AnnotationType").text = "ESMS_HTML"
+            ET.SubElement(annotation, "{" + eurostat.NS["c"] + "}AnnotationURL").text = metadata_url
+            body = ET.tostring(root)
+        return body, kind, final
+
+    _, description = _described(fetch=structure_with_link)
+    requests = []
+
+    def metadata(url):
+        requests.append(url)
+        if url == metadata_url:
+            return b"<html><body>Official population definitions</body></html>", "text/html", url
+        raise ValueError("HTTP 404")
+
+    documents = eurostat.documentation(description, fetch=metadata)
+    assert [d["url"] for d in documents] == [metadata_url]
+    assert requests == [metadata_url]

@@ -479,7 +479,7 @@ def analyse_dataset(
         payload = {
             "question": question,
             "measurement": measurement,
-            "scope": strategy,
+            "scope": semantics.input_scope(strategy, [measurement]),
             "dataset": candidate.title,
             "dimensions": [
                 {"id": d.id, "label": d.label, "codes": d.codes} for d in description.dimensions
@@ -823,6 +823,10 @@ def _choose_and_analyse(
     candidates = [
         {"key": k, "title": c.title, "frequency": c.frequency} for k, (_, c) in found.items()
     ]
+    choice_schema = copy.deepcopy(CHOICE_SCHEMA)
+    properties = choice_schema["properties"]["choices"]["items"]["properties"]
+    properties["candidate"]["enum"] = list(found)
+    properties["measurement"]["enum"] = list(dict.fromkeys(measurements))
     try:
         choice = complete(
             CHOOSE_PROMPT
@@ -835,7 +839,7 @@ def _choose_and_analyse(
                 },
                 ensure_ascii=False,
             ),
-            CHOICE_SCHEMA,
+            choice_schema,
         )
         items = [
             {"candidate": i["candidate"], "measurement": i["measurement"], "reason": i["reason"]}

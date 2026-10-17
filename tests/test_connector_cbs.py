@@ -86,8 +86,8 @@ def test_more_than_one_series_dimension_is_refused():
 @pytest.mark.parametrize(
     "series, message",
     [
-        (["Measure", "BronTechniek"], "one series dimension"),
-        (["Measure"], "Select one CBS measure"),
+        (["Measure", "BronTechniek"], "Dimension Measure is fixed"),
+        (["Measure"], "Dimension Measure is fixed"),
     ],
 )
 def test_series_dimension_limits_are_selection_errors_before_the_fetch(series, message):

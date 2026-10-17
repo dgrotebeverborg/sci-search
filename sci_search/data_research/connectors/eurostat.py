@@ -117,7 +117,19 @@ def _structure(dataset, fetch):
         dimensions.append((int(dim.get("position", "0")), d, label, about, codes))
     dimensions.sort()
     flow = next(root.iter("{%s}Dataflow" % NS["s"]), None)
-    return [item[1:] for item in dimensions], _name(flow) if flow is not None else dataset
+    metadata_urls = []
+    if flow is not None:
+        for annotation in flow.findall("c:Annotations/c:Annotation", NS):
+            url = annotation.findtext("c:AnnotationURL", default="", namespaces=NS)
+            if annotation.findtext(
+                "c:AnnotationType", namespaces=NS
+            ) == "ESMS_HTML" and _metadata_url(url):
+                metadata_urls.append(url)
+    return (
+        [item[1:] for item in dimensions],
+        _name(flow) if flow is not None else dataset,
+        metadata_urls,
+    )
 
 
 DATASET = re.compile(r"[a-z0-9_]+")
@@ -175,7 +187,7 @@ def _series_keys(dataset, order, filters, scope, fetch):
 
 
 def describe(candidate, scope, *, fetch):
-    order, title = _structure(candidate.dataset, fetch)
+    order, title, metadata_urls = _structure(candidate.dataset, fetch)
     keys = [d for d, *_ in order]
     wanted_geo = sorted({ISO3_TO_GEO[c] for c in scope.get("countries", []) if c in ISO3_TO_GEO})
     geographic_filter = {"geo": wanted_geo} if wanted_geo and "geo" in keys else {}
@@ -224,7 +236,21 @@ def describe(candidate, scope, *, fetch):
         licence_url=LICENCE_URL,
         definitions=definitions[:30000],
         publisher=PUBLISHER,
-        extra={"order": [d for d, *_ in order], "missing_geo": missing_geo, "unmapped": unmapped},
+        extra={
+            "order": [d for d, *_ in order],
+            "missing_geo": missing_geo,
+            "unmapped": unmapped,
+            "fixed_dimensions": [d for d in keys if d in {"unit", "freq"}],
+            "metadata_urls": metadata_urls,
+        },
+    )
+
+
+def _metadata_url(url):
+    return bool(
+        re.fullmatch(
+            r"https://ec\.europa\.eu/eurostat/cache/metadata/(?:en|EN)/[a-z0-9_]+\.htm", url
+        )
     )
 
 
@@ -235,8 +261,12 @@ def documentation(description, *, fetch):
     from sci_search.data_research.retrieval import inspect_page
 
     dataset = _checked(description.candidate.dataset)
-    for suffix in ("esmsip2", "esms"):
-        url = f"https://ec.europa.eu/eurostat/cache/metadata/en/{dataset}_{suffix}.htm"
+    urls = [url for url in description.extra.get("metadata_urls", []) if _metadata_url(url)]
+    urls += [
+        f"https://ec.europa.eu/eurostat/cache/metadata/en/{dataset}_{suffix}.htm"
+        for suffix in ("esmsip2", "esms")
+    ]
+    for url in dict.fromkeys(urls):
         try:
             body, _, final = fetch(url)
         except (OSError, ValueError):
