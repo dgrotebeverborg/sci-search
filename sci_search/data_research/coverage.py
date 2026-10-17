@@ -16,10 +16,14 @@ ALIASES = {
 }
 
 
-def _matches(value, text):
+def _geography_matches(value, text):
     country = canonical_country(value)
     if country:
         return country in country_mentions(text)
+    return _matches(value, text)
+
+
+def _matches(value, text):
     aliases = ALIASES.get(value, (value,))
     return any(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", text, re.I) for a in aliases)
 
@@ -109,7 +113,9 @@ def evaluate(scope, analyses):
         combinations = list(itertools.product(*(d["values"] for d in dims)))
         for entity, values in itertools.product(entities, combinations):
             other_entities = set(entities)
-            if not requirement.get("entities") or any(_matches(c, entity) for c in COUNTRY_NAMES):
+            if not requirement.get("entities") or any(
+                _geography_matches(c, entity) for c in COUNTRY_NAMES
+            ):
                 other_entities.update(COUNTRY_NAMES)
             elif countries:
                 other_entities.update(
@@ -128,12 +134,12 @@ def evaluate(scope, analyses):
                     identity = series.get("identity", {})
                     geography = identity.get("geography", text)
                     if entity and (
-                        not _matches(entity, geography)
+                        not _geography_matches(entity, geography)
                         or any(
                             other != entity
-                            and not _matches(other, entity)
-                            and not _matches(entity, other)
-                            and _matches(other, geography)
+                            and not _geography_matches(other, entity)
+                            and not _geography_matches(entity, other)
+                            and _geography_matches(other, geography)
                             for other in other_entities
                         )
                     ):
