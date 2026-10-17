@@ -28,6 +28,27 @@ def _matches(value, text):
     return any(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", text, re.I) for a in aliases)
 
 
+def _dimension_matches(dimension, value, text):
+    # Country aliases belong only to explicitly geographic categories. In particular,
+    # an ordinary answer "No" must not acquire the ISO2 meaning Norway.
+    name = " ".join(str(dimension).casefold().replace("_", " ").replace("-", " ").split())
+    country_dimensions = {
+        "country",
+        "country of birth",
+        "birth country",
+        "country of residence",
+        "country of citizenship",
+        "citizenship",
+        "nationality",
+        "reporting country",
+        "partner country",
+        "origin country",
+        "destination country",
+    }
+    match = _geography_matches if name in country_dimensions else _matches
+    return match(value, text)
+
+
 def _finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
@@ -146,10 +167,14 @@ def evaluate(scope, analyses):
                         continue
                     if any(
                         (
-                            not _matches(v, identity.get("dimensions", {}).get(d, text))
+                            not _dimension_matches(
+                                d, v, identity.get("dimensions", {}).get(d, text)
+                            )
                             or any(
                                 other != v
-                                and _matches(other, identity.get("dimensions", {}).get(d, text))
+                                and _dimension_matches(
+                                    d, other, identity.get("dimensions", {}).get(d, text)
+                                )
                                 for dim in dims
                                 if dim["dimension"] == d
                                 for other in set(dim["values"])
