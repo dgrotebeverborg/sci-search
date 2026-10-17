@@ -344,6 +344,31 @@ an analysis. Missing values and conflicting sources keep coverage open. Disjoint
 are not spliced together to claim completeness. Model semantic review is still required; coverage
 is not independent proof of definitions or scientific validity.
 
+When an explicitly requested entity or category does not match a retained series label,
+a successful meaning review may retain `semantic_review.coverage_bindings`. A separate,
+bounded model assessment links the requested cell to a source series using IDs of literal
+source passages. The application constructs the citations; the model cannot concatenate or
+rewrite their quotes. Each binding retains the requested constraints, source/series identity
+hash, evidence and reason. Coverage and derived calculations consume the same binding without
+renaming source entities or modifying observations. Changed source identities or constraints
+invalidate it. A binding cannot assign one series to different requested cells, hide missing
+years, or reconcile conflicting values (including two bound series from the same source).
+
+This enrichment applies only to explicit entity/breakdown contracts; ordinary country coverage
+and legacy plans keep their existing behavior. At most 60 cells and 60 series are assessed per
+source. Unsupported relations remain gaps. An exhausted budget or invalid model response leaves
+the already reviewed raw source available; cancellation still propagates. Generic CSV components,
+connectors and non-narrowed Python extractions retain the same evidence contract. Equivalence
+remains a model judgment, not a deterministic guarantee that a citation entails the claim.
+
+The 2026-10-17 retained-source probe resolves all 42 municipal price observations and their EUR
+outputs, and changes life expectancy from falsely missing to partial with a Belgian source
+conflict. Wrong administrative levels, another municipality and an age/sex subset were rejected.
+Two unseen synthetic domains (hospital admissions and a monitoring station) passed positive and
+negative identity probes. These are controlled matching results, not a fresh full-discovery
+benchmark. Original source values remain unchanged; the frozen 20-case legacy evaluation is
+unchanged when no new bindings are supplied.
+
 The default `definition_policy=specified` preserves conflicting sources as gaps. Only when the
 question delegates a choice of documented definition may interpretation set `choose_documented`.
 Coverage then selects the first executed, semantically reviewed single source covering the entire

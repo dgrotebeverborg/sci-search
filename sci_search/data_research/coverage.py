@@ -4,6 +4,7 @@ import itertools
 import math
 import re
 
+from sci_search.data_research import coverage_bindings
 from sci_search.data_research.countries import (
     COUNTRY_NAMES,
     canonical_country,
@@ -154,18 +155,28 @@ def evaluate(scope, analyses):
                     # Source identities, when available, are retained with the executed result.
                     identity = series.get("identity", {})
                     geography = identity.get("geography", text)
-                    if entity and (
-                        not _geography_matches(entity, geography)
-                        or any(
-                            other != entity
-                            and not _geography_matches(other, entity)
-                            and not _geography_matches(entity, other)
-                            and _geography_matches(other, geography)
-                            for other in other_entities
+                    bound = coverage_bindings.matches(
+                        scope,
+                        {"measurement": measurement, "entity": entity, "dimensions": dimensions},
+                        analysis,
+                        series,
+                    )
+                    if (
+                        not bound
+                        and entity
+                        and (
+                            not _geography_matches(entity, geography)
+                            or any(
+                                other != entity
+                                and not _geography_matches(other, entity)
+                                and not _geography_matches(entity, other)
+                                and _geography_matches(other, geography)
+                                for other in other_entities
+                            )
                         )
                     ):
                         continue
-                    if any(
+                    if not bound and any(
                         (
                             not _dimension_matches(
                                 d, v, identity.get("dimensions", {}).get(d, text)
@@ -194,7 +205,10 @@ def evaluate(scope, analyses):
                     matches.append(
                         {
                             "source_index": source_index,
-                            "sex_identity": tuple(
+                            **({"scope_binding": True} if bound else {}),
+                            "sex_identity": (dimensions["sex"],)
+                            if bound and "sex" in dimensions
+                            else tuple(
                                 v
                                 for v in ("male", "female")
                                 if _matches(v, identity.get("dimensions", {}).get("sex", text))
@@ -216,8 +230,9 @@ def evaluate(scope, analyses):
             for left, right in itertools.combinations(matches, 2):
                 if (
                     left["source_index"] == right["source_index"]
-                    or left["sex_identity"] != right["sex_identity"]
-                ):
+                    and not left.get("scope_binding")
+                    and not right.get("scope_binding")
+                ) or left["sex_identity"] != right["sex_identity"]:
                     continue
                 overlap = set(left["years"]) & set(right["years"])
                 different = sorted(y for y in overlap if left["values"][y] != right["values"][y])

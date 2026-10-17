@@ -339,7 +339,24 @@ def assess(*, question, scope, analysis, documents, complete):
         )
     )
     review = complete(prompt, review_schema(measurements))
-    return validate(review, measurements, documents)
+    validated = validate(review, measurements, documents)
+    bind_coverage(validated, scope=scope, analysis=analysis, documents=documents, complete=complete)
+    return validated
+
+
+def bind_coverage(review, *, scope, analysis, documents, complete):
+    """Persist scope-to-series evidence once, for coverage and calculation consumers."""
+    from sci_search.data_research import coverage_bindings
+
+    if review.get("accepted"):
+        binding = coverage_bindings.assess(
+            scope=scope,
+            analysis={**analysis, "semantic_review": review},
+            documents=documents,
+            complete=complete,
+        )
+        if binding["bindings"] or binding["rejected"]:
+            review["coverage_bindings"] = binding
 
 
 def source_documents(metadata, inspection):

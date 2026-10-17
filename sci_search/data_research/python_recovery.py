@@ -342,6 +342,14 @@ def recover(
                     semantics.validate_scope_relations(review, definitions, documents)
                 except ValueError as error:
                     semantic_review.update(accepted=False, reason=str(error))
+            if review.get("accepted") is True and not definitions:
+                semantics.bind_coverage(
+                    semantic_review,
+                    scope=scope,
+                    analysis={**analysis, "source": source},
+                    documents=documents,
+                    complete=complete,
+                )
             semantic_failure = not semantic_review["accepted"]
             (attempt / "semantic-review.json").write_text(json.dumps(semantic_review, indent=2))
             (attempt / "review.json").write_text(json.dumps(review, indent=2))

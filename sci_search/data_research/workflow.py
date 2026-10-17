@@ -1163,7 +1163,7 @@ def _execute(
                             semantic_review = semantics.assess(
                                 question=question,
                                 scope=strategy,
-                                analysis=analysis,
+                                analysis={**analysis, "source": source},
                                 documents=documents,
                                 complete=complete,
                             )
