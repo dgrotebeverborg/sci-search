@@ -24,7 +24,7 @@ for dimension, scale, names in (
     ("mass", 1, ("kg", "kilograms")),
     ("mass", 1000, ("t", "tonne", "tonnes", "1000 kg")),
     ("mass", 1e6, ("thousand tonnes",)),
-    ("area", 1, ("ha", "hectares")),
+    ("area", 1, ("ha", "hectare", "hectares")),
     ("area", 100, ("km2", "km²")),
     ("area", 1000, ("thousand hectares",)),
     ("mass/area", 1, ("t/ha", "tonnes per hectare", "tonnes/ha")),
@@ -91,13 +91,73 @@ def unit_key(unit):
     return lowered
 
 
-def factor(source, target):
-    left, right = unit_key(source), unit_key(target)
+def unit_semantics(unit):
+    """Resolve only explicit physical scales, substances and rate denominators."""
+    text = str(unit).strip().replace("₂", "2").replace("₄", "4")
+    parts = re.split(r"\s+per\s+|/", text, flags=re.I)
+    if len(parts) == 2:
+        numerator, denominator = parts
+        denominator = denominator.strip()
+        if denominator.casefold() in {"person", "people", "capita", "inhabitant", "inhabitants"}:
+            denominator_dimension, denominator_scale = "person", 1
+        else:
+            denominator_dimension, denominator_scale = UNITS.get(unit_key(denominator), (None, 0))
+        if denominator_dimension not in {"person", "area"}:
+            raise ValueError("Unsupported unit denominator")
+    elif len(parts) == 1:
+        numerator, denominator_dimension, denominator_scale = text, "", 1
+    else:
+        raise ValueError("Unsupported compound unit")
+    substance = ""
+    match = re.fullmatch(r"(.+?)\s+(?:of\s+)?(CO2|CH4|carbon dioxide|methane)", numerator, re.I)
+    if match is None:
+        match = re.fullmatch(r"(.+?)\s+of\s+(.+)", numerator, re.I)
+    if match:
+        numerator, substance = match.groups()
+        substance = substance.strip().casefold()
+        substance = {"carbon dioxide": "co2", "methane": "ch4"}.get(substance, substance)
+    dimension, scale = UNITS.get(unit_key(numerator), (None, 0))
+    if dimension is None or (substance and dimension != "mass"):
+        raise ValueError("Units are incompatible or conversion is unsupported")
+    if dimension == "mass/area" and not denominator_dimension:
+        # Historical compound aliases store tonnes/ha, while parsed mass uses kg.
+        dimension, denominator_dimension, scale = "mass", "area", scale * 1000
+    return (dimension, denominator_dimension, substance), scale / denominator_scale
+
+
+def source_substance(series):
+    # Identity dimensions are selected source fields; labels may come from the request.
+    indicator = str((series or {}).get("identity", {}).get("dimensions", {}).get("indicator", ""))
+    indicator = indicator.replace("₂", "2").replace("₄", "4").casefold()
+    if re.search(r"co2[ -]?(?:equivalent|eq)\b", indicator):
+        return "co2-equivalent"
+    found = set()
+    for substance, pattern in (
+        ("co2", r"\b(?:co2|carbon dioxide)\b"),
+        ("ch4", r"\b(?:ch4|methane)\b"),
+    ):
+        if re.search(pattern, indicator):
+            found.add(substance)
+    return next(iter(found)) if len(found) == 1 else ""
+
+
+def factor(source, target, *, source_series=None, target_series=None):
+    source_evidence = source_substance(source_series)
+    target_evidence = source_substance(target_series)
+    if source_evidence and target_evidence and source_evidence != target_evidence:
+        raise ValueError("Unit substances are incompatible or undocumented")
     if str(source).strip() and str(source).strip() == str(target).strip():
         return 1
-    if left not in UNITS or right not in UNITS or UNITS[left][0] != UNITS[right][0]:
+    left, left_scale = unit_semantics(source)
+    right, right_scale = unit_semantics(target)
+    if left[:2] != right[:2]:
         raise ValueError("Units are incompatible or conversion is unsupported")
-    return UNITS[left][1] / UNITS[right][1]
+    if left[2] != right[2]:
+        left_substance = left[2] or source_substance(source_series)
+        right_substance = right[2] or source_substance(target_series)
+        if not left_substance or left_substance != right_substance:
+            raise ValueError("Unit substances are incompatible or undocumented")
+    return left_scale / right_scale
 
 
 def observations(series):
@@ -183,7 +243,9 @@ def calculate(plan, source, reference=None, *, years):
             if source.get("measure_type") not in {"ratio", "index", "percentage"}:
                 raise ValueError("Input scale does not support a base-year index")
         if op in {"deflate", "real_index"}:
-            if UNITS.get(unit_key(source.get("unit")), ("", 0))[0] not in {"EUR", "USD"}:
+            if not (op == "real_index" and source.get("measure_type") == "index") and UNITS.get(
+                unit_key(source.get("unit")), ("", 0)
+            )[0] not in {"EUR", "USD"}:
                 raise ValueError("Inflation adjustment requires a supported monetary unit")
             if reference is None or reference.get("measure_type") != "index":
                 raise ValueError("Inflation adjustment requires a documented price index")
@@ -201,6 +263,8 @@ def calculate(plan, source, reference=None, *, years):
             multiplier = factor(
                 source.get("unit"),
                 plan["target_unit"] if op == "convert" else reference.get("unit"),
+                source_series=source,
+                target_series=reference if op == "share" else None,
             )
             result["conversion_factor"] = multiplier
     except ValueError as exc:

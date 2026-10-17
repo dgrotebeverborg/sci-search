@@ -131,7 +131,7 @@ def acquire(snapshot, root, selection, years, fetch):
     }
 
 
-def prepare_snapshot(body):
+def prepare_snapshot(body, *, cbs_units_version=2):
     snapshot = json.loads(body)
     if snapshot.get("format") != "cbs_odata_v1" or len(body) > 10_000_000:
         raise ValueError("Invalid CBS API snapshot")
@@ -172,7 +172,7 @@ def prepare_snapshot(body):
         from .packages import prepare_table
     except ImportError:
         from packages import prepare_table
-    table, preparation = prepare_table(output.getvalue())
+    table, preparation = prepare_table(output.getvalue(), cbs_units_version=cbs_units_version)
     preparation["format"] = "cbs_odata_v1"
     for key, provenance in preparation["row_provenance"].items():
         provenance["source_reference"] = references[int(key) - 2]

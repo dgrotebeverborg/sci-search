@@ -114,7 +114,7 @@ for directory in sorted(root.glob("source-*")):
         table=source.read_bytes()
         if result.get("preparation"):
             from packages import prepare_table, attach_provenance
-            table, preparation=prepare_table(table, result["preparation"].get("selection"))
+            table, preparation=prepare_table(table, result["preparation"].get("selection"), cbs_units_version=result["preparation"].get("unit_normalization_version",1))
             assert table==(directory/"source.csv").read_bytes()
         for component in result.get("components", [result]):
             component_table, component_preparation = table, preparation if result.get("preparation") else {}

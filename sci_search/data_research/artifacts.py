@@ -59,7 +59,7 @@ elif result.get("kind")=="tabular":
     from preparation import transform_table
     table, prepared = (source, {})
     if result.get("preparation"):
-        table, prepared=prepare_table(source,result["preparation"].get("selection"))
+        table, prepared=prepare_table(source,result["preparation"].get("selection"), cbs_units_version=result["preparation"].get("unit_normalization_version",1))
     components=[]
     for component in result.get("components", [result]):
         data, preparation=table, prepared

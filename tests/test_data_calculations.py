@@ -175,3 +175,73 @@ def test_spelled_energy_units_share_the_same_explicit_si_conversion(unit):
     item = {**plan(), "operation": "convert", "base_year": None, "target_unit": "GWh"}
     output = calculate(item, series([1, 2, 3], unit), years=[2000, 2001, 2002])
     assert [r["value"] for r in output["annual"]] == [1000, 2000, 3000]
+
+
+def test_real_index_accepts_a_documented_nominal_price_index():
+    result = calculate(
+        {**plan(), "operation": "real_index", "reference": "CPI"},
+        series([100, 120, 132], "2015 = 100", "index"),
+        series([100, 110, 120], "2015 = 100", "index"),
+    )
+    assert [r["value"] for r in result["annual"]] == pytest.approx([100, 109.090909, 110])
+
+
+def test_deflate_still_rejects_nonmonetary_index():
+    result = calculate(
+        {**plan(), "operation": "deflate", "reference": "CPI"},
+        series([100, 120, 132], "2015 = 100", "index"),
+        series([100, 110, 120], "2015 = 100", "index"),
+    )
+    assert result["status"] == "blocked"
+
+
+def test_conversion_uses_source_indicator_substance_without_changing_observations():
+    source = series([1, 2, 3], "tonnes per person")
+    source["identity"] = {
+        "dimensions": {"indicator": "CO₂ emissions per capita (tonnes per person)"}
+    }
+    result = calculate(
+        {**plan(), "operation": "convert", "target_unit": "kg of CO2 per person"}, source
+    )
+    assert [r["value"] for r in result["annual"]] == [1000, 2000, 3000]
+
+
+@pytest.mark.parametrize(
+    "indicator", ["", "Methane emissions per capita", "CO2-equivalent emissions per capita"]
+)
+def test_target_cannot_supply_missing_or_conflicting_substance(indicator):
+    source = series([1, 2, 3], "tonnes per person")
+    source["label"] = "CO2 emissions requested by user"
+    source["identity"] = {"dimensions": {"indicator": indicator}}
+    result = calculate(
+        {**plan(), "operation": "convert", "target_unit": "tonnes of CO2 per person"}, source
+    )
+    assert result["status"] == "blocked"
+
+
+@pytest.mark.parametrize("left_unit,right_unit", [("tonnes", "kg"), ("tonnes", "tonnes")])
+def test_share_rejects_conflicting_source_substances_even_for_bare_units(left_unit, right_unit):
+    source = series([1, 2, 3], left_unit)
+    source["identity"] = {"dimensions": {"indicator": "Carbon dioxide emissions"}}
+    reference = series([1000, 2000, 3000], right_unit)
+    reference["identity"] = {"dimensions": {"indicator": "CH4 emissions"}}
+    result = calculate({**plan(), "operation": "share", "reference": "total"}, source, reference)
+    assert result["status"] == "blocked"
+    assert all(row["value"] is None for row in result["annual"])
+
+
+def test_identical_unknown_unit_single_source_conversion_is_preserved():
+    source = series([1, 2, 3], "source-specific units")
+    result = calculate(
+        {**plan(), "operation": "convert", "target_unit": "source-specific units"}, source
+    )
+    assert [row["value"] for row in result["annual"]] == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    "unit", ["tonnes CO2 per person", "t CO₂/person", "tonnes of carbon dioxide per capita"]
+)
+def test_explicit_carbon_dioxide_unit_aliases_preserve_substance(unit):
+    from sci_search.data_research.calculations import factor
+
+    assert factor("kg of CO2 per person", unit) == 0.001

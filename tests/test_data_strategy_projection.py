@@ -1,7 +1,5 @@
 """Questions about the future may use projected data up to 2100."""
 
-from datetime import UTC, datetime
-
 import pytest
 
 from sci_search.data_research import semantics
@@ -28,9 +26,14 @@ def test_years_after_2100_are_rejected():
         strategy(2000, 2101)
 
 
-def test_a_start_year_in_the_future_is_rejected():
+def test_a_future_only_interval_is_preserved():
+    result = strategy(2027, 2030)
+    assert (result["start_year"], result["end_year"]) == (2027, 2030)
+
+
+def test_start_years_after_2100_are_rejected():
     with pytest.raises(ValueError, match="years"):
-        strategy(datetime.now(UTC).year + 1, 2100)
+        strategy(2101, None)
 
 
 def test_a_reversed_interval_is_rejected():

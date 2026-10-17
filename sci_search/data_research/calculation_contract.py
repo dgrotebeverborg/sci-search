@@ -29,15 +29,35 @@ SCHEMA = {
     },
 }
 
+# Mathematical intent is separate from the executable operation. In particular,
+# subtraction across groups must never be satisfied by a temporal difference.
+REQUEST_KINDS = {
+    "index": ("index", None),
+    "real_index": ("real_index", None),
+    "deflate": ("deflate", None),
+    "convert": ("convert", None),
+    "share": ("share", None),
+    "year_on_year_difference": ("difference", False),
+    "baseline_difference": ("difference", True),
+    "year_on_year_percentage_points": ("percentage_point_change", False),
+    "baseline_percentage_points": ("percentage_point_change", True),
+    "cross_series_difference": None,
+    "cross_series_percentage_points": None,
+    "reference_mean_anomaly": None,
+    "ratio": None,
+    "other": None,
+}
+
 REQUEST_SCHEMA = {
     "type": "array",
     "maxItems": 10,
     "items": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["description", "calculation_ids", "unresolved_reason"],
+        "required": ["description", "kind", "calculation_ids", "unresolved_reason"],
         "properties": {
             "description": {"type": "string"},
+            "kind": {"type": "string", "enum": list(REQUEST_KINDS)},
             "calculation_ids": {"type": "array", "maxItems": 10, "items": {"type": "string"}},
             "unresolved_reason": {"type": "string"},
         },
@@ -51,11 +71,8 @@ def validate_requests(items, calculations):
     available = {c["id"] for c in calculations}
     covered, unresolved = set(), []
     for item in items:
-        if not isinstance(item, dict) or set(item) != {
-            "description",
-            "calculation_ids",
-            "unresolved_reason",
-        }:
+        legacy_fields = {"description", "calculation_ids", "unresolved_reason"}
+        if not isinstance(item, dict) or set(item) not in (legacy_fields, legacy_fields | {"kind"}):
             raise ValueError("Invalid calculation request fields")
         description, ids, reason = (
             item[k] for k in ("description", "calculation_ids", "unresolved_reason")
@@ -75,6 +92,26 @@ def validate_requests(items, calculations):
             raise ValueError(
                 "Each calculation request needs executable IDs or an unresolved reason"
             )
+        if "kind" in item:
+            kind = item["kind"]
+            if not isinstance(kind, str) or kind not in REQUEST_KINDS:
+                raise ValueError("Invalid calculation request meaning")
+            expected = REQUEST_KINDS[kind]
+            for calculation in calculations:
+                if calculation["id"] not in ids:
+                    continue
+                if (
+                    expected is None
+                    or calculation["operation"] != expected[0]
+                    or (
+                        expected[1] is not None
+                        and (calculation["base_year"] is not None) != expected[1]
+                    )
+                ):
+                    raise ValueError(
+                        f"Calculation {calculation['id']!r} does not implement requested meaning "
+                        f"{kind!r}; retain unsupported requests with an unresolved reason"
+                    )
         covered.update(ids)
         if reason.strip():
             unresolved.append((description.strip() + ": " + reason.strip())[:500])

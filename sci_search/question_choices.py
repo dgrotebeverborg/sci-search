@@ -130,7 +130,11 @@ def _option(question: str, base: dict[str, Any], raw: dict[str, Any]) -> dict[st
         "interpreted_question": " ".join(str(raw["interpreted_question"]).split()),
         "objective": " ".join(str(raw["objective"]).split()),
         "research_plan": deepcopy(raw["research_plan"]),
-        "data_research": validate_strategy(strategy, infer_route=True) if strategy else None,
+        "data_research": validate_strategy(
+            strategy, infer_route=True, require_calculation_intent=True
+        )
+        if strategy
+        else None,
         "ambiguity": "minor" if base.get("ambiguity") == "material" else base.get("ambiguity"),
         "clarification_question": None,
     }

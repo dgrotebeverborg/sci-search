@@ -239,3 +239,33 @@ def test_original_question_qualifiers_remain_available_to_the_input_reviewer():
         documents={"metadata": "Household electricity excluding autoproducers"},
         complete=model,
     )
+
+
+@pytest.mark.parametrize(
+    "source,target,expected",
+    [
+        ("tonnes of CO2 per person", "kg of CO₂ per capita", 1000),
+        ("1 000 kg per hectare", "t/ha", 1),
+        ("kg per person", "tonnes per person", 0.001),
+    ],
+)
+def test_compound_units_preserve_substance_and_denominator(source, target, expected):
+    assert factor(source, target) == expected
+
+
+@pytest.mark.parametrize(
+    "source,target",
+    [
+        ("tonnes of CO2 per person", "tonnes of CH4 per person"),
+        ("tonnes per person", "tonnes of CO2 per person"),
+        ("tonnes per hectare", "tonnes per person"),
+        ("tonnes of CO2-equivalent per person", "tonnes of CO2 per person"),
+    ],
+)
+def test_compound_units_do_not_erase_semantics(source, target):
+    with pytest.raises(ValueError):
+        factor(source, target)
+
+
+def test_existing_compact_yield_unit_alias_remains_compatible():
+    assert factor("tonnesperhectare", "kg/ha") == 1000

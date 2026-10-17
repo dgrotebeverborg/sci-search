@@ -183,3 +183,13 @@ def test_api_snapshot_is_calculated_and_replayed_offline(tmp_path):
     write_replay(folder)
     assert result["execution"]["status"] == "verified"
     subprocess.run([sys.executable, str(folder / "reproduce.py")], check=True, capture_output=True)
+
+
+def test_retained_odata_plan_keeps_legacy_normalization_version():
+    fetch, _ = api()
+    description = cbs.describe(CANDIDATE, SCOPE, fetch=fetch)
+    acquired = cbs.fetch(description, selection_for(description), SCOPE, fetch=fetch, post=None)
+    _, legacy = prepare_table(acquired.raw, acquired.selection, cbs_units_version=1)
+    assert "unit_normalization_version" not in legacy
+    _, current = prepare_table(acquired.raw, acquired.selection)
+    assert current["unit_normalization_version"] == 2

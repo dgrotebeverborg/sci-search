@@ -4,22 +4,24 @@ import itertools
 import math
 import re
 
-from sci_search.data_research.wildfire import COUNTRY_NAMES
+from sci_search.data_research.countries import (
+    COUNTRY_NAMES,
+    canonical_country,
+    country_mentions,
+)
 
 ALIASES = {
     "male": ("male", "males", "men", "mannen"),
     "female": ("female", "females", "women", "vrouwen"),
-    "NLD": ("Netherlands", "Nederland", "NLD"),
-    "DEU": ("Germany", "Duitsland", "DEU"),
 }
 
 
 def _matches(value, text):
-    aliases = ALIASES.get(value, (value, COUNTRY_NAMES.get(value, value)))
-    return any(
-        re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", text, 0 if a in COUNTRY_NAMES else re.I)
-        for a in aliases
-    )
+    country = canonical_country(value)
+    if country:
+        return country in country_mentions(text)
+    aliases = ALIASES.get(value, (value,))
+    return any(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", text, re.I) for a in aliases)
 
 
 def _finite(value):
@@ -110,7 +112,9 @@ def evaluate(scope, analyses):
             if not requirement.get("entities") or any(_matches(c, entity) for c in COUNTRY_NAMES):
                 other_entities.update(COUNTRY_NAMES)
             elif countries:
-                other_entities.update(set(COUNTRY_NAMES) - set(countries))
+                other_entities.update(
+                    set(COUNTRY_NAMES) - {canonical_country(c) or c for c in countries}
+                )
             dimensions = dict(zip((d["dimension"] for d in dims), values, strict=True))
             matches = []
             for source_index, analysis in enumerate(analyses):

@@ -1,7 +1,6 @@
 """Inspectable model research strategy; contains no executable code or URLs."""
 
 import re
-from datetime import UTC, datetime
 
 from sci_search.data_research import calculation_contract, requirements
 
@@ -79,6 +78,15 @@ PROMPT = (
     "Include calculation_requests: enumerate EVERY numerical transformation or cross-check requested "
     "in the original question, each with description and matching calculation_ids; use an empty "
     "unresolved_reason when executable, otherwise empty calculation_ids and the explicit unresolved_reason. "
+    "Each request MUST also specify kind, independently identifying the mathematics requested "
+    "by the user: index, real_index, deflate, convert, share, year_on_year_difference, "
+    "baseline_difference, year_on_year_percentage_points, baseline_percentage_points, "
+    "cross_series_difference, cross_series_percentage_points, reference_mean_anomaly, ratio, or other. "
+    "Across groups (for example women minus men in the SAME year) is cross_series_difference, "
+    "NEVER year_on_year_difference. Across-group subtraction, general ratios and reference-mean "
+    "anomalies are currently unsupported: preserve their kind with empty calculation_ids and "
+    "an unresolved_reason. Do not relabel their mathematical intent to fit an executable operation. "
+    "Enumerate annual changes and baseline comparisons as separate requests. "
     "Only use an empty list when the question requests no calculations. "
     "Each requirement has definition_policy: specified by default. Use choose_documented ONLY when "
     "the question explicitly permits choosing a source definition and stating which was used. "
@@ -93,9 +101,11 @@ PROMPT = (
     "measurements and geography faithfully. Measurements are published base series, including "
     "published percentages, rates and indices. Requested changes, trends and rebasing are "
     "calculations on those series, not separate datasets. "
-    "Base variables may be observed or modelled: for a question about the future, use projected "
-    "variables named with their scenario family, for example 'projected glacier runoff (SSP "
-    "scenarios)', and an end_year up to 2100. "
+    "Base variables may be observed or modelled. Preserve the requested observation type even "
+    "for future years: a request for observations does not authorize projections. Never replace "
+    "explicitly excluded projections with scenario data. Only when projections are requested or "
+    "permitted, name projected variables with their scenario family, for example 'projected "
+    "glacier runoff (SSP scenarios)'. Both start_year and end_year may extend to 2100. "
     "When datasets could answer part of a literature question, offer that data version as one of "
     "the options instead of leaving measurements empty. "
     "Set country_scope to europe for broader Europe, eu27 ONLY when EU/European Union is explicitly "
@@ -104,6 +114,9 @@ PROMPT = (
     "codes; otherwise leave countries empty. "
     "Distinguish Europe from EU; broader Europe includes "
     "explicit coverage gaps. Resolve 'this century' to 2001 through the last complete calendar year. "
+    "Preserve an explicitly requested output interval exactly, including future-only intervals; "
+    "do not replace it with years available in a dataset or silently drop it. Distinguish output "
+    "periods from reference/baseline periods and index base years. "
     "Use null years when no interval is specified; do not invent a time restriction. "
     "Null dates mean seek the longest comparable historical series, not merely the first usable dataset. "
     "This strategy is a proposal, not a claim that a suitable dataset exists. "
@@ -113,7 +126,7 @@ PROMPT = (
 )
 
 
-def validate_strategy(value: dict, *, infer_route=False) -> dict:
+def validate_strategy(value: dict, *, infer_route=False, require_calculation_intent=False) -> dict:
     if not isinstance(value, dict) or value.get("route") not in {"data", "literature", "both"}:
         raise ValueError("Invalid research approach")
     result = {"adapter": "discovered_data_v1", "route": value["route"]}
@@ -173,6 +186,14 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
             result["countries"],
             result["geography"],
         )
+    if require_calculation_intent and (
+        (result.get("calculations") and not value.get("calculation_requests"))
+        or any(
+            not isinstance(item, dict) or "kind" not in item
+            for item in value.get("calculation_requests", [])
+        )
+    ):
+        raise ValueError("Fresh calculation requests must declare their mathematical meaning")
     if "calculation_requests" in value:
         unresolved = calculation_contract.validate_requests(
             value["calculation_requests"], result.get("calculations", [])
@@ -192,11 +213,10 @@ def validate_strategy(value: dict, *, infer_route=False) -> dict:
                 " Study-based assessment is needed alongside data to interpret these concepts."
             )
 
-    # A period may end in a projected future (to 2100), but it cannot start in the future.
-    latest = {"start_year": datetime.now(UTC).year, "end_year": LAST_PROJECTED_YEAR}
+    # Requested dates describe scope, not whether observations already exist.
     for key in ("start_year", "end_year"):
         year = value.get(key)
-        if year is not None and (type(year) is not int or not 1800 <= year <= latest[key]):
+        if year is not None and (type(year) is not int or not 1800 <= year <= LAST_PROJECTED_YEAR):
             raise ValueError("Invalid research years")
         result[key] = year
     start, end = result["start_year"], result["end_year"]

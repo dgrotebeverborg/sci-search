@@ -14,13 +14,13 @@ except ImportError:  # Standalone, retained offline reproduction package.
     from tabular import read_csv
 
 
-def prepare_table(body, selection=None):
+def prepare_table(body, selection=None, *, cbs_units_version=2):
     if selection is not None and selection.get("reader") == "cbs_odata":
         try:
             from .cbs_odata import prepare_snapshot
         except ImportError:
             from cbs_odata import prepare_snapshot
-        return prepare_snapshot(body)
+        return prepare_snapshot(body, cbs_units_version=cbs_units_version)
     if selection is not None and selection.get("reader") == "jsonstat2":
         try:
             from .jsonstat import prepare_jsonstat
@@ -44,7 +44,9 @@ def prepare_table(body, selection=None):
             from .statistical_tables import decompress
         except ImportError:
             from statistical_tables import decompress
-        normalized, preparation = prepare_table(decompress(body), selection)
+        normalized, preparation = prepare_table(
+            decompress(body), selection, cbs_units_version=cbs_units_version
+        )
         preparation["compression"] = "gzip"
         if preparation["format"] == "csv":
             preparation["format"] = "gzip_csv_v1"
@@ -96,7 +98,7 @@ def prepare_table(body, selection=None):
         if {"Observations.csv", "MeasureCodes.csv", "Dimensions.csv", "Properties.csv"} <= set(
             names
         ):
-            return _cbs(archive)
+            return _cbs(archive, units_version=cbs_units_version)
         csvs = [n for n in names if n.lower().endswith(".csv")]
         if len(csvs) != 1:
             raise ValueError(
@@ -127,7 +129,7 @@ def prepare_table(body, selection=None):
         }
 
 
-def _cbs(archive):
+def _cbs(archive, *, units_version=2):
     def table(name):
         if name not in archive.namelist():
             raise ValueError("CBS package is missing a required code table: " + name)
@@ -175,6 +177,20 @@ def _cbs(archive):
         measure = measures.get(row["Measure"])
         if not measure or not measure.get("Unit"):
             raise ValueError("CBS observation references an unknown measure or unspecified unit")
+        unit = measure["Unit"]
+        unit_evidence = {}
+        # A selected measure title can explicitly supply the rate denominator.
+        # Dataset prose and descriptions often mention other measures too.
+        if (
+            units_version >= 2
+            and re.search(r"\bper\s+(?:ha|hectare)\b", measure["Title"], re.I)
+            and not re.search(r"/|\bper\b", unit, re.I)
+        ):
+            unit += " per hectare"
+            unit_evidence = {
+                "source_unit": measure["Unit"],
+                "unit_evidence": {"field": "MeasureCodes.Title", "value": measure["Title"]},
+            }
         period = dimensions[time_key].get(row[time_key])
         if not period or not re.fullmatch(r"(?:18|19|20|21)\d{2}JJ00", row[time_key]):
             raise ValueError(
@@ -198,7 +214,7 @@ def _cbs(archive):
             "Measure": measure["Title"],
             **labels,
             "Value": row["Value"],
-            "Unit": measure["Unit"],
+            "Unit": unit,
             "Value attribute": flag,
             "Period status": period.get("Status", ""),
         }
@@ -209,7 +225,8 @@ def _cbs(archive):
             "entry": "Observations.csv",
             "source_row": source_line,
             "measure_code": row["Measure"],
-            "unit": measure["Unit"],
+            "unit": unit,
+            **unit_evidence,
             "period_code": row[time_key],
             "status": period.get("Status", ""),
             "value_attribute": flag,
@@ -227,6 +244,7 @@ def _cbs(archive):
     )
     return data, {
         "format": "cbs_csv_zip_v1",
+        **({"unit_normalization_version": units_version} if units_version >= 2 else {}),
         "entry": "Observations.csv",
         "metadata": metadata,
         "license_url": properties[0].get("License", ""),

@@ -51,6 +51,13 @@ explicitly enumerated; unknown units allow exact identity only. No denominator i
 no general population rate is inferred from `RT`, and offset conversions are unsupported.
 See the [source-quality validation](operations/data-source-quality-validation-20261016.md).
 
+Explicit future periods remain valid requests even when observations do not yet exist; they do not
+justify substituting forecasts or historical years. A conservative literal-period guard preserves a
+single explicit interval from the original question, including unrelated clarifications. Multi-window,
+reference-period and open-ended timing still require faithful model interpretation. Country coverage
+uses a bundled global ISO registry and qualified aliases; ambiguous names such as plain Congo do not
+establish country coverage.
+
 ## Requested numerical outputs
 
 The interpreted data scope can contain an explicit `calculations` list alongside the published
@@ -65,7 +72,10 @@ than substituting a different observation. Percentage-point changes are not rela
 
 New interpretations include `calculation_requests`, an inventory linking each requested numerical
 transformation to executable calculation IDs or an explicit unresolved reason. Validation rejects
-unassigned requests, unknown IDs and unaccounted executable plans. Older saved scopes retain their
+unassigned requests, unknown IDs and unaccounted executable plans. Each fresh request also declares
+its mathematical `kind`, which must match the operation and time basis. Cross-group subtraction
+(for example women minus men in the same year) cannot be assigned to a year-on-year difference;
+it remains explicitly unresolved until supported. Older saved scopes retain their
 historical contracts; reinterpret the original question to obtain the new inventory.
 
 The dashboard reports input coverage, calculation availability and numerical-answer completeness
@@ -81,7 +91,12 @@ proof that no operation was omitted. See the [five-question validation](operatio
 Calculations require an explicit annual output period and one unambiguous source series per input,
 country and requested breakdown. They never splice sources, interpolate missing years, substitute
 a different base year, or divide by a missing/non-positive denominator. Unit conversion uses explicit
-energy and currency factors; unknown conversions are blocked. Cross-input calculations additionally
+energy, currency, mass and area factors, with denominators and documented substances kept distinct;
+unknown conversions are blocked. Source indicator metadata can establish that a bare mass-per-person
+unit measures CO2, but the requested label alone cannot. Inflation-adjusted indices accept either a
+monetary series or a documented nominal index; deflated monetary amounts still require currency.
+CBS yield units include per-hectare information only when the selected measure title explicitly
+provides it. Saved normalization versions preserve replay of older packages. Cross-input calculations additionally
 require a cited compatibility review against sealed source documentation, including gross/net and
 population definitions. This remains a model assessment, not expert certification.
 

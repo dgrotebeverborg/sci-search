@@ -280,3 +280,62 @@ def test_discovery_recovers_using_only_observed_source_indices():
     trace = discover("Storage", {}, analyzer=analyzer, transport=lambda body: reply)
     assert trace["candidates"][0]["url"] == observed
     assert trace["rejected"][0]["url"] == draft
+
+
+@pytest.mark.parametrize(
+    "title,expected",
+    [
+        ("Bruto opbrengst per ha", "1 000 kg per hectare"),
+        ("Gross yield per hectare", "1 000 kg per hectare"),
+        ("Totale bruto opbrengst", "1 000 kg"),
+    ],
+)
+def test_cbs_yield_unit_uses_selected_measure_title_and_retains_evidence(title, expected):
+    import csv
+
+    tables = {
+        "Properties.csv": [
+            {"Title": "Crop production", "Description": "Yield per hectare and total production"}
+        ],
+        "Dimensions.csv": [
+            {"Identifier": "Perioden", "Kind": "TimeDimension", "CodesUrl": "PeriodenCodes.csv"}
+        ],
+        "PeriodenCodes.csv": [{"Identifier": "2020JJ00", "Title": "2020"}],
+        "MeasureCodes.csv": [
+            {
+                "Identifier": "M1",
+                "Title": title,
+                "Unit": "1 000 kg",
+                "Description": "Yield per hectare and total production",
+            }
+        ],
+        "Observations.csv": [
+            {
+                "Measure": "M1",
+                "Perioden": "2020JJ00",
+                "Value": "42.1",
+                "StringValue": "",
+                "ValueAttribute": "",
+            }
+        ],
+    }
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, rows in tables.items():
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=list(rows[0]), delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+            archive.writestr(name, output.getvalue())
+    # Re-executing a saved pre-normalization plan must retain its original unit/filter.
+    legacy, legacy_prep = prepare_table(stream.getvalue(), cbs_units_version=1)
+    assert read_csv(legacy)[1][0]["Unit"] == "1 000 kg"
+    assert "source_unit" not in legacy_prep["row_provenance"]["2"]
+    body, prep = prepare_table(stream.getvalue())
+    assert read_csv(body)[1][0]["Unit"] == expected
+    origin = prep["row_provenance"]["2"]
+    assert origin["unit"] == expected
+    if expected != "1 000 kg":
+        assert origin["source_unit"] == "1 000 kg"
+        assert origin["unit_evidence"] == {"field": "MeasureCodes.Title", "value": title}
+    assert read_csv(prepare_table(stream.getvalue())[0])[1][0]["Value"] == "42.1"

@@ -7,6 +7,7 @@ import re
 from dataclasses import asdict, dataclass, replace
 from typing import Any
 
+from sci_search.data_research.requested_period import requested_interval
 from sci_search.data_research.strategy import PROMPT as STRATEGY_PROMPT
 from sci_search.data_research.strategy import SCHEMA as STRATEGY_SCHEMA
 from sci_search.data_research.strategy import validate_strategy
@@ -157,9 +158,22 @@ def interpret_question(
     brief = _interpretation(question, analyzer, steer=steer, clarification=clarification)
     raw = brief.pop("proposals", None) or {}
     raw_options, answers = raw.get("options"), raw.get("clarification_options")
+    options = option_briefs(question, brief, raw_options)
+    interval = requested_interval(question, clarification) if not steer else None
+    if interval:
+        # Keep the literal brief and its default option faithful to the original request.
+        # Alternative versions remain proposals the researcher can explicitly select.
+        for item in [brief, *(o["brief"] for o in options if o["closest"])]:
+            strategy = item.get("data_research")
+            if strategy and strategy.get("adapter") == "discovered_data_v1":
+                item["data_research"] = {
+                    **strategy,
+                    "start_year": interval[0],
+                    "end_year": interval[1],
+                }
     return {
         **brief,
-        "options": option_briefs(question, brief, raw_options),
+        "options": options,
         "clarification_options": [
             " ".join(str(a).split())[:120] for a in answers or [] if str(a).strip()
         ][:4],
@@ -392,7 +406,9 @@ def _model_interpretation(
         provider=analyzer.provider.name,
         model=analyzer.model,
         research_plan=structure,
-        data_research=validate_strategy(payload["research_strategy"], infer_route=True)
+        data_research=validate_strategy(
+            payload["research_strategy"], infer_route=True, require_calculation_intent=True
+        )
         if payload.get("research_strategy")
         else None,
         proposals={
