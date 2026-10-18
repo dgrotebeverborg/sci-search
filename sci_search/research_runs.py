@@ -1832,6 +1832,15 @@ class ResearchRunManager:
             json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         temporary.replace(path)
+        # Diagnostics must never turn an otherwise saved research run into a failure.
+        from sci_search.run_issues import record
+
+        try:
+            record(path.parent, state)
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Issue recording unavailable: %s", type(exc).__name__
+            )
 
 
 def _write_manifest(
