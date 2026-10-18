@@ -109,7 +109,10 @@ class GenericResearchEngine:
         # Trend evidence is often summarized in conclusion sections that rank
         # below dense method/figure passages in lexical retrieval. Inspect a
         # wider bounded pool before applying strict scope and diversity gates.
-        retrieved = self.index.search(plan, limit=200 if plan.intent == "temporal_trend" else 80)
+        candidate_limit = 200 if plan.intent == "temporal_trend" else 80
+        retrieved = self.index.search(
+            plan, limit=candidate_limit, publication_reserve=candidate_limit
+        )
         evidence = _extract_evidence(retrieved, plan, self.documents, research_scope)
         required_scope_ids = {
             str(item["id"])
@@ -144,10 +147,9 @@ class GenericResearchEngine:
                 if states.get(item.id, {}).get("review_state") != "rejected"
             )
         evidence = _apply_evidence_preferences(evidence, plan)
-        evidence = _diverse_top(
+        evidence = _evidence_with_publication_reserve(
             evidence,
-            limit=24,
-            per_publication=3,
+            {(item.publication_id, item.passage.start) for item in retrieved[:candidate_limit]},
             prefer_trends=research_scope.get("task") == "temporal_trend",
         )
         session = (
@@ -513,6 +515,29 @@ def _study_design(text: str, fallback: str) -> str:
     return next(
         (label for label, terms in cues if any(term in lowered for term in terms)), fallback
     )
+
+
+def _evidence_with_publication_reserve(records, primary_passages, *, prefer_trends):
+    """Keep the original evidence selection, then add one result per other study.
+
+    All records have already passed extraction, scope and lifecycle checks.
+    The original 24-record budget and the 24-record reserve are independent,
+    so a rescued study cannot push out previously selected evidence.
+    """
+    primary = _diverse_top(
+        tuple(r for r in records if (r.publication_id, r.passage_start) in primary_passages),
+        limit=24,
+        per_publication=3,
+        prefer_trends=prefer_trends,
+    )
+    represented = {r.publication_id for r in primary}
+    reserve = _diverse_top(
+        tuple(r for r in records if r.publication_id not in represented),
+        limit=24,
+        per_publication=1,
+        prefer_trends=prefer_trends,
+    )
+    return primary + reserve
 
 
 def _diverse_top(

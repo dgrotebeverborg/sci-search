@@ -56,3 +56,22 @@ Reusing the same output path resumes from its completed cases after verifying th
 3. **Generic entity recognition:** known domain concepts and unknown compound scientific entities are represented separately. Atomic concepts preserve high-recall screening; phrases such as `fine particulate matter`, `soil organic carbon`, and `plant species diversity` provide precise query variants. Domain profiles now require an anchor or two independent concept matches, preventing words such as `temperature`, `degradation`, or `grazing` from selecting an unrelated specialist profile.
 
 The legacy 43-question corpus benchmark remains independent and must continue passing. It protects source-grounded extraction and previously corrected regressions while the new benchmark evaluates broader researcher behaviour.
+
+## Passage selection and retained-source regression checks
+
+The generic evidence engine preserves its original top 80 passage candidates (200 for
+temporal trends). A separate reserve of at most the same size adds matching passages from
+underrepresented publications, prioritizing absent publications before second and third
+passages. All candidates still pass extraction, scope, lifecycle and evidence-preference checks.
+The original selection of up to 24 evidence records is preserved; up to 24 additional records
+may represent other publications, one per additional publication. This bounds the total at 48
+and prevents rescued sources from displacing already selected evidence. Summary and adequacy
+decisions use the combined evidence and must be checked separately.
+
+The October 18 retained-source replay recovered the acquired biochar meta-regression that
+ranked below the original 80-passage cutoff. Known-reference evidence use increased from 14/19
+to 15/19 without losing another reference. All 24 question adequacy labels and all four
+boundary policies remained unchanged. This is deterministic evidence-selection validation,
+not a new live discovery or generative-synthesis evaluation. The previously observed
+`rebound-time-comparison` retained-corpus expectation mismatch remains unresolved; ordinary
+CI skips that retained-data test. Its expectation has not been relaxed.
