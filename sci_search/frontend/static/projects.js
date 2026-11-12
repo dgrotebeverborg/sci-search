@@ -45,11 +45,13 @@ export async function initializeProjects() {
   const workspaces = await request('/api/v1/workspaces');
   activeWorkspace = workspaces.items[0] || null;
   document.getElementById('workspace-name').textContent = activeWorkspace?.name || 'No workspace';
-  await loadProjects();
+  await loadProjects(new URL(window.location.href).searchParams.get('project'));
   document.getElementById('project-select').addEventListener('change', async (event) => {
-    const projects = await request('/api/v1/projects');
-    activeProject = projects.items.find((project) => project.id === event.target.value) || null;
-    notify();
+    try {
+      const projects = await request('/api/v1/projects');
+      activeProject = projects.items.find((project) => project.id === event.target.value) || null;
+      notify();
+    } catch (error) { if (error.name !== 'AbortError') setStatus(error.message, 'error'); }
   });
   document.getElementById('new-project-form').addEventListener('submit', async (event) => {
     event.preventDefault();

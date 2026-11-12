@@ -107,7 +107,7 @@ class ScientificMemory:
         with self._connect() as connection:
             canonical_key = _canonical_key(candidate.doi, candidate.title)
             row = connection.execute(
-                "SELECT cache_path,download_cache_path FROM publications WHERE "
+                "SELECT cache_path,download_cache_path,content_sha256 FROM publications WHERE "
                 "(publication_id=? OR canonical_key=? OR publication_id=(SELECT publication_id FROM publication_aliases WHERE alias_id=?)) "
                 "AND cache_path IS NOT NULL LIMIT 1",
                 (candidate.id, canonical_key, candidate.id),
@@ -117,6 +117,11 @@ class ScientificMemory:
         source = (self.root / row["cache_path"]).resolve()
         source.relative_to(self.root)
         if not source.is_file():
+            return None
+        if (
+            not row["content_sha256"]
+            or hashlib.sha256(source.read_bytes()).hexdigest() != row["content_sha256"]
+        ):
             return None
         target_dir = corpus_directory / "papers"
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -128,6 +133,8 @@ class ScientificMemory:
             download_source = (self.root / row["download_cache_path"]).resolve()
             download_source.relative_to(self.root)
             if download_source.is_file() and download_source != source:
+                if hashlib.sha256(download_source.read_bytes()).hexdigest() != download_source.stem:
+                    return None
                 download_target = target_dir / f"memory-{download_source.name}"
                 if not download_target.exists():
                     shutil.copyfile(download_source, download_target)
@@ -591,6 +598,23 @@ class ScientificMemory:
                     {"quote_validated": True},
                 )
                 self._edge(connection, f"run:{run_id}", "EXTRACTED_MEASUREMENT", measurement_id, {})
+            for group in ai.get("contradiction_groups", []) if isinstance(ai, dict) else []:
+                if not isinstance(group, dict) or not group.get("id"):
+                    continue
+                group_id = str(group["id"])
+                self._node(connection, group_id, "ContradictionGroup", group_id, group)
+                for index, position in enumerate(group.get("positions", [])):
+                    if not isinstance(position, dict):
+                        continue
+                    for evidence_id in position.get("evidence_ids", []):
+                        self._edge(
+                            connection,
+                            group_id,
+                            "POSITION_SUPPORTED_BY",
+                            str(evidence_id),
+                            {"position": index},
+                        )
+                self._edge(connection, f"run:{run_id}", "PRODUCED_CONTRADICTION", group_id, {})
             connection.commit()
         return {
             "publications_added": added_publications,

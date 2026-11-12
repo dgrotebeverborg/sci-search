@@ -31,9 +31,10 @@ from sci_search.api.errors import (
     resource_not_found_handler,
     version_conflict_handler,
 )
-from sci_search.api.frontend import STATIC_DIRECTORY
+from sci_search.api.frontend import STATIC_DIRECTORY, static_asset_prefix
 from sci_search.api.frontend import router as frontend_router
 from sci_search.api.routes.audit import router as audit_router
+from sci_search.api.routes.dashboards import router as dashboards_router
 from sci_search.api.routes.documents import router as documents_router
 from sci_search.api.routes.exports import router as exports_router
 from sci_search.api.routes.operations import OperationalChecks, create_operations_router
@@ -53,6 +54,7 @@ from sci_search.infrastructure.observability import (
     Metrics,
     RequestMetricsMiddleware,
 )
+from sci_search.model_provider import InvalidAnalysisSelection
 
 Environment = Literal["development", "test", "production"]
 _DEFAULT_SECRETS = frozenset({"change-me", "secret", "development-secret", "sci-search"})
@@ -70,6 +72,7 @@ class ApiSettings:
     development_auth_enabled: bool = False
     development_user_id: str = "development-researcher"
     workspace_preview: bool = False
+    local_research_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.max_request_body_bytes <= 0:
@@ -85,6 +88,8 @@ class ApiSettings:
         callback = urlparse(self.oidc_callback_url)
         if callback.scheme != "https" or not callback.netloc:
             raise ValueError("production OIDC callback must use HTTPS")
+        if self.local_research_enabled:
+            raise ValueError("local research is forbidden in production")
         if self.workspace_preview:
             raise ValueError("workspace preview is forbidden in production")
         if self.development_auth_enabled:
@@ -197,6 +202,11 @@ def create_app(
     app.state.api_services = services
     metrics = Metrics()
     app.state.metrics = metrics
+
+    async def invalid_analysis_selection(request: Request, error: InvalidAnalysisSelection):
+        return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    app.add_exception_handler(InvalidAnalysisSelection, invalid_analysis_selection)
     app.add_exception_handler(ResourceNotFound, resource_not_found_handler)
     app.add_exception_handler(ResourceVersionConflict, version_conflict_handler)
     app.add_exception_handler(InvalidDocument, invalid_document_handler)
@@ -222,11 +232,18 @@ def create_app(
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type", settings.csrf_header_name],
     )
+    app.state.frontend_static_prefix = static_asset_prefix()
+    app.mount(
+        app.state.frontend_static_prefix,
+        StaticFiles(directory=STATIC_DIRECTORY),
+        name="versioned-static",
+    )
     app.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     app.include_router(frontend_router)
     app.include_router(workspaces_router)
     app.include_router(projects_router)
     app.include_router(runs_router)
+    app.include_router(dashboards_router)
     app.include_router(documents_router)
     app.include_router(reviews_router)
     app.include_router(exports_router)

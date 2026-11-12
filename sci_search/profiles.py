@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from sci_search.concept_matching import concept_present
+
 
 @dataclass(frozen=True, slots=True)
 class DomainProfile:
@@ -16,6 +18,25 @@ class DomainProfile:
 
     def expand(self, term: str) -> tuple[str, ...]:
         normalized = term.lower().strip()
+        if self.id == "generic" and normalized.startswith("evolution of "):
+            # The process wording belongs to the question, while retrieval
+            # must also recognize studies naming the underlying subject.
+            return (normalized, *self.expand(normalized.removeprefix("evolution of ")))
+        if self.id == "generic" and normalized in {"social factors", "biophysical factors"}:
+            return (normalized, *self.expand(normalized.removesuffix(" factors")))
+        # Expand requested drivers without treating every occurrence of these
+        # broad synonyms as a new concept during question parsing.
+        if self.id == "generic" and normalized == "social":
+            return ("social", "cultural", "demographic", "political", "migration", "social contact")
+        if self.id == "generic" and normalized == "biophysical":
+            return (
+                "biophysical",
+                "environmental",
+                "ecological",
+                "climatic",
+                "geographical",
+                "river systems",
+            )
         for canonical, aliases in self.vocabulary:
             values = (canonical, *aliases)
             if normalized in values:
@@ -28,11 +49,43 @@ GENERIC_PROFILE = DomainProfile(
     "Generic science",
     (
         (
+            "linguistic diversity",
+            ("language diversity", "diversity of languages", "linguistic diversification"),
+        ),
+        (
             "el niño",
             ("el nino", "enso", "el niño-southern oscillation", "el nino-southern oscillation"),
         ),
         ("greenland ice sheet", ("greenland ice-sheet", "gris")),
         ("precipitation", ("rainfall", "snowfall", "rain", "snow accumulation")),
+        (
+            "biochar application",
+            ("biochar", "biochar amendment", "biochar amendments", "biochar-based amendments"),
+        ),
+        (
+            "crop yield",
+            (
+                "crop yields",
+                "crop productivity",
+                "crop production",
+                "agricultural productivity",
+                "grain yield",
+                "biomass yield",
+                "yield performance",
+            ),
+        ),
+        (
+            "neighborhood green space",
+            (
+                "neighbourhood green space",
+                "residential green space",
+                "green space",
+                "greenspace",
+                "residential greenness",
+                "neighborhood greenness",
+                "neighbourhood greenness",
+            ),
+        ),
     ),
 )
 
@@ -221,7 +274,7 @@ def detect_profile(question: str) -> DomainProfile:
 
 def contains_term(text: str, term: str) -> bool:
     """Match vocabulary terms as terms, so e.g. RTE is not found in 'reported'."""
-    return _contains_term(text.lower(), term.lower())
+    return concept_present(text, term)
 
 
 def _contains_term(text: str, term: str) -> bool:

@@ -12,9 +12,9 @@ from sci_search.research.model_evidence import (
     select_model_evidence,
 )
 
-PROMPT_CONTRACT_VERSION = "scientific_analysis_prompt_v2"
+PROMPT_CONTRACT_VERSION = "scientific_analysis_prompt_v3"
 VALIDATOR_VERSION = "exact_source_grounding_v2"
-SCHEMA_VERSION = "scientific_analysis_v1"
+SCHEMA_VERSION = "scientific_analysis_v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,10 +62,9 @@ class AnalysisProvider(Protocol):
 
 
 class MistralAnalysisProvider:
-    provider_name = "mistral"
-
     def __init__(self, analyzer: MistralAnalyzer) -> None:
         self.analyzer = analyzer
+        self.provider_name = analyzer.provider.name
         self.model_name = analyzer.model
 
     def analyze(self, question: str, packet: EvidencePacket) -> AnalysisResult:
@@ -74,7 +73,7 @@ class MistralAnalysisProvider:
             dict(item) for item in payload.get("rejected_records", []) if isinstance(item, dict)
         )
         return AnalysisResult(
-            status="complete",
+            status=str(payload.get("status") or "complete"),
             analysis=payload,
             provider=self.provider_name,
             model=self.model_name,
@@ -84,6 +83,7 @@ class MistralAnalysisProvider:
             validator_version=VALIDATOR_VERSION,
             usage=dict(payload.get("usage") or {}),
             rejected_records=rejected,
+            fallback_reason=payload.get("fallback_reason"),
             evidence_packet=_packet_record(packet),
         )
 

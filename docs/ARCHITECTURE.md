@@ -75,3 +75,26 @@ Ruff formatting and selected correctness rules are enforced without exceptions i
 source tree. Pyright runs in standard mode. Categories containing pre-existing findings are
 temporarily reported as warnings; they must be reduced over time and may not be globally disabled.
 New modules should pass standard diagnostics without adding warnings.
+
+## Saved dashboards and feedback memory
+
+`dashboard.py` is the pure `research_dashboard_v1` presentation boundary. Fresh and historical
+results use the same browser renderer. Production keeps immutable snapshot JSON in
+`dashboard_revisions` alongside run, feedback sequence, and source/archive references; SQLite
+provides the equivalent laptop catalog. Source bytes and export artifacts remain immutable and
+content-addressed. Dashboard reads do not call scholarly providers or models.
+
+`api/routes/dashboards.py` exposes authorized history, snapshots, revisions, and article feedback.
+Feedback appends an event before scheduling work. The production `dashboard_rebuild` stage and local
+persistent queue rebuild from retained source ledgers, check the submitting reviewer's current
+permission, and publish only if the feedback sequence is still current. Failure preserves the last
+completed snapshot. Finding-level evidence review remains a distinct operation with runtime evidence
+identity/version mappings; historical-only records cannot be edited through dashboard controls.
+
+`application/memory.py` defines project-scoped memory context. Local memory and `sql_memory.py`
+adapters defer ingestion until dashboard publication; production projects have separate graph
+projections and source grants. Failed projections replay from immutable revision archives. Replaying
+an older revision cannot overwrite newer scientific state. Relevance events remain tied to their
+question and researcher. Optional contextual acquisition ranking is disabled until a
+researcher-confirmed held-out evaluation passes; it does not retrain a model or pool private votes
+across users. See [rollout and recovery](operations/research-memory-rollout.md).

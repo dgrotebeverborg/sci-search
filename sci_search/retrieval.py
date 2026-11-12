@@ -39,7 +39,14 @@ class PassageIndex:
             for term, count in document_frequency.items()
         }
 
-    def search(self, plan: ResearchPlan, *, limit: int = 20) -> tuple[RetrievedPassage, ...]:
+    def search(
+        self, plan: ResearchPlan, *, limit: int = 20, publication_reserve: int = 0
+    ) -> tuple[RetrievedPassage, ...]:
+        """Return top hits plus at most publication_reserve additional matching hits.
+
+        The reserve gives each publication up to three total passages, prioritizing
+        absent publications first. The default preserves the original top-k API.
+        """
         query_terms = tuple(
             dict.fromkeys(term for phrase in plan.expanded_terms for term in _tokens(phrase))
         )
@@ -147,7 +154,19 @@ class PassageIndex:
                 )
             )
         ranked.sort(key=lambda item: (-item.score, item.publication_id, item.passage.start))
-        return tuple(ranked[:limit])
+        selected = ranked[:limit]
+        # Preserve the primary ranking. The optional bounded reserve gives poorly
+        # represented publications a chance at the downstream evidence checks.
+        counts = Counter(item.publication_id for item in selected)
+        remaining = ranked[limit:]
+        for minimum in range(1, 4):
+            for item in remaining:
+                if len(selected) >= limit + publication_reserve:
+                    return tuple(selected)
+                if counts[item.publication_id] < minimum and item not in selected:
+                    selected.append(item)
+                    counts[item.publication_id] += 1
+        return tuple(selected)
 
 
 def _tokens(text: str) -> tuple[str, ...]:

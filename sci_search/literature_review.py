@@ -8,8 +8,10 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from sci_search.domain.contradictions import SEVERITY_RULES_VERSION, assess_severity
 from sci_search.pdf_report import markdown_to_pdf
 from sci_search.research_landscape import build_research_landscape
+from sci_search.result_quality import result_quality
 
 
 def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
@@ -79,37 +81,52 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
             "qualification": str(value.get("qualification") or "").strip(),
         }
 
-    ai = (
-        investigation.get("ai_analysis")
-        if isinstance(investigation.get("ai_analysis"), dict)
-        else {}
-    )
+    raw_ai = investigation.get("ai_analysis")
+    ai = raw_ai if isinstance(raw_ai, dict) else {}
     ai_complete = ai.get("status") in {"complete", "coverage_limited"}
-    overall_answer_supported = bool(
-        (investigation.get("answer_adequacy") or {}).get("can_answer_overall_question")
+    answer_withheld = ai.get("answer_withheld") is True
+    overall_answer_supported = (
+        bool((investigation.get("answer_adequacy") or {}).get("can_answer_overall_question"))
+        and not answer_withheld
     )
-    executive = assertion(ai.get("answer"), category="executive_summary") if ai_complete else None
+    executive = (
+        assertion(ai.get("answer"), category="executive_summary")
+        if ai_complete and not answer_withheld
+        else None
+    )
     if executive is None:
         executive = {
             "text": str(
-                investigation.get("answer_summary")
+                (
+                    ai.get("answer_withheld_reason")
+                    or "The overall answer did not pass the support review."
+                )
+                if answer_withheld
+                else investigation.get("answer_summary")
                 or "The available evidence did not support a summary conclusion."
             ),
             "category": "executive_summary",
             "evidence_ids": [
                 str(item)
                 for item in investigation.get("summary_evidence_ids", [])
-                if str(item) in evidence_by_id
+                if str(item) in evidence_by_id and not answer_withheld
             ],
             "citations": sorted(
                 {
                     reference_number[str(evidence_by_id[str(item)].get("publication_id"))]
                     for item in investigation.get("summary_evidence_ids", [])
                     if str(item) in evidence_by_id
+                    and not answer_withheld
                     and str(evidence_by_id[str(item)].get("publication_id")) in reference_number
                 }
             ),
-            "qualification": "Deterministic extractive summary.",
+            "qualification": (
+                "AI was used to review the available evidence; an overall answer is withheld."
+                if ai_complete and not overall_answer_supported
+                else "Summary from retained evidence; AI was used in this review."
+                if ai_complete
+                else "Deterministic extractive summary."
+            ),
         }
 
     findings: list[dict[str, Any]] = []
@@ -121,7 +138,11 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
             converted = assertion(item, category=category)
             if converted and converted not in findings:
                 findings.append(converted)
-    if not findings and overall_answer_supported:
+    if (
+        not findings
+        and overall_answer_supported
+        and not isinstance(ai.get("semantic_review"), dict)
+    ):
         for item in investigation.get("findings", []):
             converted = assertion(item, category="finding")
             if converted:
@@ -226,6 +247,26 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         if isinstance(investigation.get("research_landscape"), dict)
         else build_research_landscape(investigation)
     )
+    analysis: dict[str, Any] = ai if isinstance(ai, dict) else {}
+    matrix: dict[str, Any] = study_matrix if isinstance(study_matrix, dict) else {}
+    answer_evidence_ids: set[str] = set()
+    if ai_complete:
+        answer_evidence_ids.update(
+            str(item) for item in (analysis.get("answer") or {}).get("evidence_ids", [])
+        )
+        answer_evidence_ids.update(
+            str(evidence_id)
+            for item in analysis.get("claims", [])
+            if isinstance(item, dict) and item.get("category") in {"claims", "agreements"}
+            for evidence_id in item.get("evidence_ids", [])
+        )
+    contradiction_groups = _assess_contradictions(
+        analysis.get("contradiction_groups") if ai_complete else None,
+        evidence_by_id,
+        matrix,
+        answer_evidence_ids,
+        reference_number,
+    )
     return {
         "schema_version": "cited_literature_review_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -235,6 +276,7 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         "question": question,
         "question_interpretation": question_brief,
         "answer_adequacy": investigation.get("answer_adequacy"),
+        "result_quality": result_quality(investigation),
         "run_id": run.get("run_id"),
         "executive_summary": executive,
         "scope": {
@@ -266,6 +308,9 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
                 "provider": ai.get("provider"),
                 "name": ai.get("model"),
                 "method": ai.get("method"),
+                "status": ai.get("status"),
+                "answer_withheld": ai.get("answer_withheld"),
+                "answer_withheld_reason": ai.get("answer_withheld_reason"),
                 "validation": ai.get("validation"),
             },
             "coverage_search": run.get("coverage_search"),
@@ -310,6 +355,8 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         "research_landscape": landscape,
         "findings": findings,
         "thematic_findings": categories,
+        "contradiction_groups": contradiction_groups,
+        "answer_contest": _answer_contest(contradiction_groups),
         "measurements": ai.get("measurements", []) if ai_complete else [],
         "quality": {
             "quality_flags": quality_flags,
@@ -325,6 +372,11 @@ def build_literature_review(investigation: dict[str, Any]) -> dict[str, Any]:
         ],
         "conclusion": executive,
         "references": references,
+        **(
+            {"data_analysis": investigation["data_analysis"]}
+            if investigation.get("data_analysis")
+            else {}
+        ),
         "appendices": {
             "search_queries": queries,
             "excluded_records": [
@@ -359,14 +411,25 @@ def render_review_markdown(report: dict[str, Any]) -> str:
         f"**Generated:** {report['generated_at']}",
         "",
     ]
+    quality = report.get("result_quality") or result_quality({"literature_review_report": report})
+    lines += [
+        "**Processing:** Processing complete.  ",
+        f"**Evidence:** {quality['label']}.  ",
+        quality["explanation"],
+        quality["validation_note"],
+        "",
+    ]
+    model_status = (report.get("methodology") or {}).get("model", {}).get("status")
+    if model_status in {"complete", "coverage_limited"}:
+        lines += ["AI was used to review the available evidence.", ""]
     lines += ["## Executive summary", "", _cited(report["executive_summary"]), ""]
     adequacy = report.get("answer_adequacy") or {}
     if adequacy:
         lines += [
             "## Answer adequacy",
             "",
-            f"**Decision:** {_label(str(adequacy.get('status') or 'unknown'))}.  ",
-            str(adequacy.get("decision") or "No adequacy decision was recorded."),
+            f"**Decision:** {quality['label']}.  ",
+            quality["explanation"],
             "",
         ]
         if adequacy.get("missing_requirements"):
@@ -536,6 +599,21 @@ def render_review_markdown(report: dict[str, Any]) -> str:
     else:
         lines += ["No grounded cross-paper findings survived validation.", ""]
     lines += ["## Contradictions, methods, and comparability", ""]
+    if report.get("contradiction_groups"):
+        lines += ["### Where studies disagree", ""]
+        for group in report["contradiction_groups"]:
+            lines.append(
+                f"- **{group['topic']}** — severity: {group['severity']}; "
+                f"cause: {_label(str(group['cause']))}."
+            )
+            for position in group["positions"]:
+                lines.append(
+                    "  - "
+                    + _cited(
+                        {"text": position["stance"], "citations": position.get("citations", [])}
+                    )
+                )
+        lines.append("")
     comparison_items = [
         *report["thematic_findings"].get("contradictions", []),
         *report["thematic_findings"].get("method_differences", []),
@@ -634,6 +712,10 @@ def render_review_markdown(report: dict[str, Any]) -> str:
             ]
     if not cards:
         lines += ["No question-specific study cards were recorded.", ""]
+    if report.get("data_analysis"):
+        from sci_search.data_research.reporting import markdown_appendix
+
+        lines.append(markdown_appendix(report["data_analysis"]))
     return "\n".join(lines).strip() + "\n"
 
 
@@ -682,6 +764,93 @@ def render_review_pdf(report: dict[str, Any]) -> bytes:
     return markdown_to_pdf(
         render_review_markdown(report), title=str(report.get("title") or "Literature review")
     )
+
+
+_SEVERITY_RANK = {"high": 0, "moderate": 1, "low": 2}
+
+
+def _assess_contradictions(
+    raw: Any,
+    evidence_by_id: dict[str, dict[str, Any]],
+    study_matrix: dict[str, Any],
+    answer_evidence_ids: set[str],
+    reference_number: dict[str, int],
+) -> list[dict[str, Any]] | None:
+    if not isinstance(raw, list):
+        return None
+    natures = {
+        str(card.get("publication_id")): str(
+            (card.get("inferred_evidence_nature") or {}).get("label") or "unclassified"
+        )
+        for card in study_matrix.get("studies", [])
+        if isinstance(card, dict)
+    }
+    assessed: list[dict[str, Any]] = []
+    for group in raw:
+        if not isinstance(group, dict):
+            continue
+        positions = [item for item in group.get("positions", []) if isinstance(item, dict)]
+        evidence_ids = {str(e) for item in positions for e in item.get("evidence_ids", [])}
+        if len(positions) < 2 or not evidence_ids <= set(evidence_by_id):
+            continue
+        touches = bool(evidence_ids & answer_evidence_ids)
+        try:
+            severity, basis = assess_severity(
+                str(group.get("cause")),
+                [[str(p) for p in item.get("publication_ids", [])] for item in positions],
+                touches_answer=touches,
+                evidence_nature_by_publication=natures,
+            )
+        except (KeyError, ValueError):
+            continue
+        assessed.append(
+            {
+                **group,
+                "positions": [
+                    {
+                        **item,
+                        "citations": sorted(
+                            {
+                                reference_number[str(p)]
+                                for p in item.get("publication_ids", [])
+                                if str(p) in reference_number
+                            }
+                        ),
+                    }
+                    for item in positions
+                ],
+                "severity": severity.value,
+                "severity_basis": list(basis),
+                "severity_rules_version": SEVERITY_RULES_VERSION,
+                "touches_answer": touches,
+                "dimension_ids": sorted(
+                    {
+                        str(dimension)
+                        for e in evidence_ids
+                        for dimension in evidence_by_id[e].get("scope_dimension_ids") or []
+                    }
+                ),
+            }
+        )
+    assessed.sort(
+        key=lambda g: (
+            _SEVERITY_RANK[g["severity"]],
+            -sum(len(item.get("publication_ids", [])) for item in g["positions"]),
+            str(g.get("id")),
+        )
+    )
+    return assessed
+
+
+def _answer_contest(groups: list[dict[str, Any]] | None) -> dict[str, Any]:
+    contested = [g for g in groups or [] if g["severity"] == "high" and g["touches_answer"]]
+    return {
+        "contested": bool(contested),
+        "group_ids": [str(g.get("id")) for g in contested],
+        "qualifications": [
+            f"Studies disagree: {g.get('topic')} (see the contradiction group)." for g in contested
+        ],
+    }
 
 
 def _cited(item: dict[str, Any]) -> str:

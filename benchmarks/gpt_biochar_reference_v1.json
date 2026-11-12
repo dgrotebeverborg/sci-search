@@ -1,0 +1,168 @@
+{
+  "id": "biochar",
+  "version": 1,
+  "question": "How does biochar application affect crop yield, and why do results differ between studies?",
+  "evidence": [
+    {
+      "id": "biochar-1",
+      "publication_id": "doi:10.1007/s42773-022-00138-1",
+      "publication_title": "Biochar applications influence soil physical and chemical properties, microbial diversity, and crop productivity: a meta-analysis",
+      "doi": "10.1007/s42773-022-00138-1",
+      "source_url": "https://link.springer.com/article/10.1007/s42773-022-00138-1",
+      "passage": "Biochar is a widely known soil amendment. Here we synthesize the available information on influence of biochar application on different soil properties and crop productivity using meta-analysis. Global data on influence of biochar applications on different soil physical, chemical, microbial properties, and crop productivity were extracted from literature and statistically analyzed. Based on selection criteria, 59 studies from the literature published between 2012 and 2021 were selected for the meta-analysis. Correlations were developed between effect size of biochar application on different soil properties and crop productivity. Application of biochar increased soil pH, cation exchange capacity, and organic carbon by 46%, 20%, and 27%, respectively, with greater effects in coarse and fine-textured soils. Effects on chemical properties were variable among biochar prepared from different feedstocks. Among physical properties, biochar application reduced bulk densities by 29% and increased porosity by 59%. Biochar prepared at higher pyrolytic temperatures (> 500 ℃) improved bulk density and porosity to greater extents (31% and 66%, respectively). Biochar prepared at lower pyrolytic temperatures (< 500 ℃) had a greater effect on microbial diversity (both bacterial and fungal), with more diverse bacterial populations in medium and coarse textured soils, while fungal diversity increased in fine textured soils. Biochar applications increased crop productivity only in fine and coarse textured soil. The effect size of biochar application on crop productivity was correlated with responses to physical properties of soils. The meta-analysis highlighted the need to conduct long-term field experiments to provide better explanations for changes in biochar properties as it undergoes aging, its longer-term effects on soil properties, and timing of re-application of different biochars.",
+      "statement": "Biochar applications increased crop productivity only in fine and coarse textured soil.",
+      "evidence_type": "review",
+      "study_design": "Meta-analysis of 59 studies published 2012–2021",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [],
+      "time_mentions": [
+        "2012–2021"
+      ]
+    },
+    {
+      "id": "biochar-2",
+      "publication_id": "pmc:PMC11376106",
+      "publication_title": "Biochar improves the nutrient cycle in sandy-textured soils and increases crop yield: a systematic review",
+      "doi": "10.1186/s13750-024-00326-5",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11376106/",
+      "passage": "According to the results, soil total and available nitrogen [N], phosphorous [P] and potassium [K], plant nutrient level, and potential cation exchange capacity (CEC) increased by 36% (CI [23%, 50%]), 34% (CI [15%, 57%]), 15% (CI [1%, 31%]), and 18% (CI [3%, 36%), respectively, and N2O emission and mineral nutrient leaching decreased by 29% (CI [− 48%, − 3%]) and 38% (CI [− 56%, − 13%). On average, however, biochar had no effect on soil mineral nitrogen and nutrient use efficiency. Publication bias was identified in the response of effective CEC. After corrections for publication bias, the response shifted from 36% to a negative value of − 34% (CI [− 50%, − 14%]). Meta-regression found that the effect modifiers experimental continent, biochar application rate, and soil pH, explain result heterogeneity. Stronger responses came from the continent of South America, higher application rates, and higher pH soils. Overall, biochar is found useful for many SPPs of nutrient cycling of sandy-textured soils, thereby contributing to increased crop yields in such soils.",
+      "statement": "Meta-regression found that the effect modifiers experimental continent, biochar application rate, and soil pH, explain result heterogeneity.",
+      "evidence_type": "review",
+      "study_design": "Systematic review with meta-analysis and meta-regression of sandy-textured soils",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [
+        "South America"
+      ],
+      "time_mentions": []
+    },
+    {
+      "id": "biochar-3",
+      "publication_id": "pmc:PMC10692810",
+      "publication_title": "Paddy rice yield and greenhouse gas emissions: Any trade-off due to co-application of biochar and nitrogen fertilizer? A systematic review",
+      "doi": "10.1016/j.heliyon.2023.e22132",
+      "source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10692810/",
+      "passage": "The extracted data were grouped based on biochar and N rates used by researchers as well as N fertiliser types. Accordingly, biochar rates were grouped into low (≤9 tons/ha), medium (>9 and ≤ 20 ton/ha) and high (>20 tons/ha), while N rates were grouped into three categories: low (≤140 kg N/ha), medium (>140 and ≤ 240 kg N/ha), and high (>240 kg N/ha). For fertiliser types, N rates were grouped as: low (≤150 kg N/ha), medium (>150 and ≤250 kg N/ha), and high (>250 kg N/ha) and N types into: urea, NPK, NPK plus urea (NPK_urea) and NPK plus (NH4)2SO4 (NPK_(NH4)2SO4). Results showed that biochar and N fertiliser significantly affected GHGs emissions, GWP, GHGI and rice yield. Compared to control (i.e., sole N application), co-application of high biochar and medium N rates significantly decreased CH4 emission (82 %) while low biochar with low N rates enhanced CH4 emission (114 %). In contrast, high biochar combined with low N decreased N2O emission by 91 % whereas medium biochar and high N rates resulted in 82 % increase in N2O emission relative to control. The highest GWP and GHGI were observed under co-application of medium biochar and low N rates. Highest rice yield was observed under low biochar rate and high N rate. Regardless of N fertiliser type and biochar rates, increasing N rates increased rice yield and N2O emissions. The highest GWP and GHGI were recorded under sole NPK application. Combination of low biochar and medium N produced low GHGs emissions, high grain yield, and the lowest GHGI, and could be recommended to smallholder farmers to increase rice yield and reduce greenhouse gas emissions from paddy rice field. Further studies should be conducted to evaluate the effects of biochar properties on soil characteristics and greenhouse gas emissions.",
+      "statement": "Highest rice yield was observed under low biochar rate and high N rate.",
+      "evidence_type": "review",
+      "study_design": "Systematic review of biochar and nitrogen co-application in paddy rice",
+      "section": "Abstract (excerpt)",
+      "page": null,
+      "locations": [],
+      "time_mentions": []
+    }
+  ],
+  "expected_relevance": {
+    "biochar-1": {
+      "relevance": "direct",
+      "reason": "Reports crop productivity and soil-texture differences."
+    },
+    "biochar-2": {
+      "relevance": "direct",
+      "reason": "Reports sandy-soil nutrient responses and heterogeneity, with a qualitative yield conclusion."
+    },
+    "biochar-3": {
+      "relevance": "direct",
+      "reason": "Reports rice yield under combinations of biochar and nitrogen rates, with sole-N comparators for emissions."
+    }
+  },
+  "expected_supported_findings": [
+    {
+      "evidence_ids": [
+        "biochar-1"
+      ],
+      "finding": "In this meta-analysis, productivity increases were reported in fine- and coarse-textured soils; productivity effect sizes correlated with changes in soil physical properties. This does not establish a universal benefit."
+    },
+    {
+      "evidence_ids": [
+        "biochar-1"
+      ],
+      "finding": "Feedstock and pyrolysis conditions influenced different soil responses; lower-temperature biochars had greater microbial-diversity effects and higher-temperature biochars improved bulk density and porosity more. Those are soil-response results, not quantified yield optima."
+    },
+    {
+      "evidence_ids": [
+        "biochar-2"
+      ],
+      "finding": "The sandy-soil review reports changes in nutrient cycling, and identifies continent, application rate, and pH as moderators of heterogeneity. It reports no average effect on soil mineral nitrogen or nutrient-use efficiency and detects publication bias for effective CEC."
+    },
+    {
+      "evidence_ids": [
+        "biochar-3"
+      ],
+      "finding": "In the rice review, the highest yield occurred with low biochar and high nitrogen rates, while increasing nitrogen raised rice yield and nitrous oxide emissions. Co-application effects cannot be attributed to biochar alone."
+    },
+    {
+      "evidence_ids": [
+        "biochar-1",
+        "biochar-2",
+        "biochar-3"
+      ],
+      "finding": "The selected reviews support conditional productivity benefits and variation with soils, biochar properties, application rates, and nitrogen management. They do not supply one universal crop-yield percentage."
+    }
+  ],
+  "prohibited_conclusions": [
+    "Biochar always increases crop yield, or guarantees a specific yield increase on every farm.",
+    "Presenting soil nutrient, pH, porosity, or greenhouse gas percentages as crop-yield percentages.",
+    "Attributing all benefits of combined nitrogen and biochar application to biochar alone.",
+    "Claiming a universal optimal dose, pyrolysis temperature, or economic return from these excerpts.",
+    "Treating associations and meta-regression moderators as proven independent causal mechanisms.",
+    "Treating the three reviews as independent primary field trials or assuming their underlying studies cannot overlap."
+  ],
+  "limitations": [
+    "A purposive three-review evidence set; not an exhaustive review.",
+    "All passages are abstract excerpts; no full risk-of-bias assessment is supplied.",
+    "The sandy-soil evidence concerns a restricted soil class; the rice evidence concerns a particular crop and co-application regime.",
+    "No general crop-yield percentage or complete comparative yield effect table is supplied.",
+    "Underlying primary studies may overlap among reviews."
+  ],
+  "provenance": {
+    "prepared_on": "2026-09-28",
+    "method": "Original publisher HTML and Europe PMC full-text XML independently read. Exact contiguous abstract excerpts extracted, without tested-model calls or outputs.",
+    "passage_extraction": "Inline markup flattened with XML itertext or HTML get_text; no paraphrases inserted in evidence. Each statement is an exact passage substring.",
+    "sources": [
+      {
+        "evidence_id": "biochar-1",
+        "retrieval_url": "https://link.springer.com/article/10.1007/s42773-022-00138-1",
+        "authors": "Hardeep Singh, Brian K. Northup, Charles W. Rice, P. V. Vara Prasad",
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "sha256": "8c849557f3ff05826a1af444653b4b0315f6534f555aada0e6f1e80e44c481da"
+      },
+      {
+        "evidence_id": "biochar-2",
+        "retrieval_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11376106/fullTextXML",
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "sha256": "e581a402ce3a53aa43a89b9a33ae886f6f668795bc08e3fe25d7208d263e3210",
+        "authors": [
+          "Madina Bekchanova",
+          "Luca Campion",
+          "Stephan Bruns",
+          "Tom Kuppens",
+          "Johannes Lehmann",
+          "Marijke Jozefczak",
+          "Ann Cuypers",
+          "Robert Malina"
+        ]
+      },
+      {
+        "evidence_id": "biochar-3",
+        "retrieval_url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC10692810/fullTextXML",
+        "license": "CC BY-NC-ND 4.0; unaltered excerpt for research evaluation",
+        "license_url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+        "sha256": "53a26a7f65fc0aff248d96194a80db7060faaa748dfe8c8b192fa0417a543522",
+        "authors": [
+          "Maduabuchi P. Iboko",
+          "Elliott R. Dossou-Yovo",
+          "Sunday E. Obalum",
+          "Chidozie J. Oraegbunam",
+          "Siméon Diedhiou",
+          "Christian Brümmer",
+          "Niaba Témé"
+        ]
+      }
+    ],
+    "expected_overall_adequacy": "Supports a bounded qualitative answer; insufficient for universal effect size or causal ranking"
+  }
+}

@@ -351,4 +351,10 @@ def _blob_row_references(session: Any, blob_key: str) -> int:
         )
         or 0
     )
-    return documents + artifacts
+    from sci_search.infrastructure.memory_tables import MemoryStateRow
+
+    memory_references = 0
+    for manifest in session.scalars(select(MemoryStateRow.manifest_json)):
+        references = [manifest.get("database", {}), *manifest.get("documents", {}).values()]
+        memory_references += sum(entry.get("key") == blob_key for entry in references)
+    return documents + artifacts + memory_references

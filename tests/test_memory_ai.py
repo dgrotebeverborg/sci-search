@@ -13,6 +13,7 @@ from sci_search.mistral_analysis import MistralAnalyzer, _validate_answer_respon
 from sci_search.question_planning import plan_question
 from sci_search.research_runs import ResearchLimits, ResearchRunManager
 from sci_search.scientific_memory import ScientificMemory
+from tests.semantic_review_fixtures import reviewed_response
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -144,6 +145,55 @@ class ScientificMemoryTests(unittest.TestCase):
             cached = memory.cached_analysis("analysis-key")
             self.assertTrue(cached["cache_hit"])
             self.assertEqual(memory.stats()["analyses"], 1)
+
+    def test_validated_contradiction_groups_become_graph_nodes(self) -> None:
+        corpus = ROOT / "fixtures" / "iron_air_pilot"
+        report = (
+            GenericResearchEngine(load_corpus(corpus))
+            .investigate("What round-trip efficiency is reported?")
+            .to_dict()
+        )
+        first = report["evidence"][0]
+        other = next(
+            item for item in report["evidence"] if item["publication_id"] != first["publication_id"]
+        )
+        group = {
+            "id": "contradiction:test",
+            "topic": "Round-trip efficiency",
+            "cause": "unexplained",
+            "positions": [
+                {
+                    "stance": "A",
+                    "evidence_ids": [first["id"]],
+                    "quotes": [],
+                    "publication_ids": [first["publication_id"]],
+                },
+                {
+                    "stance": "B",
+                    "evidence_ids": [other["id"]],
+                    "quotes": [],
+                    "publication_ids": [other["publication_id"]],
+                },
+            ],
+            "cause_explanation": None,
+            "status": "model_proposed_source_verified",
+            "validation_notes": [],
+        }
+        report["ai_analysis"] = {"claims": [], "contradiction_groups": [group, "not-a-group"]}
+        report["research_run"] = {"candidates": [], "review_decisions": {}}
+        with tempfile.TemporaryDirectory() as temporary:
+            memory = ScientificMemory(Path(temporary) / "memory")
+            memory.ingest_run("run-c", "Question", corpus, report)
+            snapshot = memory.graph_snapshot(limit=5000)
+        nodes = [n for n in snapshot["nodes"] if n["type"] == "ContradictionGroup"]
+        self.assertEqual([n["id"] for n in nodes], ["contradiction:test"])
+        edges = {
+            (e["source"], e["relation"], e["target"]): e["properties"] for e in snapshot["edges"]
+        }
+        self.assertIn(("run:run-c", "PRODUCED_CONTRADICTION", "contradiction:test"), edges)
+        self.assertEqual(
+            edges[("contradiction:test", "POSITION_SUPPORTED_BY", other["id"])], {"position": 1}
+        )
 
     def test_silver_evidence_lifecycle_is_persistent_and_auditable(self) -> None:
         corpus = ROOT / "fixtures" / "iron_air_pilot"
@@ -394,7 +444,9 @@ class MistralAnalysisTests(unittest.TestCase):
             "usage": {"total_tokens": 123},
         }
         analyzer = MistralAnalyzer(
-            "secret", model="test-model", complete_json=lambda body, headers: response
+            "secret",
+            model="test-model",
+            complete_json=lambda body, headers: reviewed_response(body, response),
         )
         result = analyzer.analyze("How does vegetation affect goat foraging?", self.evidence)
         self.assertEqual(result["status"], "complete")
@@ -435,11 +487,13 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         with self.assertRaises(ValueError):
             analyzer.analyze("Question", self.evidence)
 
-    def test_rejects_a_passage_quote_outside_the_selected_result_statement(self) -> None:
+    def test_semantic_review_rejects_projection_presented_as_observation(self) -> None:
         evidence = [
             {
                 **self.evidence[0],
@@ -483,9 +537,39 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
-        with self.assertRaisesRegex(ValueError, "selected result statement"):
-            analyzer.analyze("Question", evidence)
+
+        def complete(body, headers):
+            if body["response_format"]["json_schema"]["name"] == "scientific_analysis":
+                return response
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "judgments": [
+                                        {
+                                            "id": "answer",
+                                            "entailed": False,
+                                            "causal_direction_valid": True,
+                                            "geographic_scope_valid": True,
+                                            "relevant": True,
+                                            "reason": "A future projection does not establish an observed change.",
+                                        }
+                                    ]
+                                }
+                            )
+                        }
+                    }
+                ],
+            }
+
+        analyzer = MistralAnalyzer("secret", complete_json=complete)
+        result = analyzer.analyze("Question", evidence)
+        self.assertIsNone(result["answer"])
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["semantic_review"]["rejected_records"], 1)
+        self.assertEqual(result["rejected_records"][0]["stage"], "semantic_support")
 
     def test_uses_first_grounded_claim_when_summary_declines_to_answer(self) -> None:
         grounded = {
@@ -525,7 +609,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         result = analyzer.analyze("Question", self.evidence)
         self.assertEqual(result["status"], "complete")
         self.assertTrue(result["answer"]["derived_from_grounded_claim"])
@@ -569,7 +655,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        analyzer = MistralAnalyzer("secret", complete_json=lambda body, headers: response)
+        analyzer = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        )
         with self.assertRaisesRegex(ValueError, "answer-level claim"):
             analyzer.analyze("Question", self.evidence)
 
@@ -612,9 +700,9 @@ class MistralAnalysisTests(unittest.TestCase):
                 }
             ]
         }
-        result = MistralAnalyzer("secret", complete_json=lambda body, headers: response).analyze(
-            "Question", self.evidence
-        )
+        result = MistralAnalyzer(
+            "secret", complete_json=lambda body, headers: reviewed_response(body, response)
+        ).analyze("Question", self.evidence)
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(result["claims"]), 1)
         self.assertEqual(result["validation"]["rejected_model_records"], 1)

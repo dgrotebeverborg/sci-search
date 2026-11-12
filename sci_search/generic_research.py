@@ -101,13 +101,18 @@ class GenericResearchEngine:
         self.index = PassageIndex(documents)
         self.lifecycle_lookup = lifecycle_lookup
 
-    def investigate(self, question: str, *, session_id: str | None = None) -> GenericInvestigation:
-        plan = plan_question(question)
+    def investigate(
+        self, question: str, *, session_id: str | None = None, plan: ResearchPlan | None = None
+    ) -> GenericInvestigation:
+        plan = plan or plan_question(question)
         research_scope = decompose_question(question, plan)
         # Trend evidence is often summarized in conclusion sections that rank
         # below dense method/figure passages in lexical retrieval. Inspect a
         # wider bounded pool before applying strict scope and diversity gates.
-        retrieved = self.index.search(plan, limit=200 if plan.intent == "temporal_trend" else 80)
+        candidate_limit = 200 if plan.intent == "temporal_trend" else 80
+        retrieved = self.index.search(
+            plan, limit=candidate_limit, publication_reserve=candidate_limit
+        )
         evidence = _extract_evidence(retrieved, plan, self.documents, research_scope)
         required_scope_ids = {
             str(item["id"])
@@ -142,10 +147,9 @@ class GenericResearchEngine:
                 if states.get(item.id, {}).get("review_state") != "rejected"
             )
         evidence = _apply_evidence_preferences(evidence, plan)
-        evidence = _diverse_top(
+        evidence = _evidence_with_publication_reserve(
             evidence,
-            limit=24,
-            per_publication=3,
+            {(item.publication_id, item.passage.start) for item in retrieved[:candidate_limit]},
             prefer_trends=research_scope.get("task") == "temporal_trend",
         )
         session = (
@@ -513,6 +517,29 @@ def _study_design(text: str, fallback: str) -> str:
     )
 
 
+def _evidence_with_publication_reserve(records, primary_passages, *, prefer_trends):
+    """Keep the original evidence selection, then add one result per other study.
+
+    All records have already passed extraction, scope and lifecycle checks.
+    The original 24-record budget and the 24-record reserve are independent,
+    so a rescued study cannot push out previously selected evidence.
+    """
+    primary = _diverse_top(
+        tuple(r for r in records if (r.publication_id, r.passage_start) in primary_passages),
+        limit=24,
+        per_publication=3,
+        prefer_trends=prefer_trends,
+    )
+    represented = {r.publication_id for r in primary}
+    reserve = _diverse_top(
+        tuple(r for r in records if r.publication_id not in represented),
+        limit=24,
+        per_publication=1,
+        prefer_trends=prefer_trends,
+    )
+    return primary + reserve
+
+
 def _diverse_top(
     records: tuple[GenericEvidenceRecord, ...],
     *,
@@ -552,34 +579,36 @@ def _diverse_top(
 def _apply_evidence_preferences(
     evidence: tuple[GenericEvidenceRecord, ...], plan: ResearchPlan
 ) -> tuple[GenericEvidenceRecord, ...]:
-    if "empirical" in plan.evidence_preferences:
-        empirical_types = {
-            "laboratory_experiment",
-            "field_experiment",
-            "observational_study",
-            "pilot_demonstration",
-        }
-        return tuple(
-            item
-            for item in evidence
-            if item.evidence_type in empirical_types
-            or "experiment" in item.study_design
-            or "observational" in item.study_design
-        )
-    if "review" in plan.evidence_preferences:
-        return tuple(
-            item
-            for item in evidence
-            if item.evidence_type == "review" or item.study_design == "review"
-        )
-    if "model_or_assumption" in plan.evidence_preferences:
-        return tuple(
-            item
-            for item in evidence
-            if item.result_nature in {"modeled", "assumed"}
-            or item.study_design == "simulation_or_model"
-        )
-    return evidence
+    if not plan.evidence_preferences:
+        return evidence
+
+    def matches(item: GenericEvidenceRecord, preference: str) -> bool:
+        if preference == "empirical":
+            return (
+                item.evidence_type
+                in {
+                    "laboratory_experiment",
+                    "field_experiment",
+                    "observational_study",
+                    "pilot_demonstration",
+                }
+                or "experiment" in item.study_design
+                or "observational" in item.study_design
+            )
+        if preference == "review":
+            return item.evidence_type == "review" or item.study_design == "review"
+        if preference == "model_or_assumption":
+            return (
+                item.result_nature in {"modeled", "assumed"}
+                or item.study_design == "simulation_or_model"
+            )
+        return False
+
+    return tuple(
+        item
+        for item in evidence
+        if any(matches(item, preference) for preference in plan.evidence_preferences)
+    )
 
 
 def _findings(

@@ -1,0 +1,170 @@
+{
+  "benchmark_id": "gpt_health_reference_v1",
+  "question": "Is neighborhood green space associated with a lower risk of type 2 diabetes?",
+  "evidence": [
+    {
+      "id": "health_mesa",
+      "publication_id": "pmid:35034636",
+      "publication_title": "Neighborhood greenspace and risk of type 2 diabetes in a prospective cohort: the Multi-Ethnic Study of Atherosclerosis",
+      "doi": "10.1186/s12940-021-00824-w",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/35034636/",
+      "passage": "Over the study period, 886 (15.9%) participants developed diabetes. Adjusting for individual characteristics, individual and neighborhood-scale SES, additional neighborhood factors, and diabetes risk factors, we found a 21% decrease in the risk of developing diabetes per IQR increase in greenspace (HR: 0.79; 95% CI: 0.63, 0.99).",
+      "statement": "we found a 21% decrease in the risk of developing diabetes per IQR increase in greenspace (HR: 0.79; 95% CI: 0.63, 0.99).",
+      "evidence_type": "empirical",
+      "study_design": "prospective observational cohort",
+      "section": "Abstract",
+      "page": null,
+      "locations": [],
+      "time_mentions": []
+    },
+    {
+      "id": "health_norfolk",
+      "publication_id": "pmid:27863516",
+      "publication_title": "Residential neighbourhood greenspace is associated with reduced risk of incident diabetes in older people: a prospective cohort study",
+      "doi": "10.1186/s12889-016-3833-z",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/27863516/",
+      "passage": "The mean age of participants was 59 years at baseline and 55.1% were female. The mean follow-up time was 11.3 years. Individuals living in the greenest neighbourhood quartile had a 19% lower relative hazard of developing diabetes (HR 0.81; 95% CI 0.67, 0.99; p = 0.035; linear trend p = 0.010). The hazard ratio remained similar (HR 0.81; 95% CI 0.65, 0.99; p = 0.042) after adjusting for age, sex, BMI, whether a parent had been diagnosed with diabetes and socio-economic status at the individual and neighbourhood level. A HR of 0.97 was attributed to the pathway through physical activity in a fully adjusted model, although this was non-significant (95% CI 0.88, 1.08; p = 0.603).",
+      "statement": "A HR of 0.97 was attributed to the pathway through physical activity in a fully adjusted model, although this was non-significant (95% CI 0.88, 1.08; p = 0.603).",
+      "evidence_type": "empirical",
+      "study_design": "prospective observational cohort",
+      "section": "Abstract",
+      "page": null,
+      "locations": [],
+      "time_mentions": [
+        "11.3 years"
+      ]
+    },
+    {
+      "id": "health_australia_mixed",
+      "publication_id": "pmid:31722373",
+      "publication_title": "Urban green space, tree canopy and prevention of cardiometabolic diseases: a multilevel longitudinal study of 46 786 Australians",
+      "doi": "10.1093/ije/dyz239",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/31722373/",
+      "passage": "Lower odds of prevalent diabetes were observed with 1% increases in total green space [odds ratio (OR) 0.993, 95% confidence interval (CI) 0.988 to 0.998] and tree canopy (0.984, 0.978 to 0.989). Lower odds of prevalent CVD were found with a 1% increase in tree canopy only (0.996, 0.993 to 0.999). Lower odds of incident diabetes (0.988, 0.981 to 0.994), hypertension (0.993, 0.989 to 0.997) and CVD (0.993, 0.988 to 0.998) were associated with a 1% increase in tree canopy, but not total green space.",
+      "statement": "Lower odds of incident diabetes (0.988, 0.981 to 0.994), hypertension (0.993, 0.989 to 0.997) and CVD (0.993, 0.988 to 0.998) were associated with a 1% increase in tree canopy, but not total green space.",
+      "evidence_type": "empirical",
+      "study_design": "longitudinal observational cohort",
+      "section": "Abstract",
+      "page": null,
+      "locations": [],
+      "time_mentions": []
+    },
+    {
+      "id": "health_mortality_distractor",
+      "publication_id": "pmid:39353278",
+      "publication_title": "Association of residential air pollution and green space with all-cause and cause-specific mortality in individuals with diabetes: an 11-year prospective cohort study",
+      "doi": "10.1016/j.ebiom.2024.105376",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/39353278/",
+      "passage": "To assess the long-term impact of residential air pollution and green space exposure on cause-specific mortality in individuals with type 2 diabetes mellitus (T2DM).",
+      "statement": "cause-specific mortality in individuals with type 2 diabetes mellitus (T2DM).",
+      "evidence_type": "empirical",
+      "study_design": "prospective observational cohort among patients already diagnosed with T2DM",
+      "section": "Abstract",
+      "page": null,
+      "locations": [],
+      "time_mentions": []
+    }
+  ],
+  "expected_relevance": {
+    "health_mesa": "relevant",
+    "health_norfolk": "relevant",
+    "health_australia_mixed": "relevant",
+    "health_mortality_distractor": "irrelevant"
+  },
+  "expected_supported_findings": [
+    {
+      "evidence_ids": [
+        "health_mesa"
+      ],
+      "finding": "The adjusted MESA association was inverse: HR 0.79 (95% CI 0.63–0.99) per IQR increase in greenspace; this is observational association, not a demonstrated intervention effect."
+    },
+    {
+      "evidence_ids": [
+        "health_norfolk"
+      ],
+      "finding": "Greener neighbourhoods were associated with lower diabetes incidence in this cohort; the adjusted hazard ratio was 0.81 (95% CI 0.65–0.99). The tested physical-activity pathway was not statistically significant (HR 0.97; 95% CI 0.88–1.08)."
+    },
+    {
+      "evidence_ids": [
+        "health_australia_mixed"
+      ],
+      "finding": "The Australian study distinguishes exposure and outcome: tree canopy was associated with lower incident diabetes odds, while total green space was associated with prevalent diabetes but not incident diabetes. Keep this mixed result relevant even though part does not support the question’s suggested direction."
+    },
+    {
+      "evidence_ids": [
+        "health_mortality_distractor"
+      ],
+      "finding": "This source concerns mortality among people with existing type 2 diabetes, not developing type 2 diabetes; exclude it from direct incidence/risk support."
+    },
+    {
+      "evidence_ids": [
+        "health_mesa",
+        "health_norfolk",
+        "health_australia_mixed"
+      ],
+      "finding": "The selected evidence supports some inverse associations but does not show a universal effect across definitions of green space or establish causation."
+    }
+  ],
+  "prohibited_conclusions": [
+    "Green space has been proven to cause a reduction in type 2 diabetes incidence.",
+    "All green-space exposure measures consistently predict lower incident diabetes risk.",
+    "The Australian total-green-space null incident result is irrelevant because it disagrees with the question’s hypothesis.",
+    "The mortality study demonstrates prevention of new type 2 diabetes cases.",
+    "Physical activity was established as the mediator by the Norfolk study.",
+    "The hazard ratios or odds ratios are absolute percentage-point risk reductions.",
+    "These hand-selected studies constitute a systematic review or support a pooled effect size."
+  ],
+  "limitations": [
+    "Fixed convenience sample for behavior evaluation, not an exhaustive or representative literature review.",
+    "Inputs are contiguous abstract excerpts, not full-text extractions; metadata cannot restore omitted methodological detail.",
+    "All direct evidence is observational; residual confounding and exposure-measure differences limit causal inference.",
+    "The Australian abstract reports doctor-diagnosed diabetes without explicitly separating type 2; the source is relevant but subtype precision is limited.",
+    "The distractor passage states the study objective only; do not infer its numerical results from this excerpt.",
+    "Locations and time mentions are only populated when present in the supplied passage."
+  ],
+  "provenance": {
+    "prepared_on": "2026-09-28",
+    "prepared_before_tested_model_outputs": true,
+    "method": "Read PubMed abstracts and verified corresponding open-access publisher/license records; manually selected contiguous result passages (or distractor objective). No model-generated source passages.",
+    "local_file": "benchmarks/gpt_health_reference_v1.json",
+    "sources": [
+      {
+        "evidence_id": "health_mesa",
+        "authors": "Doubleday et al. (2022)",
+        "download_url": "https://pubmed.ncbi.nlm.nih.gov/35034636/",
+        "license_source_url": "https://link.springer.com/article/10.1186/s12940-021-00824-w",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_scope": "Abstract",
+        "changes": "Excerpt selection only; PubMed plain-text typography retained. MESA title uses publisher-corrected Multi-Ethnic spelling."
+      },
+      {
+        "evidence_id": "health_norfolk",
+        "authors": "Dalton et al. (2016)",
+        "download_url": "https://pubmed.ncbi.nlm.nih.gov/27863516/",
+        "license_source_url": "https://link.springer.com/article/10.1186/s12889-016-3833-z",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_scope": "Abstract",
+        "changes": "Excerpt selection only; PubMed plain-text typography retained. MESA title uses publisher-corrected Multi-Ethnic spelling."
+      },
+      {
+        "evidence_id": "health_australia_mixed",
+        "authors": "Astell-Burt and Feng (2020; online 2019)",
+        "download_url": "https://pubmed.ncbi.nlm.nih.gov/31722373/",
+        "license_source_url": "https://scispace.com/pdf/urban-green-space-tree-canopy-and-prevention-of-2fa9pqcjrq.pdf",
+        "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+        "source_scope": "Abstract",
+        "changes": "Excerpt selection only; PubMed plain-text typography retained. MESA title uses publisher-corrected Multi-Ethnic spelling."
+      },
+      {
+        "evidence_id": "health_mortality_distractor",
+        "authors": "Wu et al. (2024)",
+        "download_url": "https://pubmed.ncbi.nlm.nih.gov/39353278/",
+        "license_source_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11472637/",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_scope": "Abstract",
+        "changes": "Excerpt selection only; PubMed plain-text typography retained. MESA title uses publisher-corrected Multi-Ethnic spelling."
+      }
+    ]
+  },
+  "id": "health"
+}

@@ -16,15 +16,69 @@ The project includes a three-document synthetic smoke fixture, a ten-document re
 Install the locked development environment before running the local examples:
 
 ```bash
-uv sync --frozen --extra dev --python 3.11
+uv sync --frozen --extra dev --extra data --python 3.11
 source .venv/bin/activate
 ```
+
+Data research now executes and retains a Python script before publishing every new numerical
+result. For unfamiliar downloaded structures, the selected model can write an extraction script,
+run it in isolation and repair it up to three times. The original files, executed scripts, runtime,
+checks and offline replay are included in **Download all**. See [data research](docs/data-research.md).
+This runtime requires Linux, `bubblewrap` (`bwrap`), a non-root account and permission to create
+unprivileged namespaces. If isolation is unavailable, the app reports that limitation and does not
+execute generated code on the host. Existing saved dashboards remain readable.
+
+Before searching the web, data research queries the statistical APIs of Eurostat, CBS, two PxWeb
+installations (Statistics Sweden, Statistics Norway) and Our World in Data. Measurements those
+connectors cannot answer continue to web search. Set `SCI_SEARCH_DATA_CONNECTORS=0` to skip the
+connector stage; see [statistical API connectors](docs/data-research.md#statistical-api-connectors).
 
 ## Online scientific search
 
 Create a local configuration from `.env.example` and set `OPENALEX_API_KEY`. To enable model-assisted analysis, also set `MISTRAL_API_KEY`; `MISTRAL_MODEL` defaults to `mistral-small-latest`. Real values belong only in `.env.local`, which is ignored by version control and should have restrictive file permissions.
 
 During migration from sci-graph, if Sci-Search has no Mistral key of its own, it reads only `MISTRAL_API_KEY` from the sibling `sci-graph/.env.local`. It deliberately ignores all other variables in that file. A Sci-Search-local key or process environment value takes precedence.
+
+To use OpenAI instead of Mistral, set `SCI_SEARCH_ANALYSIS_PROVIDER=openai` and `OPENAI_API_KEY` in
+`.env.local` (`OPENAI_MODEL` defaults to `gpt-4.1-mini`). The same grounding validation applies to
+both providers. Sci-Search never falls back from one provider to the other: if the selected
+provider's key is missing or a request fails, the deterministic extractive answer is shown with the
+reason. `OPENAI_API_KEY` is never read from sci-graph. Stored results record the provider and model,
+and cached analyses are not shared between providers.
+
+For a personal local workspace, you can use **Codex (ChatGPT login)** instead of an API key.
+Install the Codex CLI, run `codex login` using ChatGPT, and confirm `codex login status` says
+`Logged in using ChatGPT`. In `.env.local`, set `SCI_SEARCH_CODEX_ENABLED=1` and
+`SCI_SEARCH_ANALYSIS_PROVIDER=codex`, then restart the app. `SCI_SEARCH_CODEX_MODEL` defaults to
+`gpt-6-sol`; `gpt-6-luna` is also offered. This uses your ChatGPT/Codex allowance and still
+requires internet access. API-key-only Codex logins are not accepted by this provider.
+
+Codex handles interpretation, evidence screening, claim support and dataset web discovery through
+the existing validators. Each call uses an empty temporary read-only workspace, structured JSON,
+disabled shell tools, no inherited API keys, a four-minute timeout, and at most five search calls.
+Only URLs observed in web-tool results qualify as discovered sources. Runs record the provider
+and model; there is no automatic switch to API billing if Codex fails. Cancellation takes effect
+between model calls; an active call finishes or reaches its timeout. The provider is opt-in and
+disabled when `SCI_SEARCH_ENVIRONMENT=production`; it is intended for the owner's local workspace,
+not a shared server using a personal login.
+
+In the web workspace, choose **Analysis model** below **Review depth** before reviewing a question.
+The menu offers each provider's configured model (`MISTRAL_MODEL` / `OPENAI_MODEL`); providers
+without a key are disabled. Administrators can add approved model IDs with
+`SCI_SEARCH_ANALYSIS_MODELS`, a JSON object mapping `mistral`, `openai`, or `codex` to lists of model IDs.
+Additional models must support this application's structured-output requests. Configure the same
+provider credentials on the web service and workers; `MISTRAL_API_KEY_FILE` and
+`OPENAI_API_KEY_FILE` are also supported. The browser never receives credentials.
+
+The selection applies to question interpretation and the research run, and is retained for retries
+and article-feedback rebuilds. Changing the model clears any previous question interpretation.
+The saved dashboard header shows the analysis model, or explicitly identifies extractive fallback.
+Older results without recorded model metadata say so rather than displaying today's default.
+When no provider has a key, the workspace still supports extractive research.
+Restart the web service and workers after upgrading; no database migration is needed. Existing
+saved results remain readable. Before upgrading a persistent local workspace, retain a backup of
+its research root: rolling back to code without per-run model selection also requires restoring
+that matching workspace backup, because older code cannot read the new run-record field.
 
 Mistral output is requested through schema-enforced JSON. Valid structure alone is not accepted: all assertions must cite known evidence IDs and exact source quotes, while numerical and condition text must occur in those quotes. Invalid individual records are rejected; if no grounded answer or claim survives, the complete model result is discarded in favor of the deterministic extractive answer. API keys are not persisted in runs or scientific memory.
 
@@ -70,6 +124,43 @@ python3 -m sci_search.cli \
 
 The current eight-paper goat-foraging pilot bibliography is retained as a quality gate. In explicit **high-recall** mode, the frozen broad-question benchmark improved from 12.5% to 87.5% discovery recall and selected 75% of the bibliography, meeting its predefined 75% discovery target. The quick-pilot mode is faster but is not suitable when coverage matters. This small benchmark is not proof of systematic-review completeness in other domains.
 
+## Saved scientific dashboards
+
+Every submitted question appears in the left sidebar of its project. Select a question to reopen its
+complete dashboard: answer and adequacy, cited literature review, findings, comparisons, research
+landscape, studies, limitations, methods, evidence passages, validation, references, and downloads.
+Fresh and reopened results use the same renderer. A saved dashboard opens without another provider
+search or model call. Stable links preserve project, question, and optional revision selection.
+
+Article **Include**, **Background**, **Exclude**, and **Reset** controls save a contextual decision and
+schedule a rebuild from retained sources. Background papers provide context rather than direct
+support for conclusions. The previous complete dashboard remains visible while updating; a failed
+rebuild can be retried. Older revisions and their downloads remain available. Finding-level
+**Accept evidence / Reject evidence** is a separate review of an extracted claim, not article relevance.
+The landscape distinguishes all discovered publications from the included evidence population.
+
+The web runner now uses project-scoped scientific memory to reuse acquired full texts and validated
+analysis. Feedback is retained with its question and actor. Optional feedback-aware acquisition ranking
+is disabled by default until researcher-confirmed evaluation passes; storing more votes alone is not
+proof of better scientific answers. See [memory rollout and evaluation](docs/operations/research-memory-rollout.md).
+
+To recover an older local run into an explicitly selected project, first inspect a dry run (stop the
+local server during import so there is one catalog writer):
+
+```bash
+python scripts/import_saved_dashboards.py --source /path/to/old/run \
+  --local-root data/local_research_runs --project-id PROJECT_ID --dry-run
+```
+
+Remove `--dry-run` to import. Original files are preserved and repeat imports are idempotent. A missing
+result becomes an incomplete history entry. Production can reopen retained legacy result artifacts;
+article rebuilding is unavailable when the original source ledger was not retained.
+
+Back up the complete local research root, including `workspace.sqlite3`, objects, source run folders,
+and project memory. Production requires migrations through `0009_memory` plus a coordinated database
+and object-store backup. The plain `--unsafe-development` preview remains intentionally temporary;
+use `--local-research` for persistence.
+
 ## Current real-corpus result
 
 For the guiding RTE question, the pilot finds four reviewed contextual records spanning 40% to 82.9%:
@@ -107,6 +198,34 @@ python3 -m sci_search.cli \
 ```
 
 Open `http://127.0.0.1:8000` and choose **Continue with development account**. You can create and switch projects. The corpus argument supplies the initial project name; the preview does not load the corpus into a research service. A banner explains that changes are temporary, and **Start review** is disabled. Authenticated attempts to start a run through the preview API receive HTTP 503. Use the CLI examples for actual local research and report exports.
+
+For a persistent laptop research workspace with real online research and a development login:
+
+```bash
+python3 -m sci_search.cli --corpus demo/my_research serve \
+  --unsafe-development --local-research --host 127.0.0.1 --port 8010
+```
+
+Open `http://127.0.0.1:8010` (set `SCI_SEARCH_ALLOWED_ORIGINS` to that URL when using a non-default port).
+Questions run through the real literature pipeline, one at a time. Keep the tab open to follow progress;
+evidence and downloads appear when research finishes. Questions, projects, dashboard revisions, reports, acquired sources, and article feedback are retained under
+`data/local_research_runs`. Login sessions are renewed when you return; the workspace survives server restarts. Cancellation suppresses
+publication after the current research step finishes. This mode is loopback-only and cannot run in production.
+
+Before a search starts, the app shows a few versions of your question as cards, with the closest one first. You choose a version, then adjust its approach, measurements, geography and period by clicking the proposed choices; "Edit…" lets you type your own as the last option. "Narrower", "Broader", "More data" and "More literature" ask for new versions. When the question is unclear, the possible answers are shown as buttons. The data options are always available. Questions about the future can use projected data (for example scenario projections to 2100), and the meaning review must confirm that these are model projections.
+
+A result opens in three tabs.
+
+**Answer** comes first. It gives the answer with a certainty label ("Strong", "Moderate" or "Weak evidence", "Not enough evidence", or "Not assessed") and one sentence saying what supports it and what is missing. The key sources follow, then:
+
+- what the data show and what the literature says, when the run used them;
+- why the certainty is what it is: the studies counted as evidence, the studies read but not counted with their reasons, what is missing, limitations and next questions.
+
+**Research landscape** shows all discovered studies. **Details** holds the question interpretation, methods, all studies with article decisions, evidence passages, adequacy checks, validation, references and downloads.
+
+The selected tab and the open sections are kept when you give feedback.
+
+The summary is recomputed from the saved result each time it is opened, so earlier runs use the same page.
 
 Without production configuration, `serve` requires `--unsafe-development`. That flag is restricted to loopback addresses and rejected in production. Production startup uses `SCI_SEARCH_ENVIRONMENT=production` and requires database, queue, object-storage, session, and institutional OIDC settings; provider credentials are also required for live discovery. Configure the settings and secret files in [compose.yml](compose.yml), then follow the [deployment runbook](docs/runbooks/DEPLOYMENT.md), including migrations, readiness checks, and worker startup. See the [API cutover guide](docs/operations/api-cutover.md) for current routes and the [retirement notice](docs/migration/LEGACY_RUNTIME_DEPRECATION.md) for retained CLI compatibility.
 

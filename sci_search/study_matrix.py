@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from sci_search.concept_matching import concept_present
 from sci_search.corpus import _document_text, summarize_document_parse_error
 from sci_search.coverage import decompose_question
 from sci_search.discovery import PublicationCandidate
 from sci_search.mistral_analysis import MistralAnalyzer
+from sci_search.model_provider import configured_analyzer, selected_profile
 from sci_search.question_planning import ResearchPlan
 
 MATRIX_METHOD = "deterministic_question_specific_study_matrix_v1"
@@ -240,15 +241,14 @@ def adjudicate_uncertain_studies(
         return {"status": "not_needed", "method": ADJUDICATION_METHOD, "decisions": []}
     selected = analyzer
     if selected is None:
-        key = os.environ.get("MISTRAL_API_KEY", "").strip()
-        if not key:
+        selected = configured_analyzer()
+        if selected is None:
             return {
                 "status": "unavailable",
                 "method": ADJUDICATION_METHOD,
-                "reason": "MISTRAL_API_KEY is not configured",
+                "reason": f"{selected_profile().key_variable} is not configured",
                 "decisions": [],
             }
-        selected = MistralAnalyzer(key)
     compact = [
         {
             "publication_id": card["publication_id"],
@@ -275,9 +275,24 @@ def adjudicate_uncertain_studies(
                 "role": "system",
                 "content": (
                     "You adjudicate uncertain scientific full texts. Use only supplied passages. "
-                    "A supported finding requires a verbatim quote from its passage. Include only when the "
-                    "paper directly supports all required question dimensions; background means the primary "
-                    "subject is supported but the complete question is not. Never infer absent evidence."
+                    "A supported finding requires a SHORT quote of 12 to 200 characters: a CONTIGUOUS substring copied exactly "
+                    "from its referenced passage, including punctuation. Never insert ellipses, combine "
+                    "separate fragments, paraphrase, or repair the source text. One short exact quote is "
+                    "better than a long abbreviated quote. Select a single clause, never a whole paragraph. "
+                    "For each supported dimension, select a passage whose matched_dimension_ids includes that "
+                    "dimension ID (the dimension also lists supporting_passage_ids). Copy a short quote within "
+                    "a single line when possible; JSON-decode the supplied passage before copying, so escaped "
+                    "newlines must remain actual newlines after your response is JSON-decoded. "
+                    "Include only when the paper directly studies "
+                    "the requested primary outcome and supports the requested relationship and location. "
+                    "For explanatory questions, each driver must explain or be associated with THAT outcome; "
+                    "its mere mention is not support. For example, social conditions affecting healthcare "
+                    "or publishing do not explain linguistic diversity even when the setting is multilingual. "
+                    "Geographical scope must describe the population studied for that outcome, not an "
+                    "author affiliation or a passing example. Mark unsupported dimensions unsupported. "
+                    "Background means the paper substantively studies the primary subject but does not "
+                    "establish the complete requested relationship. Exclude papers about different outcomes "
+                    "that only mention the subject as context. Never infer absent evidence."
                 ),
             },
             {
@@ -301,9 +316,9 @@ def adjudicate_uncertain_studies(
         decisions, rejected = validate_adjudication(parsed, uncertain)
         return {
             "status": "complete",
-            "provider": "mistral",
+            "provider": selected.provider.name,
             "model": selected.model,
-            "method": ADJUDICATION_METHOD,
+            "method": f"{selected.provider.name}_quote_validated_fulltext_adjudication_v1",
             "decisions": decisions,
             "rejected_records": rejected,
         }
@@ -408,9 +423,7 @@ def active_from_screening(
     screening: list[dict[str, Any]],
 ) -> list[tuple[PublicationCandidate, Any]]:
     active_ids = {
-        str(item.get("publication_id"))
-        for item in screening
-        if item.get("decision") in {"included", "background"}
+        str(item.get("publication_id")) for item in screening if item.get("decision") == "included"
     }
     return [item for item in acquired if item[0].id in active_ids]
 
@@ -499,6 +512,4 @@ def _evidence_nature(candidate: PublicationCandidate, text: str) -> dict[str, An
 
 
 def _contains(text: str, term: str) -> bool:
-    normalized = " ".join(term.casefold().replace("-", " ").split())
-    haystack = " ".join(text.casefold().replace("-", " ").split())
-    return bool(normalized and re.search(r"(?<!\w)" + re.escape(normalized) + r"(?!\w)", haystack))
+    return concept_present(text, term)

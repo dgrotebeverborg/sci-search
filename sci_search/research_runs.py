@@ -6,6 +6,7 @@ import base64
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -26,6 +27,7 @@ from sci_search.discovery import (
     PublicationCandidate,
     SearchQuery,
     merge_candidates,
+    relationship_metadata_present,
     screen_candidates,
 )
 from sci_search.fulltext_acquisition import AcquisitionOutcome, acquire_full_text
@@ -38,9 +40,11 @@ from sci_search.literature_review import (
     render_review_markdown,
     render_review_pdf,
 )
+from sci_search.metadata_recall import review_metadata_candidates
 from sci_search.mistral_analysis import MistralAnalyzer, analyze_if_configured
+from sci_search.model_provider import configured_model, selected_profile
 from sci_search.models import dataclass_to_dict
-from sci_search.question_planning import ResearchPlan, plan_question
+from sci_search.question_planning import ResearchPlan, plan_from_brief, research_question
 from sci_search.research.stages.acquisition import AcquisitionStage
 from sci_search.research.stages.analysis import AnalysisStage
 from sci_search.research.stages.base import StageContext
@@ -66,6 +70,37 @@ from sci_search.study_matrix import (
 from sci_search.synthesis import build_structured_synthesis
 
 Acquirer = Callable[[PublicationCandidate, Path], AcquisitionOutcome]
+
+
+class ResearchCancelled(RuntimeError):
+    """Cooperative stop at a research boundary, not a provider failure."""
+
+
+class _CancellableProvider:
+    def __init__(self, provider: DiscoveryProvider, check: Callable[[], None]) -> None:
+        self._provider = provider
+        self._check = check
+        self.name = provider.name
+
+    def search(self, query: SearchQuery, *, limit: int) -> tuple[PublicationCandidate, ...]:
+        self._check()
+        result = self._provider.search(query, limit=limit)
+        self._check()
+        return result
+
+    def __getattr__(self, name: str) -> Any:
+        value = getattr(self._provider, name)
+        if name != "expand_citations" or not callable(value):
+            return value
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            self._check()
+            result = value(*args, **kwargs)
+            self._check()
+            return result
+
+        return call
+
 
 REVIEW_PROFILES: dict[str, dict[str, int]] = {
     "quick": {
@@ -159,8 +194,12 @@ class ResearchRunManager:
         openalex_api_key: str | None = None,
         memory: ScientificMemory | None = None,
         analyzer: MistralAnalyzer | None = None,
+        connector_cache_dir: Path | None = None,
     ) -> None:
         self.root = root.resolve()
+        # Daily statistics-catalogue cache shared by runs; None keeps it inside each run.
+        self.connector_cache_dir = connector_cache_dir
+        self.data_knowledge_dir = self.root / "data-source-knowledge"
         self.root.mkdir(parents=True, exist_ok=True)
         self.openalex_api_key = openalex_api_key or require_openalex_key()
         email = os.environ.get("CROSSREF_EMAIL") or os.environ.get("UNPAYWALL_EMAIL")
@@ -180,6 +219,40 @@ class ResearchRunManager:
         self.analyzer = analyzer
         self._states: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
+        self._cancellation_check: Callable[[], bool] | None = None
+        self._progress_callback: Callable[[dict[str, Any]], None] | None = None
+
+    def set_progress_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
+        """Publish a small, public activity snapshot without exposing research internals."""
+        self._progress_callback = callback
+
+    def _notify_progress(self, state: dict[str, Any]) -> None:
+        if self._progress_callback is None:
+            return
+        snapshot = {
+            "stage": state.get("stage", ""),
+            "message": state.get("message", ""),
+            "started_at": state.get("created_at"),
+            "updated_at": state.get("progress_updated_at", state.get("created_at")),
+            "counters": {
+                k: v for k, v in (state.get("progress") or {}).items() if type(v) in (int, float)
+            },
+            "events": state.get("activity", [])[-30:],
+        }
+        try:
+            self._progress_callback(json.loads(json.dumps(snapshot)))
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Progress update unavailable: %s", type(exc).__name__
+            )
+
+    def set_cancellation_check(self, check: Callable[[], bool]) -> None:
+        """Install an optional caller-owned cancellation signal for this manager."""
+        self._cancellation_check = check
+
+    def _check_cancelled(self) -> None:
+        if self._cancellation_check is not None and self._cancellation_check():
+            raise ResearchCancelled("Research cancelled")
 
     def run_sync(
         self,
@@ -238,10 +311,14 @@ class ResearchRunManager:
         return DownloadPayload(filename, content_type, body)
 
     def download_publications(
-        self, run_id: str, publication_ids: list[str] | None = None
+        self, run_id: str, publication_ids: list[str] | None = None, *, allow_empty: bool = False
     ) -> DownloadPayload:
         state = self.get(run_id)
-        if state.get("status") == "complete" and not state.get("full_text_screening"):
+        if (
+            state.get("status") == "complete"
+            and not state.get("full_text_screening")
+            and not (state.get("result") or {}).get("data_analysis")
+        ):
             self._rebuild_evidence(run_id)
         run_directory = self._run_directory(run_id)
         corpus = run_directory / "corpus"
@@ -255,7 +332,7 @@ class ResearchRunManager:
             if missing:
                 raise KeyError(f"publication is not in the active evidence corpus: {missing[0]}")
             records = [item for item in records if str(item.get("id")) in requested]
-        if not records:
+        if not records and not allow_empty:
             raise ValueError("no acquired publications are available to download")
         buffer = io.BytesIO()
         bundle_records: list[dict[str, Any]] = []
@@ -329,7 +406,33 @@ class ResearchRunManager:
         state = self.get(run_id)
         if state.get("status") != "complete":
             raise ValueError("research run is not complete")
-        if not state.get("full_text_screening"):
+        if (state.get("result") or {}).get("data_analysis") and not (state.get("result") or {}).get(
+            "research_run"
+        ):
+            if output_format == "json":
+                return DownloadPayload(
+                    "data-analysis.json",
+                    "application/json",
+                    json.dumps(
+                        state["result"]["data_analysis"], indent=2, ensure_ascii=False
+                    ).encode(),
+                )
+            if output_format != "html":
+                raise ValueError(
+                    "Data reports support HTML or JSON; the reproducible package includes CSV and the original workbook"
+                )
+            from sci_search.data_research.reporting import export
+
+            return DownloadPayload(
+                *export(
+                    state["result"]["data_analysis"],
+                    self._run_directory(run_id) / "data_analysis",
+                    bundle=False,
+                )
+            )
+        if not state.get("full_text_screening") and not (state.get("result") or {}).get(
+            "data_analysis"
+        ):
             self._rebuild_evidence(run_id)
         investigation = json.loads(
             (self._run_directory(run_id) / "investigation.json").read_text(encoding="utf-8")
@@ -364,10 +467,24 @@ class ResearchRunManager:
         state = self.get(run_id)
         if state.get("status") != "complete":
             raise ValueError("research run is not complete")
-        if not state.get("full_text_screening"):
+        if (state.get("result") or {}).get("data_analysis") and not (state.get("result") or {}).get(
+            "research_run"
+        ):
+            from sci_search.data_research.reporting import export
+
+            return DownloadPayload(
+                *export(
+                    state["result"]["data_analysis"],
+                    self._run_directory(run_id) / "data_analysis",
+                    bundle=True,
+                )
+            )
+        if not state.get("full_text_screening") and not (state.get("result") or {}).get(
+            "data_analysis"
+        ):
             self._rebuild_evidence(run_id)
             state = self.get(run_id)
-        publications = self.download_publications(run_id)
+        publications = self.download_publications(run_id, allow_empty=True)
         run_directory = self._run_directory(run_id)
         investigation = json.loads(
             (run_directory / "investigation.json").read_text(encoding="utf-8")
@@ -393,6 +510,33 @@ class ResearchRunManager:
                     else entry.filename
                 )
                 archive.writestr(target, source.read(entry.filename))
+            if investigation.get("data_analysis"):
+                from sci_search.data_research.reporting import export as export_data
+
+                _, _, data_bundle = export_data(
+                    investigation["data_analysis"], run_directory / "data_analysis", bundle=True
+                )
+                with zipfile.ZipFile(io.BytesIO(data_bundle)) as data_archive:
+                    for entry in data_archive.infolist():
+                        archive.writestr(
+                            "data-research/" + entry.filename, data_archive.read(entry.filename)
+                        )
+            if investigation.get("investigation_review"):
+                review_trace = investigation["investigation_review"]
+                archive.writestr(
+                    "data/investigation-review.json",
+                    json.dumps(review_trace, ensure_ascii=False, indent=2),
+                )
+                source_paths = {
+                    f.get("source_artifact")
+                    for f in review_trace.get("partial_findings", [])
+                    if f.get("source_artifact")
+                }
+                for relative in sorted(source_paths):
+                    original = (run_directory / "corpus" / relative).resolve()
+                    original.relative_to((run_directory / "corpus").resolve())
+                    if original.is_file():
+                        archive.write(original, "reviewed-sources/" + relative)
             archive.writestr("literature-review.pdf", render_review_pdf(report))
             archive.writestr("literature-review.html", render_review_html(report).encode("utf-8"))
             archive.writestr("literature-review.md", render_review_markdown(report).encode("utf-8"))
@@ -426,7 +570,7 @@ class ResearchRunManager:
                     b"SCI-SEARCH RESEARCH PACKAGE\n\n"
                     b"Start with literature-review.pdf. It contains the cited synthesis, methods, selection flow, "
                     b"research landscape, limitations, references, and exact evidence passages.\n\n"
-                    b"The publications/ directory contains every included or relevant-background full-text artifact in its "
+                    b"The publications/ directory contains every included full-text artifact in its "
                     b"best retained original format. This may be publisher PDF, JATS/XML, plain text, or an authorized "
                     b"researcher-supplied file. data/publications-manifest.json records the source and format of each file. "
                     b"data/full-text-screening.json retains all post-acquisition inclusion and exclusion decisions.\n\n"
@@ -477,9 +621,11 @@ class ResearchRunManager:
         if state.get("status") != "complete":
             raise ValueError("research run is not complete")
         original_question = str(state.get("question") or "")
-        current_plan = plan_question(question)
+        current_plan = plan_from_brief(question, question_brief)
         contextualized = question
-        if current_plan.profile_id == "generic" or len(current_plan.concepts) < 2:
+        if not current_plan.subject_terms and (
+            current_plan.profile_id == "generic" or len(current_plan.concepts) < 2
+        ):
             contextualized = f"{question} {original_question}"
         corpus_directory = self._run_directory(run_id) / "corpus"
         report = GenericResearchEngine(
@@ -488,6 +634,7 @@ class ResearchRunManager:
         ).investigate(
             contextualized,
             session_id=f"research:{run_id}",
+            plan=current_plan if question_brief else None,
         )
         payload = report.to_dict()
         if self.memory is not None:
@@ -662,14 +809,18 @@ class ResearchRunManager:
         ]
         run_directory = self._run_directory(run_id)
         corpus = run_directory / "corpus"
+        plan = (
+            _research_plan(state["plan"])
+            if state.get("plan")
+            else plan_from_brief(str(state["question"]), state.get("question_brief"))
+        )
         active, fulltext_screening = screen_acquired_documents(
             str(state["question"]),
-            plan_question(str(state["question"])),
+            plan,
             corpus,
             acquired,
             researcher_decisions=decisions,
         )
-        plan = plan_question(str(state["question"]))
         _provisional_matrix = build_study_matrix(
             str(state["question"]),
             plan,
@@ -695,7 +846,7 @@ class ResearchRunManager:
         investigation = GenericResearchEngine(
             load_corpus(corpus),
             lifecycle_lookup=self.memory.evidence_states if self.memory is not None else None,
-        ).investigate(str(state["question"]), session_id=f"research:{run_id}")
+        ).investigate(str(state["question"]), session_id=f"research:{run_id}", plan=plan)
         payload = investigation.to_dict()
         if self.memory is not None:
             self.memory.apply_lifecycle(payload)
@@ -745,6 +896,8 @@ class ResearchRunManager:
                 run_id, str(state["question"]), corpus, payload
             )
             payload["memory_stats"] = self.memory.stats()
+        if (state.get("result") or {}).get("data_analysis"):
+            payload["data_analysis"] = state["result"]["data_analysis"]
         payload["research_landscape"] = build_research_landscape(payload)
         review = build_literature_review(payload)
         _write_json(run_directory / "literature_review.json", review)
@@ -783,6 +936,15 @@ class ResearchRunManager:
     def _execute_guarded(self, run_id: str, question: str, limits: ResearchLimits) -> None:
         try:
             self._execute(run_id, question, limits)
+        except ResearchCancelled:
+            self._update(
+                run_id,
+                status="cancelled",
+                stage="cancelled",
+                message="Research was cancelled before producing a report.",
+                error=None,
+                finished_at=_now(),
+            )
         except Exception as exc:  # the persisted run must survive provider/parser failures
             self._update(
                 run_id,
@@ -797,6 +959,13 @@ class ResearchRunManager:
             )
 
     def _execute(self, run_id: str, question: str, limits: ResearchLimits) -> None:
+        providers = (
+            tuple(
+                _CancellableProvider(provider, self._check_cancelled) for provider in self.providers
+            )
+            if self._cancellation_check is not None
+            else self.providers
+        )
         run_directory = self._run_directory(run_id)
         corpus_directory = run_directory / "corpus"
         corpus_directory.mkdir(parents=True, exist_ok=True)
@@ -806,8 +975,79 @@ class ResearchRunManager:
             stage="planning",
             message="Translating the question into inspectable search strategies.",
         )
-        planning_checkpoint = PlanningStage().run(_stage_context(run_id, question, inputs={}))
+        brief = self.get(run_id).get("question_brief")
+        if brief is None:
+            from sci_search.question_interpretation import interpret_question
+
+            brief = interpret_question(question)
+            brief.pop("options", None)
+            brief.pop("clarification_options", None)
+            self._update(run_id, question_brief=brief)
+        data_result = None
+        data_strategy = brief.get("data_research") or {}
+        if data_strategy.get("adapter") == "effis_reported_fires_v1":
+            # Older saved plans use the same guarded investigation as new questions.
+            from sci_search.data_research.wildfire import validate_scope
+
+            legacy_scope = validate_scope(data_strategy)
+            data_strategy = {
+                "adapter": "discovered_data_v1",
+                "route": legacy_scope["route"],
+                "rationale": "Official reported fires and burned area, with source definition checks.",
+                "measurements": ["reported forest fires", "burned area"],
+                "geography": "European Union" if legacy_scope["geography"] == "eu27" else "Europe",
+                "country_scope": legacy_scope["geography"],
+                "start_year": legacy_scope["start_year"],
+                "end_year": legacy_scope["end_year"],
+            }
+            brief = {**brief, "data_research": data_strategy}
+            self._update(run_id, question_brief=brief)
+        if data_strategy.get("adapter") == "discovered_data_v1":
+            from sci_search.data_research.strategy import validate_strategy
+
+            data_strategy = validate_strategy(data_strategy)
+        if data_strategy.get("adapter") == "discovered_data_v1" and data_strategy.get("route") in {
+            "data",
+            "both",
+        }:
+            from sci_search.data_research.workflow import execute, investigation
+
+            data_result = execute(
+                research_question(question, brief),
+                data_strategy,
+                run_directory / "data_analysis",
+                check_cancelled=self._check_cancelled,
+                progress=lambda message: self._update(run_id, stage="acquiring", message=message),
+                cache_dir=self.connector_cache_dir,
+                knowledge_dir=self.data_knowledge_dir,
+            )
+            if data_strategy["route"] == "data" and not data_result["analyses"]:
+                data_result["initial_route"] = "data"
+                data_result["strategy"] = {**data_result["strategy"], "route": "both"}
+                data_result["literature_fallback"] = (
+                    "No supported numerical answer was obtained. Continuing with literature "
+                    "to assess the question; unreadable data is not evidence of absence."
+                )
+                _write_json(run_directory / "data_analysis" / "analysis.json", data_result)
+                self._update(run_id, stage="planning", message=data_result["literature_fallback"])
+            if data_strategy["route"] == "data" and data_result["analyses"]:
+                payload = investigation(research_question(question, brief), brief, data_result)
+                _write_json(run_directory / "investigation.json", payload)
+                self._update(
+                    run_id,
+                    status="complete",
+                    stage="complete",
+                    message="Dataset research finished; inspect source decisions and coverage.",
+                    result=payload,
+                    finished_at=_now(),
+                    error=None,
+                )
+                return
+        planning_checkpoint = PlanningStage().run(
+            _stage_context(run_id, question, inputs={"question_brief": brief})
+        )
         plan = _research_plan(planning_checkpoint.output["plan"])
+        question = plan.question  # research continues in English (the brief's translation)
         queries = tuple(_search_query(item) for item in planning_checkpoint.output["queries"])
         memory_candidates: tuple[PublicationCandidate, ...] = ()
         memory_assessment = None
@@ -838,7 +1078,7 @@ class ResearchRunManager:
         ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             found, log = discover_with_providers(
                 tuple(_search_query(item) for item in serialized_queries),
-                self.providers,
+                providers,
                 per_query=per_query,
             )
             return dataclass_to_dict(found), list(log)
@@ -886,6 +1126,7 @@ class ResearchRunManager:
             stage="screening",
             message="Deduplicating, screening, and checking one bounded citation-network hop.",
         )
+        metadata_review_cache = {}
         initial_screened = screen_candidates(merged, plan, limit=limits.max_selected)
         citation_seeds = tuple(
             item
@@ -900,7 +1141,7 @@ class ResearchRunManager:
             if not frontier or not limits.citation_neighbors_per_seed:
                 break
             found, logs = expand_citation_network(
-                frontier, self.providers, per_seed=limits.citation_neighbors_per_seed
+                frontier, providers, per_seed=limits.citation_neighbors_per_seed
             )
             expanded_seed_ids.update(item.id for item in frontier)
             citation_candidates_list.extend(found)
@@ -918,9 +1159,21 @@ class ResearchRunManager:
         citation_candidates = tuple(citation_candidates_list)
         citation_log = tuple(citation_log_list)
         search_log = (*search_log, *citation_log)
-        screened = screen_candidates(merged, plan, limit=limits.max_selected)
+        screened = review_metadata_candidates(
+            merged,
+            plan,
+            analyzer=self.analyzer,
+            limit=limits.max_selected,
+            cache=metadata_review_cache,
+            check_cancelled=self._check_cancelled,
+        )
         selected = [candidate for candidate in screened if candidate.screening_status == "selected"]
         selected = _prioritize_acquisition_candidates(selected, plan)
+        rank_with_feedback = getattr(self.memory, "rank_for_acquisition", None)
+        if rank_with_feedback is not None:
+            selected = list(rank_with_feedback(plan, tuple(selected)))
+            selected_by_id = {item.id: item for item in selected}
+            screened = tuple(selected_by_id.get(item.id, item) for item in screened)
         candidate_payload = dataclass_to_dict(screened)
         self._update(
             run_id,
@@ -955,6 +1208,7 @@ class ResearchRunManager:
                 and len(acquired) < limits.max_full_texts
                 and attempts < limits.max_acquisition_attempts
             ):
+                self._check_cancelled()
                 candidate = candidate_queue.pop(0)
                 attempts += 1
 
@@ -980,7 +1234,9 @@ class ResearchRunManager:
                             "scientific_memory_cache",
                         )
                     else:
+                        self._check_cancelled()
                         acquired_outcome = self.acquirer(current_candidate, corpus_directory)
+                    self._check_cancelled()
                     return dataclass_to_dict(acquired_outcome)
 
                 acquisition_checkpoint = AcquisitionStage(acquire_candidate).run(
@@ -1019,6 +1275,7 @@ class ResearchRunManager:
         def assess_current() -> tuple[
             list[tuple[PublicationCandidate, AcquisitionOutcome]], list[dict[str, Any]], Any
         ]:
+            self._check_cancelled()
             active, screening = screen_acquired_documents(
                 question, plan, corpus_directory, acquired
             )
@@ -1027,7 +1284,7 @@ class ResearchRunManager:
             assessment = GenericResearchEngine(
                 load_corpus(corpus_directory),
                 lifecycle_lookup=self.memory.evidence_states if self.memory is not None else None,
-            ).investigate(question, session_id=f"research:{run_id}")
+            ).investigate(question, session_id=f"research:{run_id}", plan=plan)
             return active, screening, assessment
 
         acquire_until(initial_target)
@@ -1083,7 +1340,7 @@ class ResearchRunManager:
             )
             additional, coverage_log = discover_with_providers(
                 coverage_queries,
-                self.providers,
+                providers,
                 per_query=limits.per_query,
             )
             coverage_search["performed"] = True
@@ -1091,7 +1348,14 @@ class ResearchRunManager:
             raw = (*raw, *additional)
             search_log = (*search_log, *coverage_log)
             merged = merge_candidates(raw)
-            screened = screen_candidates(merged, plan, limit=limits.max_selected)
+            screened = review_metadata_candidates(
+                merged,
+                plan,
+                analyzer=self.analyzer,
+                limit=limits.max_selected,
+                cache=metadata_review_cache,
+                check_cancelled=self._check_cancelled,
+            )
             candidate_payload = dataclass_to_dict(screened)
             attempted_ids = {outcome.publication_id for outcome in outcomes}
             candidate_queue = [
@@ -1203,7 +1467,9 @@ class ResearchRunManager:
             acquired,
             fulltext_screening,
         )
+        self._check_cancelled()
         adjudication = adjudicate_uncertain_studies(question, provisional_matrix, self.analyzer)
+        self._check_cancelled()
         fulltext_screening = apply_adjudication(fulltext_screening, adjudication)
         active_acquired = active_from_screening(acquired, fulltext_screening)
         provisional_matrix = build_study_matrix(
@@ -1252,7 +1518,7 @@ class ResearchRunManager:
                     if self.memory is not None
                     else None,
                 )
-                .investigate(context.question, session_id=f"research:{context.run_id}")
+                .investigate(context.question, session_id=f"research:{context.run_id}", plan=plan)
                 .to_dict()
             )
         ).run(
@@ -1266,6 +1532,40 @@ class ResearchRunManager:
             )
         )
         payload = analysis_checkpoint.output
+        if not payload.get("answer_adequacy", {}).get("can_answer_overall_question"):
+            from sci_search.data_research.discovery import complete_object
+            from sci_search.investigation_review import review_investigation
+            from sci_search.model_provider import configured_analyzer
+
+            reviewer = self.analyzer or configured_analyzer()
+            if reviewer is not None:
+                payload["investigation_review"] = review_investigation(
+                    question,
+                    list(plan.subject_terms or plan.concepts),
+                    provisional_matrix,
+                    payload.get("answer_adequacy", {}),
+                    directory=run_directory,
+                    complete=lambda prompt, schema: complete_object(reviewer, prompt, schema),
+                    data_summary={
+                        "status": data_result.get("status"),
+                        "uncovered_measurements": data_result.get("uncovered_measurements"),
+                        "sources": [
+                            {
+                                "title": a.get("title"),
+                                "decision": a["decision"],
+                                "reason": a["reason"],
+                                "python_error": a.get("python_error"),
+                            }
+                            for a in data_result["assessments"]
+                        ],
+                    }
+                    if data_result
+                    else None,
+                    progress=lambda message: self._update(
+                        run_id, stage="analyzing", message=message
+                    ),
+                    check_cancelled=self._check_cancelled,
+                )
         coverage_search["final_assessment"] = payload.get("answer_adequacy")
         discovery_path = run_directory / "discovery.json"
         discovery = json.loads(discovery_path.read_text(encoding="utf-8"))
@@ -1335,6 +1635,7 @@ class ResearchRunManager:
                 run_id, question, corpus_directory, payload
             )
             payload["memory_stats"] = self.memory.stats()
+        self._check_cancelled()
         reporting_checkpoint = ReportingStage().run(
             _stage_context(
                 run_id,
@@ -1348,6 +1649,9 @@ class ResearchRunManager:
         _write_json(run_directory / "literature_review.json", review)
         payload["literature_review_report"] = review
         payload["literature_review"] = reporting_checkpoint.output["literature_review"]
+        if data_result is not None:
+            payload["data_analysis"] = data_result
+            payload["data_analysis"]["literature_status"] = "complete"
         _write_json(run_directory / "investigation.json", payload)
         final_progress = dict(self.get(run_id).get("progress") or {})
         final_progress["full_texts_included"] = len(active_acquired)
@@ -1370,22 +1674,28 @@ class ResearchRunManager:
         evidence: list[dict[str, Any]],
         adequacy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        model = (
-            self.analyzer.model
-            if self.analyzer is not None
-            else os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
-        )
+        self._check_cancelled()
+        if self.analyzer is not None:
+            provider, model = self.analyzer.provider, self.analyzer.model
+        else:
+            provider = selected_profile()
+            model = configured_model(provider)
+        feedback_reader = getattr(self.memory, "feedback_events", None)
+        # Mistral keys omit the provider so caches from before provider selection stay valid.
+        provider_entry = {} if provider.name == "mistral" else {"provider": provider.name}
         fingerprint = hashlib.sha256(
             json.dumps(
                 {
+                    **provider_entry,
                     "question": question,
                     "model": model,
-                    "analysis_contract": "scientific_analysis_v3_comparison_responsiveness",
-                    "evidence": [
-                        (item.get("id"), item.get("passage"))
-                        for item in evidence
-                        if isinstance(item, dict)
-                    ],
+                    "analysis_contract": "scientific_analysis_v8_complete_answers",
+                    "adequacy": adequacy,
+                    "feedback": (feedback_reader() if feedback_reader is not None else []),
+                    # All metadata can affect packet selection/token budgeting, and
+                    # titles, populations and study design now inform support review.
+                    # Keep the complete records, including document validation provenance.
+                    "evidence": [item for item in evidence if isinstance(item, dict)],
                 },
                 sort_keys=True,
                 ensure_ascii=False,
@@ -1396,6 +1706,7 @@ class ResearchRunManager:
             if cached is not None:
                 return cached
         result = analyze_if_configured(question, evidence, self.analyzer, adequacy)
+        self._check_cancelled()
         if self.memory is not None:
             self.memory.cache_analysis(fingerprint, result)
         return result
@@ -1454,8 +1765,11 @@ class ResearchRunManager:
         with self._lock:
             self._states[run_id] = state
             self._persist(run_id, state)
+        self._notify_progress(state)
 
     def _update(self, run_id: str, **changes: Any) -> None:
+        if changes.get("status") not in {"cancelled", "failed"}:
+            self._check_cancelled()
         with self._lock:
             state = dict(self._states[run_id])
             next_stage = changes.get("stage")
@@ -1464,18 +1778,22 @@ class ResearchRunManager:
                 now = _now()
                 if stages and stages[-1].get("completed_at") is None:
                     stages[-1]["completed_at"] = now
-                    stages[-1]["status"] = "failed" if next_stage == "failed" else "complete"
+                    stages[-1]["status"] = (
+                        next_stage if next_stage in {"failed", "cancelled"} else "complete"
+                    )
                     stages[-1]["progress"] = dict(state.get("progress") or {})
                 stages.append(
                     {
                         "stage": next_stage,
-                        "status": "failed"
-                        if next_stage == "failed"
+                        "status": next_stage
+                        if next_stage in {"failed", "cancelled"}
                         else "complete"
                         if next_stage == "complete"
                         else "running",
                         "started_at": now,
-                        "completed_at": now if next_stage in {"complete", "failed"} else None,
+                        "completed_at": now
+                        if next_stage in {"complete", "failed", "cancelled"}
+                        else None,
                         "message": changes.get("message") or "",
                         "progress": dict(changes.get("progress") or state.get("progress") or {}),
                     }
@@ -1488,9 +1806,24 @@ class ResearchRunManager:
                 if changes.get("message"):
                     stages[-1]["message"] = changes["message"]
                 changes["pipeline_stages"] = stages
+            if changes.get("message") and (
+                changes["message"] != state.get("message")
+                or (next_stage is not None and next_stage != state.get("stage"))
+            ):
+                activity = list(state.get("activity") or [])
+                activity.append(
+                    {
+                        "at": _now(),
+                        "stage": next_stage or state.get("stage"),
+                        "message": changes["message"],
+                    }
+                )
+                changes["activity"] = activity[-30:]
+            changes["progress_updated_at"] = _now()
             state.update(changes)
             self._states[run_id] = state
             self._persist(run_id, state)
+        self._notify_progress(state)
 
     def _persist(self, run_id: str, state: dict[str, Any]) -> None:
         path = self._run_directory(run_id) / "run.json"
@@ -1499,6 +1832,15 @@ class ResearchRunManager:
             json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         temporary.replace(path)
+        # Diagnostics must never turn an otherwise saved research run into a failure.
+        from sci_search.run_issues import record
+
+        try:
+            record(path.parent, state)
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Issue recording unavailable: %s", type(exc).__name__
+            )
 
 
 def _write_manifest(
@@ -1625,7 +1967,7 @@ def _build_pipeline_diagnostics(
         warnings.append(f"only {len(contributing)} publications contributed selected evidence")
     if not adequacy.get("can_answer_overall_question", False):
         warnings.append("the evidence coverage gate withheld the overall answer")
-    if ai.get("status") != "complete":
+    if ai.get("status") not in {"complete", "coverage_limited"}:
         warnings.append(
             f"generative synthesis was not used: {ai.get('reason') or ai.get('status') or 'unavailable'}"
         )
@@ -1708,12 +2050,16 @@ def _prioritize_acquisition_candidates(
         key=lambda candidate: (-candidate.relevance_score, -candidate.cited_by_count),
     )[:4]
     if not reviews:
-        return ranked
+        return sorted(
+            ranked, key=lambda candidate: not relationship_metadata_present(candidate, plan)
+        )
     review_ids = {candidate.id for candidate in reviews}
     result = [candidate for candidate in ranked if candidate.id not in review_ids]
     for position, candidate in zip((3, 8, 13, 18), reviews, strict=False):
         result.insert(min(position, len(result)), candidate)
-    return result
+    # Preserve review diversity within relevance tiers. A generic subject
+    # review must not displace papers about the requested relationship.
+    return sorted(result, key=lambda candidate: not relationship_metadata_present(candidate, plan))
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -1748,6 +2094,17 @@ def _research_plan(payload: object) -> ResearchPlan:
         expanded_terms=tuple(str(item) for item in payload["expanded_terms"]),
         evidence_preferences=tuple(str(item) for item in payload["evidence_preferences"]),
         comparison_dimensions=tuple(str(item) for item in payload["comparison_dimensions"]),
+        subject_terms=tuple(payload.get("subject_terms", ())),
+        driver_terms=tuple(payload.get("driver_terms", ())),
+        geography_terms=tuple(payload.get("geography_terms", ())),
+        exclusion_terms=tuple(payload.get("exclusion_terms", ())),
+        interpretation_method=str(payload.get("interpretation_method") or "deterministic"),
+        relationship_type=str(payload.get("relationship_type") or "unspecified"),
+        population_terms=tuple(payload.get("population_terms", ())),
+        time_terms=tuple(payload["time_terms"]) if payload.get("time_terms") is not None else None,
+        outcome_measure_terms=tuple(payload["outcome_measure_terms"])
+        if payload.get("outcome_measure_terms") is not None
+        else None,
     )
 
 
@@ -1780,6 +2137,7 @@ def _publication_candidate(payload: object) -> PublicationCandidate:
         publication_type=str(payload.get("publication_type") or "article"),
         source_url=optional_text("source_url"),
         full_text_url=optional_text("full_text_url"),
+        oa_landing_urls=texts("oa_landing_urls"),
         document_fingerprint=optional_text("document_fingerprint"),
         author_ids=texts("author_ids"),
         institutions=texts("institutions"),

@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sci_search.application.projects import ProjectRole
 from sci_search.domain.risk_of_bias import RiskJudgment
+from sci_search.question_interpretation import QuestionBrief
 
 
 class ApiSchema(BaseModel):
@@ -85,13 +86,48 @@ class MembershipListResponse(ApiSchema):
     items: list[MembershipResponse]
 
 
+class AnalysisSelection(ApiSchema):
+    provider: Literal["mistral", "openai", "codex"]
+    model: str = Field(min_length=1, max_length=200)
+
+
+class QuestionSteer(ApiSchema):
+    direction: Literal["narrower", "broader", "more_data", "more_literature"]
+    option: dict = Field(default_factory=dict)
+
+
+class QuestionInterpretationCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
+    question: str = Field(min_length=3, max_length=5000)
+    steer: QuestionSteer | None = None
+    clarification: str | None = Field(default=None, max_length=300)
+
+
+class QuestionBriefAdjust(ApiSchema):
+    brief: dict
+    change: dict
+
+
 class RunCreate(ApiSchema):
+    analysis_selection: AnalysisSelection | None = None
+    question_brief: QuestionBrief | None = None
+
+    @field_validator("question_brief", mode="before")
+    @classmethod
+    def _without_choices(cls, value):
+        # An interpretation sent back as-is still carries its clickable choices.
+        if isinstance(value, dict):
+            return {k: v for k, v in value.items() if k not in {"options", "clarification_options"}}
+        return value
+
     question: str = Field(min_length=3, max_length=5000)
     review_depth: Literal["focused", "deep"] = "focused"
     idempotency_key: str = Field(min_length=1, max_length=200)
 
 
 class RunResponse(ApiSchema):
+    progress: dict[str, object] | None = None
+    analysis_selection: AnalysisSelection | None = None
     id: str
     project_id: str
     question: str
