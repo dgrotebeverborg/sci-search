@@ -1,7 +1,7 @@
 import json
 
 from sci_search.data_research import workflow
-from tests.test_autonomous_data import strategy
+from tests.data_workflow_fixtures import strategy
 
 
 def test_exhausted_budget_blocks_external_calls_and_writes_a_readable_result(tmp_path):

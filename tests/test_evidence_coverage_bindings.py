@@ -245,6 +245,31 @@ def test_existing_assignment_cannot_be_reused_for_another_category():
     ]
 
 
+def test_distinct_series_for_same_entity_can_bind_a_missing_category():
+    scope, analysis, docs = fixture()
+    scope["requirements"][0]["entities"] = ["Delft"]
+    scope["requirements"][0]["breakdowns"] = [{"dimension": "sex", "values": ["male", "female"]}]
+    analysis["series"][0]["identity"]["dimensions"]["sex"] = "male"
+    female = copy.deepcopy(analysis["series"][0])
+    female["identity"]["dimensions"]["sex"] = "F"
+    analysis["series"].append(female)
+    docs["selection"] += "\nSex code F means female."
+
+    def complete(prompt, schema):
+        result = proposal(prompt, schema)
+        result["bindings"][0].update(series=1, evidence=["selection:1"])
+        return result
+
+    bind(scope, analysis, docs, complete)
+    assert len(analysis["semantic_review"]["coverage_bindings"]["bindings"]) == 1
+    cells = coverage.evaluate(scope, [analysis])["cells"]
+    assert [(c["dimensions"]["sex"], c["status"]) for c in cells] == [
+        ("male", "complete"),
+        ("female", "complete"),
+    ]
+    assert [[m["series_index"] for m in c["sources"]] for c in cells] == [[0], [1]]
+
+
 def test_mutating_scope_does_not_mutate_saved_judgment():
     scope, analysis, docs = fixture()
     bind(scope, analysis, docs)

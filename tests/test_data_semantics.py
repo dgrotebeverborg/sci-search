@@ -145,7 +145,7 @@ def test_executed_python_without_definition_evidence_is_not_published(tmp_path):
 
 def test_standard_csv_cannot_bypass_meaning_check(tmp_path):
     from sci_search.data_research.workflow import execute
-    from tests.test_autonomous_data import mapping, strategy
+    from tests.data_workflow_fixtures import mapping, strategy
 
     def model(prompt, schema):
         properties = schema["properties"]
@@ -339,7 +339,7 @@ def test_semantic_rejection_cannot_be_repaired_by_rerunning_code(tmp_path, refle
 def test_unresolved_measurement_does_not_discard_a_supported_measurement(tmp_path):
     from sci_search.data_research.workflow import execute
     from tests.data_meaning_fixtures import positive_review
-    from tests.test_autonomous_data import mapping, strategy
+    from tests.data_workflow_fixtures import mapping, strategy
 
     def model(prompt, schema):
         fields = schema["properties"]

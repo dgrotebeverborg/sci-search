@@ -4,26 +4,13 @@ from sci_search.data_research.discovery import observed_urls
 from sci_search.data_research.strategy import validate_strategy
 from sci_search.data_research.tabular import analyse_csv
 from tests.data_meaning_fixtures import with_positive_meaning_review
+from tests.data_workflow_fixtures import mapping, strategy
 
 
 @pytest.fixture(autouse=True)
 def web_path_only(monkeypatch):
     """These tests exercise the web path; the connector stage has its own workflow tests."""
     monkeypatch.setenv("SCI_SEARCH_DATA_CONNECTORS", "0")
-
-
-def strategy(**updates):
-    return validate_strategy(
-        dict(
-            route="data",
-            rationale="Annual observations answer the question.",
-            measurements=["population"],
-            geography="Netherlands",
-            start_year=2001,
-            end_year=2003,
-        )
-        | updates
-    )
 
 
 def test_strategy_cannot_execute_urls_or_code():
@@ -33,21 +20,6 @@ def test_strategy_cannot_execute_urls_or_code():
         validate_strategy({**value, "route": "shell"})
     with pytest.raises(ValueError):
         validate_strategy({**value, "start_year": True})
-
-
-def mapping():
-    return {
-        "year_column": "Year",
-        "entity_column": "Country",
-        "entities": ["Netherlands"],
-        "value_column": "Population",
-        "unit": "people",
-        "output_unit": "people",
-        "filters": {},
-        "label": "Population",
-        "missing_values": ["", ":"],
-        "decimal_separator": ".",
-    }
 
 
 def test_csv_keeps_zero_and_missing_separate_and_filters_exactly():

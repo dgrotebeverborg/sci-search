@@ -148,7 +148,7 @@ def evaluate(scope, analyses):
             for source_index, analysis in enumerate(analyses):
                 if measurement in choices and source_index != choices[measurement]["source_index"]:
                     continue
-                for series in analysis.get("series", []):
+                for series_index, series in enumerate(analysis.get("series", [])):
                     if series.get("label") != measurement:
                         continue
                     text = series.get("entity", "")
@@ -205,6 +205,7 @@ def evaluate(scope, analyses):
                     matches.append(
                         {
                             "source_index": source_index,
+                            "series_index": series_index,
                             **({"scope_binding": True} if bound else {}),
                             "sex_identity": (dimensions["sex"],)
                             if bound and "sex" in dimensions

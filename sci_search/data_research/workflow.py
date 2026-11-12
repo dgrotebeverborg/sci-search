@@ -21,6 +21,7 @@ from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.coverage import pending as pending_measurements
 from sci_search.data_research.derived_artifacts import finalize as finalize_outputs
 from sci_search.data_research.discovery import complete_object, discover
+from sci_search.data_research.failures import record_failure
 from sci_search.data_research.inspection import extract_documentation_pdf
 from sci_search.data_research.navigation import resolve_table_download
 from sci_search.data_research.packages import attach_provenance, prepare_table
@@ -31,6 +32,7 @@ from sci_search.data_research.preparation import (
     inspect_table,
     transform_table,
 )
+from sci_search.data_research.publication import publish_analysis
 from sci_search.data_research.python_recovery import recover as recover_python
 from sci_search.data_research.retrieval import (
     eurostat_download_url,
@@ -49,6 +51,7 @@ from sci_search.data_research.source_review import (
     reassess_source,
     save_context,
 )
+from sci_search.data_research.source_state import restore_retained, state_snapshot
 from sci_search.data_research.spreadsheets import SELECTION_SCHEMA, inspect_if_workbook
 from sci_search.data_research.statistical_tables import (
     SELECTION_SCHEMA as STATISTICAL_SELECTION_SCHEMA,
@@ -202,7 +205,7 @@ def _execute(
     connectors=None,
     cache_dir=None,
     knowledge_dir=None,
-    control=None,
+    control: RunControl,
 ):
     strategy = validate_strategy(strategy)
     # The web path below may narrow `strategy` to measurements no connector covered;
@@ -443,8 +446,8 @@ def _execute(
     source_schema = copy.deepcopy(ASSESS_SCHEMA)
     source_schema["properties"]["covered_measurements"]["items"]["enum"] = strategy["measurements"]
     covered = set(connector_covered)
-    # Keyed by position in result["assessments"]: the planner's source_index refers to it.
-    retained = {}
+    # Stable folder IDs identify retained bytes independently of assessment order.
+    retained = restore_retained(directory, result["assessments"]) if control.seed else {}
 
     def review_source(index, measurements, link_index, round_number):
         outcome = reassess_source(
@@ -486,6 +489,7 @@ def _execute(
             progress,
             check_cancelled,
             review_source=review_source,
+            snapshot_provider=lambda: state_snapshot(result),
             max_rounds=6,
             time_budget_seconds=600,
         )
@@ -545,10 +549,10 @@ def _execute(
                 continue
             # Otherwise the existing web path still checks this page.
         assessment = {**candidate, "decision": "blocked", "reason": ""}
-        position = len(result["assessments"])
         result["assessments"].append(assessment)
         folder = directory / f"source-{source_offset + index + 1}"
         folder.mkdir(exist_ok=True)
+        source_id = assessment["source_id"] = folder.name
         progress(f"Checking dataset {index + 1}: {candidate['title'][:120]}")
         stage = "access"
         data, source, body, url = None, None, None, candidate["url"]
@@ -1188,7 +1192,7 @@ def _execute(
                             components.append(analysis)
                             selected_measures.append(measurement)
                             break
-                        except (ValueError, KeyError, TypeError) as exc:
+                        except ValueError as exc:
                             if mapping_attempt == 1:
                                 assessment.setdefault("mapping_gaps", []).append(
                                     {"measurement": measurement, "reason": str(exc)[:500]}
@@ -1262,7 +1266,7 @@ def _execute(
                                     status="validated",
                                     checks=measurement_preparation.get("checks", {}),
                                 )
-                            except (ValueError, KeyError, TypeError) as transform_error:
+                            except ValueError as transform_error:
                                 record.update(status="failed", reason=str(transform_error))
                                 assessment.setdefault("mapping_gaps", []).append(
                                     {
@@ -1316,11 +1320,17 @@ def _execute(
                 analysis["semantic_review"] = semantic_review
             stage = "execution"
             progress("Executing the retained Python calculation and checking published values.")
-            analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
-            save(folder / "analysis.json", analysis)
-            result["analyses"].append(analysis)
+            analysis = publish_analysis(
+                analysis,
+                folder,
+                result=result,
+                assessment=assessment,
+                reason=choice["reason"],
+                overlap_policy="allow",
+                execute=execute_analysis,
+                check_cancelled=check_cancelled,
+            )
             covered.update(selected_measures)
-            assessment.update(decision="analysed", reason=choice["reason"], source=source)
             progress("Validated and retained dataset: " + candidate["title"][:120])
         except (
             OSError,
@@ -1333,16 +1343,21 @@ def _execute(
             zipfile.BadZipFile,
             ParseError,
         ) as exc:
-            assessment["reason"] = str(exc)[:700]
-            assessment["failure_stage"] = stage
+            internal_error = record_failure(assessment, exc, stage=stage)
             if use_connectors:
                 _record_gap(result, candidate, strategy, page, stage, exc, available)
-            assessment["availability"] = (
-                "found_but_not_read"
-                if stage in {"access", "download", "parse"}
-                else "found_but_not_usable_for_question"
-            )
-            if data is not None and source is not None and stage in {"parse", "mapping"}:
+            if not internal_error:
+                assessment["availability"] = (
+                    "found_but_not_read"
+                    if stage in {"access", "download", "parse"}
+                    else "found_but_not_usable_for_question"
+                )
+            if (
+                not internal_error
+                and data is not None
+                and source is not None
+                and stage in {"parse", "mapping"}
+            ):
                 try:
                     progress(
                         "The standard reader could not use this source. Trying Python extraction."
@@ -1360,22 +1375,28 @@ def _execute(
                         check_cancelled=check_cancelled,
                         progress=progress,
                     )
-                    analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
-                    save(folder / "analysis.json", analysis)
-                    result["analyses"].append(analysis)
-                    covered.update(s["label"] for s in analysis["series"])
-                    assessment.update(
-                        decision="analysed",
+                    analysis = publish_analysis(
+                        analysis,
+                        folder,
+                        result=result,
+                        assessment=assessment,
                         reason="Recovered with executed Python extraction",
-                        source=analysis["source"],
+                        overlap_policy="allow",
+                        execute=execute_analysis,
+                        check_cancelled=check_cancelled,
                     )
-                    assessment.pop("availability", None)
+                    covered.update(s["label"] for s in analysis["series"])
                     progress(
                         "Python extraction succeeded. Validated and retained dataset: "
                         + candidate["title"][:120]
                     )
                 except (OSError, ValueError, KeyError, TypeError, StopIteration) as recovery_error:
                     assessment["python_error"] = str(recovery_error)[:1000]
+                    record_failure(
+                        assessment.setdefault("recovery_failure", {}),
+                        recovery_error,
+                        stage="python_recovery",
+                    )
             if assessment["decision"] == "blocked":
                 progress(
                     "Could not validate this source; checking alternative sources: "
@@ -1383,14 +1404,14 @@ def _execute(
                 )
         finally:
             if data is not None and source is not None:
-                retained[position] = {
+                retained[source_id] = {
                     "body": data,
                     "source": source,
                     "metadata": page["text"],
                     "folder": folder.name,
                 }
             elif body is not None:
-                retained[position] = {
+                retained[source_id] = {
                     "body": body,
                     "metadata": page["text"],
                     "folder": folder.name,
@@ -1405,15 +1426,18 @@ def _execute(
                     },
                 }
             assessment["execution_review"] = execution_summary(folder)
-            if position in retained:
-                save_context(folder, retained[position])
-                assessment["source_digest"] = hashlib.sha256(retained[position]["body"]).hexdigest()
+            if source_id in retained:
+                retained[source_id]["source_id"] = source_id
+                save_context(folder, retained[source_id])
+                assessment["source_digest"] = hashlib.sha256(
+                    retained[source_id]["body"]
+                ).hexdigest()
                 assessment["context_digest"] = hashlib.sha256(
-                    retained[position]["metadata"].encode()
+                    retained[source_id]["metadata"].encode()
                 ).hexdigest()
             assessment["execution_review"]["source_preview"] = page["text"][:8000]
             assessment["execution_review"]["retained_bytes"] = (
-                len(retained[position]["body"]) if position in retained else 0
+                len(retained[source_id]["body"]) if source_id in retained else 0
             )
             inspection = assessment["execution_review"].get("inspection", "")
             documented_links = re.findall(r'https?://[^\s<>"\\]+', inspection)

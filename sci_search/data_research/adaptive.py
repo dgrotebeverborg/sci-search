@@ -4,7 +4,9 @@ import json
 import time
 
 from sci_search.data_research.coverage import pending, planning_summary
+from sci_search.data_research.failures import record_failure
 from sci_search.data_research.period import period_summary
+from sci_search.data_research.source_state import state_snapshot
 
 PLAN_SCHEMA = {
     "type": "object",
@@ -34,9 +36,11 @@ def research_candidates(
     check_cancelled,
     *,
     review_source=None,
+    snapshot_provider=None,
     max_rounds=3,
     time_budget_seconds=300,
 ):
+    snapshot_provider = snapshot_provider or (lambda: state_snapshot(result))
     started = time.monotonic()
     process = result["research_process"] = {
         "steps": [],
@@ -47,13 +51,15 @@ def research_candidates(
     }
     seen, queries, rechecks = set(), set(), set()
     for candidate in trace["candidates"][:4]:
-        if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+        snapshot = snapshot_provider()
+        if strategy.get("measurements") and not pending(strategy, snapshot["analyses"]):
             break
         if candidate["url"] not in seen:
             seen.add(candidate["url"])
             yield candidate
     for round_number in range(1, max_rounds + 1):
         check_cancelled()
+        snapshot = snapshot_provider()
         if len(process["steps"]) >= 2 and all(
             s["status"] in {"failed", "no_new_sources"} for s in process["steps"][-2:]
         ):
@@ -61,7 +67,7 @@ def research_candidates(
                 "No progress in two consecutive follow-ups; retained results and gaps preserved."
             )
             break
-        if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+        if strategy.get("measurements") and not pending(strategy, snapshot["analyses"]):
             process["stop_reason"] = "Requested observation coverage is complete."
             process["steps"].append(
                 {"action": "stop", "status": "stopped", "reason": process["stop_reason"]}
@@ -71,13 +77,14 @@ def research_candidates(
             process["stop_reason"] = "Research budget reached; coverage remains uncertain."
             break
         context = {
-            "coverage": planning_summary(strategy, result["analyses"]),
+            "coverage": planning_summary(strategy, snapshot["analyses"]),
             "question": question,
             "scope": strategy,
-            "period": period_summary(strategy, result["analyses"]),
+            "period": period_summary(strategy, snapshot["analyses"]),
             "sources": [
                 {
                     "index": i,
+                    "source_id": a.get("source_id"),
                     "title": a.get("title"),
                     "url": a["url"],
                     "decision": a["decision"],
@@ -92,11 +99,11 @@ def research_candidates(
                         {"index": j, "url": u} for j, u in enumerate(a.get("recovery_links", []))
                     ],
                 }
-                for i, a in enumerate(result["assessments"])
+                for i, a in enumerate(snapshot["assessments"])
             ],
-            "limitations": [a.get("limitations", []) for a in result["analyses"]],
+            "limitations": [a.get("limitations", []) for a in snapshot["analyses"]],
             "retained_measurements": sorted(
-                {s["label"] for a in result["analyses"] for s in a.get("series", [])}
+                {s["label"] for a in snapshot["analyses"] for s in a.get("series", [])}
             ),
             "previous_steps": [
                 {k: v for k, v in step.items() if k != "discovery"} for step in process["steps"]
@@ -141,6 +148,7 @@ def research_candidates(
                 "Next research step could not be planned; existing results retained."
             )
             process["planner_error"] = type(exc).__name__
+            record_failure(process, exc, stage="planning")
             break
         step = {"round": round_number, **plan, "status": "planned"}
         process["steps"].append(step)
@@ -156,7 +164,7 @@ def research_candidates(
                 if (
                     not callable(review_source)
                     or type(i) is not int
-                    or not 0 <= i < len(result["assessments"])
+                    or not 0 <= i < len(snapshot["assessments"])
                     or type(j) is not int
                     or j < -1
                 ):
@@ -167,9 +175,9 @@ def research_candidates(
                     or any(m not in strategy.get("measurements", []) for m in measures)
                 ):
                     raise ValueError("Reassessment must use original requested measurements")
-                if j >= len(result["assessments"][i].get("recovery_links", [])):
+                if j >= len(snapshot["assessments"][i].get("recovery_links", [])):
                     raise ValueError("Documentation link was not observed")
-                source = result["assessments"][i]
+                source = snapshot["assessments"][i]
                 evidence = (
                     source["recovery_links"][j] if j >= 0 else source.get("context_digest", "")
                 )
@@ -177,14 +185,16 @@ def research_candidates(
                 if key in rechecks:
                     raise ValueError("Repeated source reassessment")
                 rechecks.add(key)
-                step["outcome"] = review_source(i, measures, j, round_number)
+                step["outcome"] = review_source(
+                    source.get("source_id", i), measures, j, round_number
+                )
                 step["status"] = "checked"
                 continue
             if plan["action"] == "retry_link":
                 i, j = plan["source_index"], plan["link_index"]
                 if type(i) is not int or type(j) is not int or i < 0 or j < 0:
                     raise ValueError("Invalid observed link indices")
-                source = result["assessments"][i]
+                source = snapshot["assessments"][i]
                 url = source["recovery_links"][j]
                 candidates = [
                     {
@@ -211,7 +221,8 @@ def research_candidates(
             step["new_sources"] = len(new)
             for candidate in new:
                 check_cancelled()
-                if strategy.get("measurements") and not pending(strategy, result["analyses"]):
+                snapshot = snapshot_provider()
+                if strategy.get("measurements") and not pending(strategy, snapshot["analyses"]):
                     break
                 if time.monotonic() - started >= time_budget_seconds or len(seen) >= 10:
                     break
@@ -221,6 +232,7 @@ def research_candidates(
         except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
             step["status"] = "failed"
             step["error"] = str(exc)[:400]
+            record_failure(step, exc, stage="follow_up")
     if not process["stop_reason"]:
         process["stop_reason"] = "Maximum follow-up rounds reached; unresolved gaps remain."
     process["sources_checked"] = len(seen)

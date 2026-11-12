@@ -7,6 +7,8 @@ import zipfile
 from html import escape
 from pathlib import Path
 
+from sci_search.data_research.replay_manifest import ENGINE_MANIFEST, engine_modules
+
 
 def export(result, directory, *, bundle=False):
     if result.get("kind") != "discovered":
@@ -14,26 +16,12 @@ def export(result, directory, *, bundle=False):
 
         return wildfire_export(result, directory, bundle=bundle)
     if bundle:
-        required = set()
+        entries = set()
         if any(a["kind"] == "tabular" for a in result["analyses"]):
-            required.update(
-                (
-                    "cbs_odata.py",
-                    "tabular.py",
-                    "packages.py",
-                    "preparation.py",
-                    "statistical_tables.py",
-                    "jsonstat.py",
-                    "owid_tables.py",
-                    "daily.py",
-                )
-            )
+            entries.update(("tabular.py", "packages.py", "preparation.py"))
         if any(a["kind"] == "wildfire" for a in result["analyses"]):
-            required.add("wildfire.py")
-        if any(
-            a.get("preparation", {}).get("format") == "xlsx_table_v1" for a in result["analyses"]
-        ):
-            required.add("spreadsheets.py")
+            entries.add("wildfire.py")
+        required = set(engine_modules(*entries))
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
             for file in sorted(Path(directory).rglob("*")):
@@ -43,18 +31,7 @@ def export(result, directory, *, bundle=False):
                     and file.name not in {"reproduce.py", "README.txt"}
                     and (
                         file.parent != Path(directory)
-                        or file.name
-                        not in {
-                            "tabular.py",
-                            "packages.py",
-                            "wildfire.py",
-                            "spreadsheets.py",
-                            "preparation.py",
-                            "daily.py",
-                            "statistical_tables.py",
-                            "jsonstat.py",
-                            "owid_tables.py",
-                        }
+                        or file.name not in ENGINE_MANIFEST
                         or file.name in required
                     )
                 ):
@@ -94,12 +71,18 @@ def export(result, directory, *, bundle=False):
             for engine in required:
                 if not (Path(directory) / engine).exists():
                     archive.writestr(engine, Path(__file__).with_name(engine).read_text())
+            if not (Path(directory) / "artifact_validation.py").exists():
+                archive.writestr(
+                    "artifact_validation.py",
+                    Path(__file__).with_name("artifact_validation.py").read_bytes(),
+                )
             archive.writestr(
                 "reproduce.py",
                 (Path(directory) / "reproduce.py").read_text()
                 if (Path(directory) / "reproduce.py").exists()
-                else """import json, hashlib
+                else """import json
 from pathlib import Path
+from artifact_validation import validate_artifacts
 root=Path(__file__).parent
 for directory in sorted(root.glob("source-*")):
     saved=directory/"analysis.json"
@@ -108,7 +91,7 @@ for directory in sorted(root.glob("source-*")):
     if not saved.exists(): continue
     result=json.loads(saved.read_text())
     source=directory/result["source"].get("artifact", "source.csv" if result["kind"]=="tabular" else "source.xlsx")
-    assert hashlib.sha256(source.read_bytes()).hexdigest()==result["source"]["sha256"]
+    validate_artifacts(directory, {str(source.relative_to(directory)): result["source"]["sha256"]})
     if result["kind"]=="tabular":
         from tabular import analyse_csv
         table=source.read_bytes()
@@ -135,7 +118,7 @@ for directory in sorted(root.glob("source-*")):
             )
             archive.writestr(
                 "README.txt",
-                "Data research package\nOpen report.html for the readable report. Each source folder contains original data, executed Python, observations and provenance.\nFor new executable packages: Linux and bubblewrap are required. Install the versions in requirements.txt in a Python environment matching environment.json. Run python reproduce.py offline to check hashes and rerun the retained scripts in isolation. No host-execution fallback is used. Older packages retain their original replay method.\nanalysis.json records scope, discovery, model assessments and limitations. Numeric observations come from executed code reading retained sources. Model-written extraction and model review are not expert validation. Blocked attempts are retained for inspection and are not published numerical results.\n",
+                "Data research package\nOpen report.html for the readable report. Each source folder contains original data, executed Python, observations and provenance.\nFor new executable packages: Linux and bubblewrap are required. Install the replay dependencies in requirements.txt in a Python environment matching environment.json. environment.json retains the full runtime inventory and records unresolved or dynamic imports that may require additional packages. Run python reproduce.py offline to check hashes and rerun the retained scripts in isolation. No host-execution fallback is used. Older packages retain their original replay method.\nanalysis.json records scope, discovery, model assessments and limitations. Numeric observations come from executed code reading retained sources. Model-written extraction and model review are not expert validation. Blocked attempts are retained for inspection and are not published numerical results.\n",
             )
         return "data-research-and-calculations.zip", "application/zip", output.getvalue()
     sections = []

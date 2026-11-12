@@ -1,9 +1,11 @@
 """Execute untrusted extraction code in a fresh, networkless Linux namespace."""
 
+import ast
 import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -40,6 +42,103 @@ def runtime():
                 if "Name" in d.metadata
             )
         ),
+    }
+
+
+def replay_dependencies(directory, environment):
+    """Identify bounded static replay dependencies and retain import uncertainty.
+
+    Inspect retained scripts and their copied Python helpers, never installed
+    library source. Pip resolves distribution dependencies. Known pandas Excel
+    engines are optional extras, so retain installed engines explicitly.
+    """
+    installed = environment["dependencies"]
+    providers = importlib.metadata.packages_distributions()
+    dependencies, unresolved, dynamic = {}, set(), set()
+
+    def canonical(name):
+        return re.sub(r"[-_.]+", "-", name).lower()
+
+    inventory = {canonical(name): name for name in installed}
+
+    def pin(name):
+        retained = inventory.get(canonical(name))
+        if retained is None:
+            return False
+        dependencies[retained] = installed[retained]
+        return True
+
+    # pandas documents these optional readers; pip installing pandas alone does
+    # not install them: https://pandas.pydata.org/docs/reference/api/pandas.read_excel.html
+    excel_engines = {
+        "openpyxl": "openpyxl",
+        "xlrd": "xlrd",
+        "pyxlsb": "pyxlsb",
+        "odf": "odfpy",
+        "calamine": "python-calamine",
+    }
+    for script in sorted(Path(directory).rglob("script.py")):
+        copied = set((script.parent / "input").glob("*.py"))
+        copied.update(script.parent.glob("*.py"))
+        local = {p.stem for p in copied}
+        for helper in sorted(copied):
+            if helper.is_symlink():
+                dynamic.add(str(helper.relative_to(directory)) + ": symlink was not inspected")
+                continue
+            label = str(helper.relative_to(directory))
+            try:
+                tree = ast.parse(helper.read_text())
+            except (OSError, SyntaxError, UnicodeError):
+                dynamic.add(label + ": imports could not be inspected")
+                continue
+            modules, pandas_aliases, excel_aliases = set(), set(), set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    modules.update(alias.name.split(".")[0] for alias in node.names)
+                    pandas_aliases.update(
+                        alias.asname or alias.name for alias in node.names if alias.name == "pandas"
+                    )
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    modules.add(node.module.split(".")[0])
+                    if node.module == "pandas":
+                        excel_aliases.update(
+                            alias.asname or alias.name
+                            for alias in node.names
+                            if alias.name in {"read_excel", "ExcelFile"}
+                        )
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                if (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id == "__import__"
+                    or isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "import_module"
+                ):
+                    dynamic.add(label + ": dynamic import")
+                if (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id in excel_aliases
+                    or isinstance(node.func, ast.Attribute)
+                    and node.func.attr in {"read_excel", "ExcelFile"}
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in pandas_aliases
+                ):
+                    for engine, distribution in excel_engines.items():
+                        if not pin(distribution):
+                            unresolved.add("pandas Excel engine: " + engine)
+            for module in modules - sys.stdlib_module_names - local:
+                names = {canonical(name) for name in providers.get(module, [])}
+                if len(names) != 1 or not pin(next(iter(names))):
+                    unresolved.add(module)
+    return {
+        "dependencies": dict(sorted(dependencies.items())),
+        "unresolved_imports": sorted(unresolved),
+        "dynamic_imports": sorted(dynamic),
+        "scope": "Static imports in retained scripts and copied Python helpers, plus installed "
+        "documented pandas Excel engines; pip resolves transitive dependencies. "
+        "Missing optional Excel engines are reported conservatively. Dynamic and other "
+        "indirect library imports may need additional packages.",
     }
 
 

@@ -35,6 +35,66 @@ def test_two_sources_for_one_input_are_not_spliced_or_chosen_silently():
     assert "ambiguous" in jobs[0]["reason"].lower()
 
 
+@pytest.mark.parametrize("with_reference", [False, True])
+def test_same_country_breakdowns_keep_exact_input_and_reference_series(with_reference):
+    from sci_search.data_research.coverage import evaluate
+    from sci_search.data_research.derived_outputs import compute
+
+    item = plan()
+    labels = ["price"]
+    if with_reference:
+        item.update(operation="share", reference="total", base_year=None)
+        labels.append("total")
+    request = scope([item])
+    request["measurements"] = labels
+    request["requirements"] = [
+        {"measurement": label, "breakdowns": [{"dimension": "sex", "values": ["male", "female"]}]}
+        for label in labels
+    ]
+    sources = []
+    for label in labels:
+        source = analysis(label)
+        source["series"] = []
+        for sex, values in [("female", (200, 240, 300)), ("male", (100, 110, 120))]:
+            value = series((400, 600, 600) if label == "total" else values)
+            value.update(
+                label=label, identity={"geography": "Netherlands", "dimensions": {"sex": sex}}
+            )
+            source["series"].append(value)
+        sources.append(source)
+    assert not evaluate(request, sources)["gaps"]
+    jobs = prepared(request, sources)
+    for job in jobs:
+        job["review"] = {"accepted": True}
+    result = compute({"scope": request, "analyses": sources, "jobs": jobs})
+    assert result["status"] == "complete"
+    assert [o["dimensions"]["sex"] for o in result["outputs"]] == ["male", "female"]
+    expected = (
+        [[25, 110 / 6, 20], [50, 40, 50]] if with_reference else [[100, 110, 120], [100, 120, 150]]
+    )
+    for output, values in zip(result["outputs"], expected, strict=True):
+        assert [r["value"] for r in output["annual"]] == pytest.approx(values)
+    assert [j["source"] for j in jobs] == [[0, 1], [0, 0]]
+    if with_reference:
+        assert [j["reference"] for j in jobs] == [[1, 1], [1, 0]]
+
+
+def test_coverage_without_exact_series_identity_does_not_guess_input(monkeypatch):
+    from sci_search.data_research import coverage
+    from sci_search.data_research.derived_outputs import compute
+
+    request, sources = scope([plan()]), [analysis("price")]
+    legacy = coverage.evaluate(request, sources)
+    for cell in legacy["cells"]:
+        for match in cell["sources"]:
+            match.pop("series_index", None)
+    monkeypatch.setattr(coverage, "evaluate", lambda *_: legacy)
+    jobs = prepared(request, sources)
+    assert jobs[0]["source"] is None
+    assert jobs[0]["reason"]
+    assert compute({"scope": request, "analyses": sources, "jobs": jobs})["status"] == "blocked"
+
+
 def test_reference_country_must_match_input_country():
     item = {
         **plan(),

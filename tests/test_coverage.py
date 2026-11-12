@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sci_search.corpus import CorpusDocument
 from sci_search.coverage import (
+    assess_answer_adequacy,
     coverage_follow_up_queries,
     decompose_question,
     evidence_context,
@@ -61,6 +62,101 @@ TREND_DOCUMENTS = (
 
 
 class CoverageAssessmentTests(unittest.TestCase):
+    def test_explanation_can_refer_to_subjects_in_its_own_passage(self) -> None:
+        question = "Why do studies report different effects of biochar application on crop yield?"
+        for explanation in (
+            "The differences were explained by soil pH and rainfall.",
+            "However, these differences were explained by soil pH and rainfall.",
+            "Differences were explained by soil pH and rainfall.",
+        ):
+            for context, expected in (
+                ("Biochar and crop yield. ", True),
+                ("Tomato germination. ", False),
+            ):
+                with self.subTest(context=context, explanation=explanation):
+                    text = (
+                        "Biochar application increased crop yield by 15 percent "
+                        "compared with untreated plots.\n\n" + context + explanation
+                    )
+                    papers = tuple(
+                        document(f"paper-{i}", "Biochar application and crop yield", text)
+                        for i in range(2)
+                    )
+                    report = GenericResearchEngine(papers).investigate(question)
+                    self.assertEqual(
+                        report.answer_adequacy["can_answer_overall_question"], expected
+                    )
+                    if expected:
+                        self.assertNotIn(
+                            "direct evidence explaining differences between studies",
+                            report.answer_adequacy["missing_requirements"],
+                        )
+
+    def test_task_evidence_outside_requested_scope_cannot_unlock_overall_answer(self) -> None:
+        for requirement, statement in (
+            ("requires_method_evidence", "A sensor records wildfire extent."),
+            ("requires_method_limitations", "However, sampling has a bias."),
+            ("requires_explanatory_evidence", "Extent varies because rainfall differs."),
+            ("requires_explanatory_evidence", "These differences were explained by rainfall."),
+            (
+                "requires_diagnostic_metrics",
+                "Sensitivity was 95% against the clinical ECG reference standard.",
+            ),
+            ("requires_exact_global_count", "The global population count is 100 individuals."),
+        ):
+            scope = {
+                "task": "comparison",
+                "dimensions": [
+                    {"id": "subject:primary", "kind": "subject", "required": True},
+                    {
+                        "id": "geography:europe",
+                        "kind": "geography",
+                        "required": True,
+                        "statement_required": True,
+                    },
+                    {"id": "outcome:extent", "kind": "outcome", "required": True},
+                ],
+                "requirements": {"minimum_independent_publications": 1, requirement: True},
+            }
+            dimensions = ["subject:primary", "geography:europe", "outcome:extent"]
+            topical = {
+                "id": "topical",
+                "publication_id": "local-study",
+                "statement": "European wildfire extent was reported.",
+                "scope_dimension_ids": dimensions,
+                "statement_dimension_ids": dimensions,
+            }
+            donor = {
+                "id": "task-evidence",
+                "publication_id": "other-study",
+                "statement": statement,
+                "numerical_mentions": ["95%", "100"],
+                "scope_dimension_ids": dimensions,
+                "statement_dimension_ids": dimensions,
+            }
+            for field, missing in (
+                ("scope_dimension_ids", "subject:primary"),
+                ("statement_dimension_ids", "geography:europe"),
+                ("statement_dimension_ids", "outcome:extent"),
+            ):
+                with self.subTest(requirement=requirement, field=field, missing=missing):
+                    outside_scope = {**donor, field: [d for d in dimensions if d != missing]}
+                    report = assess_answer_adequacy([topical, outside_scope], scope)
+                    self.assertFalse(report["can_answer_overall_question"])
+                    self.assertEqual(report["status"], "partial")
+                    self.assertNotIn("task-evidence", report["answer_evidence_ids"])
+                    task_checks = [
+                        check
+                        for check in report["checks"]
+                        if check["kind"] == "task" or check["id"] == "coverage:exact_global_count"
+                    ]
+                    self.assertEqual(len(task_checks), 1)
+                    self.assertFalse(task_checks[0]["passed"])
+            with self.subTest(requirement=requirement, scope="matching"):
+                report = assess_answer_adequacy([topical, donor], scope)
+                self.assertTrue(report["can_answer_overall_question"])
+                self.assertIn("task-evidence", report["answer_evidence_ids"])
+
     def test_exact_global_population_question_requires_a_current_numeric_census(self) -> None:
         report = GenericResearchEngine(
             (

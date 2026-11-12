@@ -4,23 +4,11 @@ import copy
 import json
 from pathlib import Path
 
+from sci_search.data_research.artifact_validation import validate_artifacts
 from sci_search.data_research.execution import digest, run_python
+from sci_search.data_research.replay_manifest import SOURCE_ENTRY_POINTS, engine_modules
 
-ENGINES = (
-    "calculations.py",
-    "cbs_odata.py",
-    "tabular.py",
-    "packages.py",
-    "preparation.py",
-    "spreadsheets.py",
-    "statistical_tables.py",
-    "jsonstat.py",
-    "owid_tables.py",
-    "daily.py",
-    "wildfire.py",
-    "python_rows.py",
-    "verification.py",
-)
+ENGINES = engine_modules(*SOURCE_ENTRY_POINTS)
 DOWNLOAD = '''"""Optional network step. Never overwrites the retained source."""
 import argparse, hashlib, json
 from pathlib import Path
@@ -80,7 +68,8 @@ Path("/output/result.json").write_text(json.dumps(result, allow_nan=False))
 REPLAY = '''"""Replay retained code offline in the same isolated Python runner."""
 import json, tempfile
 from pathlib import Path
-from execution import run_python, digest
+from execution import run_python
+from artifact_validation import validate_artifacts
 root=Path(__file__).resolve().parent
 folders=[root] if (root/"calculation").exists() else sorted(root.glob("source-*"))+sorted(root.glob("connectors/connector-*"))
 published_root=json.loads((root/"analysis.json").read_text())
@@ -99,10 +88,7 @@ for folder in folders:
     if not saved.exists(): continue
     result=json.loads(saved.read_text())
     if result.get("execution",{}).get("status")!="verified": continue
-    for name, expected in result["execution"]["artifacts"].items():
-        path=folder/name
-        if path.is_symlink() or digest(path.read_bytes())!=expected:
-            raise ValueError("Artifact hash mismatch: "+name)
+    validate_artifacts(folder, result["execution"]["artifacts"])
     with tempfile.TemporaryDirectory() as scratch:
         scratch=Path(scratch)
         if result.get("python_extraction"):
@@ -135,10 +121,7 @@ if derived and derived.get("execution", {}).get("status")=="verified":
     folder=root/record["directory"]
     if folder.is_symlink() or not folder.resolve().is_relative_to(root.resolve()):
         raise ValueError("Invalid derived artifact directory")
-    for name, expected in record["artifacts"].items():
-        path=folder/name
-        if path.is_symlink() or not path.resolve().is_relative_to(folder.resolve()) or digest(path.read_bytes())!=expected:
-            raise ValueError("Derived artifact hash mismatch: "+name)
+    validate_artifacts(folder, record["artifacts"])
     payload=json.loads((folder/"input/payload.json").read_text())
     if payload["scope"]!=published_root["strategy"] or payload["analyses"]!=published_root["analyses"]:
         raise ValueError("Derived inputs differ from retained source analyses or requested scope")
@@ -161,9 +144,8 @@ def execute_analysis(analysis, folder, *, check_cancelled=lambda: None):
     source_name = analysis["source"].get("artifact", "source.xlsx")
     if Path(source_name).name != source_name:
         raise ValueError("Invalid source artifact name")
+    validate_artifacts(folder, {source_name: analysis["source"]["sha256"]})
     source = (folder / source_name).read_bytes()
-    if digest(source) != analysis["source"]["sha256"]:
-        raise ValueError("Source hash mismatch")
     (folder / "source-metadata.json").write_text(json.dumps(analysis["source"], indent=2))
     (folder / "download_source.py").write_text(DOWNLOAD)
     (folder / "retrieval.py").write_bytes(Path(__file__).with_name("retrieval.py").read_bytes())
@@ -208,16 +190,18 @@ def execute_analysis(analysis, folder, *, check_cancelled=lambda: None):
 def write_replay(directory):
     directory = Path(directory)
     (directory / "reproduce.py").write_text(REPLAY)
+    (directory / "artifact_validation.py").write_bytes(
+        Path(__file__).with_name("artifact_validation.py").read_bytes()
+    )
     (directory / "execution.py").write_bytes(Path(__file__).with_name("execution.py").read_bytes())
-    from sci_search.data_research.execution import runtime
+    from sci_search.data_research.execution import replay_dependencies, runtime
 
     environment = runtime()
+    environment["replay"] = replay_dependencies(directory, environment)
     (directory / "environment.json").write_text(json.dumps(environment, indent=2))
     (directory / "requirements.txt").write_text(
         "\n".join(
-            name + "==" + version
-            for name, version in environment["dependencies"].items()
-            if name.lower().replace("_", "-") != "sci-search"
+            name + "==" + version for name, version in environment["replay"]["dependencies"].items()
         )
         + "\n"
     )

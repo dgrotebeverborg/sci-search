@@ -5,9 +5,12 @@ import re
 from pathlib import Path
 
 from sci_search.data_research import derived_outputs, semantics
+from sci_search.data_research.artifact_validation import validate_artifacts
 from sci_search.data_research.calculations import calculate
 from sci_search.data_research.coverage import evaluate
 from sci_search.data_research.execution import digest, run_python
+from sci_search.data_research.failures import record_failure
+from sci_search.data_research.replay_manifest import engine_modules
 from sci_search.data_research.run_control import BudgetExhausted
 
 SCRIPT = """import json
@@ -33,14 +36,7 @@ def _retained(directory, analyses):
             files = analysis.get("execution", {}).get("artifacts", {})
             if not files:
                 raise ValueError("Input has no sealed source artifacts")
-            for name, expected in files.items():
-                path = folder / name
-                if (
-                    path.is_symlink()
-                    or not path.resolve().is_relative_to(folder.resolve())
-                    or digest(path.read_bytes()) != expected
-                ):
-                    raise ValueError("Input artifact hash mismatch")
+            validate_artifacts(folder, files)
             executed = json.loads((folder / "calculation/output/result.json").read_text())
             if analysis.get("execution", {}).get("status") != "verified" or executed != {
                 k: v for k, v in analysis.items() if k != "execution"
@@ -220,7 +216,7 @@ def finalize(result, directory, *, complete=None, check_cancelled=lambda: None):
                 "reviews.json": json.dumps(reviews, allow_nan=False).encode(),
                 **{
                     name: Path(__file__).with_name(name).read_bytes()
-                    for name in ("calculations.py", "derived_outputs.py")
+                    for name in engine_modules("derived_outputs.py")
                 },
             }
             number = 1
@@ -249,6 +245,7 @@ def finalize(result, directory, *, complete=None, check_cancelled=lambda: None):
                 },
             }
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            derived = {"version": 1, "status": "blocked", "outputs": [], "reason": str(exc)}
+            derived = {"version": 1, "status": "blocked", "outputs": []}
+            record_failure(derived, exc, stage="derived_calculation")
     result["derived_outputs"] = derived
     result["output_completion"] = derived_outputs.completion(result["strategy"], coverage, derived)

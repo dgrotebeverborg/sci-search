@@ -25,6 +25,74 @@ def candidate(identifier: str, title: str, abstract: str = "") -> PublicationCan
 
 
 class FullTextScreeningTests(unittest.TestCase):
+    def test_qualified_wearable_alias_preserves_the_requested_body_location(self) -> None:
+        question = (
+            "How accurately do wrist-worn wearable devices detect atrial fibrillation "
+            "compared with clinical ECG measurements?"
+        )
+        for location, expected in (("chest-patch", "excluded"), ("wrist-worn", "included")):
+            with self.subTest(location=location):
+                title = f"Validation of {location} wearable ECG for atrial fibrillation detection"
+                text = (
+                    f"We evaluated a {location} wearable ECG for atrial fibrillation detection. "
+                    f"The {location} wearable ECG detected atrial fibrillation with 95% "
+                    "sensitivity against clinical ECG measurements."
+                )
+                item = candidate("device", title, text)
+                decision = screen_full_text(question, plan_question(question), item, text)
+                self.assertEqual(decision.decision, expected)
+
+    def test_wearable_ecg_synonyms_are_screened_with_all_requested_subjects(self) -> None:
+        question = (
+            "How accurately do wearable devices detect atrial fibrillation "
+            "compared with clinical ECG measurements?"
+        )
+        plan = plan_question(question)
+        for device in ("wearable ECG", "wearable electrocardiogram"):
+            with self.subTest(device=device):
+                title = f"Validation of {device} for atrial fibrillation detection"
+                text = (
+                    f"We evaluated a {device} for atrial fibrillation detection. "
+                    f"The {device} detected atrial fibrillation with 95% sensitivity "
+                    "against clinical ECG measurements."
+                )
+                item = candidate(
+                    "device",
+                    title,
+                    f"We validated {device} detection of atrial fibrillation "
+                    "against clinical ECG measurements.",
+                )
+                decision = screen_full_text(question, plan, item, text)
+                self.assertEqual(decision.decision, "included")
+                self.assertFalse(decision.researcher_override)
+
+    def test_wearable_ecg_alias_does_not_replace_arrhythmia_or_reference_scope(self) -> None:
+        question = (
+            "How accurately do wearable devices detect atrial fibrillation "
+            "compared with clinical ECG measurements?"
+        )
+        plan = plan_question(question)
+        for title, text in (
+            (
+                "Wearable ECG comfort evaluation",
+                "Wearable ECG comfort was measured against clinical ECG measurements. "
+                "Participants found the wearable ECG comfortable.",
+            ),
+            (
+                "Wearable ECG atrial fibrillation detection",
+                "The wearable ECG detected atrial fibrillation. "
+                "Wearable ECG atrial fibrillation alerts were recorded without validation.",
+            ),
+            (
+                "Clinical ECG atrial fibrillation detection",
+                "Clinical ECG measurements detected atrial fibrillation. "
+                "Clinical ECG measurements confirmed atrial fibrillation in patients.",
+            ),
+        ):
+            with self.subTest(title=title):
+                decision = screen_full_text(question, plan, candidate("control", title), text)
+                self.assertNotEqual(decision.decision, "included")
+
     def test_unreadable_document_is_a_local_screening_decision_not_a_run_failure(self) -> None:
         question = "How does vegetation structure affect goat foraging behaviour?"
         item = candidate("scanned", "Vegetation structure and goat foraging behaviour")

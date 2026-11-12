@@ -4,7 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
-from sci_search.data_research.execution import digest
+from sci_search.data_research.artifact_validation import validate_artifacts
 from sci_search.data_research.strategy import validate_strategy
 
 
@@ -39,13 +39,7 @@ def prepare(source, destination, question, strategy):
         artifacts = analysis["execution"].get("artifacts")
         if not artifacts:
             raise ValueError("Resume source has no sealed artifacts")
-        for name, expected in artifacts.items():
-            path = folder / name
-            if (
-                not path.resolve().is_relative_to(folder.resolve())
-                or digest(path.read_bytes()) != expected
-            ):
-                raise ValueError("Resume artifact hash mismatch")
+        validate_artifacts(folder, artifacts)
         executed = json.loads((folder / "calculation/output/result.json").read_text())
         if executed != {k: v for k, v in analysis.items() if k != "execution"}:
             raise ValueError("Resume analysis differs from executed artifact")
@@ -55,6 +49,15 @@ def prepare(source, destination, question, strategy):
     for analysis in retained:
         if analysis not in state["analyses"]:
             state["analyses"].append(analysis)
+    derived = state.get("derived_outputs", {}).get("execution", {})
+    if derived.get("status") == "verified":
+        validate_artifacts(
+            source,
+            {
+                derived["directory"] + "/" + name: expected
+                for name, expected in derived.get("artifacts", {}).items()
+            },
+        )
     shutil.copytree(source, destination, dirs_exist_ok=True)
     return state
 

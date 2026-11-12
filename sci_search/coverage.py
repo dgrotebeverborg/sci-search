@@ -496,8 +496,20 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
     aliases = list(profile.expand(concept))
     lowered = concept.casefold()
     if profile.id == "generic":
-        if "wearable" in lowered and any(term in lowered for term in ("device", "monitor")):
-            aliases.extend(("wearable device", "consumer wearable", "smartwatch", "smart watch"))
+        wearable = re.fullmatch(r"(?:(.+)\s+)?wearable (?:devices?|monitors?)", lowered)
+        if wearable:
+            qualifier = (wearable[1] + " ") if wearable[1] else ""
+            aliases.extend(
+                qualifier + alias
+                for alias in (
+                    "wearable device",
+                    "consumer wearable",
+                    "smartwatch",
+                    "smart watch",
+                    "wearable ECG",
+                    "wearable electrocardiogram",
+                )
+            )
         if lowered == "atrial fibrillation":
             aliases.extend(("atrial fibrillation", "AF detection", "AF diagnosis"))
         if "ecg" in lowered or "electrocardiogram" in lowered:
@@ -667,7 +679,31 @@ def assess_answer_adequacy(
         ):
             statement_scope_match = statement_scope_match and bool(places & statement_matched)
         outcome_match = not outcome_dimensions or bool(outcome_dimensions & statement_matched)
+        # Task-specific evidence must satisfy the same question scope as an
+        # answer record. Otherwise an unrelated passage can supply a method or
+        # explanation and incorrectly turn a topical evidence base into an answer.
+        scope_match = complete_scope and subject_match and statement_scope_match and outcome_match
         statement = " ".join(str(item.get("statement") or "").casefold().split())
+        # Supporting sentences can refer back to the subjects in their own
+        # passage ("These differences ..."). Retain explicit geography, time,
+        # population and outcome checks, and never borrow a different passage.
+        contextual_dimensions = {
+            str(dimension.get("id"))
+            for dimension in decomposition.get("dimensions", [])
+            if dimension.get("required")
+            and dimension.get("statement_required")
+            and dimension.get("kind") not in {"subject", "topic"}
+            and dimension.get("id") not in driver_dimensions
+            and dimension.get("id") not in places
+        }
+        contextual_scope_match = contextual_dimensions <= statement_matched
+        if places and any(
+            dimension.get("statement_required")
+            for dimension in decomposition.get("dimensions", [])
+            if dimension.get("id") in places
+        ):
+            contextual_scope_match = contextual_scope_match and bool(places & statement_matched)
+        support_scope_match = complete_scope and contextual_scope_match and outcome_match
         requested_temporal_nature = decomposition.get("requirements", {}).get(
             "requested_temporal_nature"
         )
@@ -720,8 +756,10 @@ def assess_answer_adequacy(
             )
             and bool(numerical_values - target_years)
         )
-        if exact_count_match and decomposition.get("requirements", {}).get(
-            "requires_exact_global_count"
+        if (
+            scope_match
+            and exact_count_match
+            and decomposition.get("requirements", {}).get("requires_exact_global_count")
         ):
             exact_count_publications.add(publication_id)
         broad_synthesis_match = not decomposition.get("requirements", {}).get(
@@ -736,17 +774,17 @@ def assess_answer_adequacy(
             "requires_broad_geographic_synthesis"
         ):
             broad_synthesis_publications.add(publication_id)
-        if re.search(
+        if support_scope_match and re.search(
             r"\b(?:method|measur|sampling|observ(?:e|ed|ation)|gps|sensor|questionnaire|metabarcod|microhistolog|tracking)\b",
             statement,
         ):
             method_publications.add(publication_id)
-        if re.search(
+        if support_scope_match and re.search(
             r"\b(?:limitation|bias|uncertain|constraint|drawback|underestimat|overestimat|resolution|accuracy|cannot|however)\b",
             statement,
         ):
             method_limitation_publications.add(publication_id)
-        if re.search(
+        if support_scope_match and re.search(
             r"\b(?:because|due to|driven by|explained by|attribut(?:e|ed|able) to|depend(?:s|ed|ing)? on|heterogen|var(?:y|ies|ied) (?:with|by|across|among))\b",
             statement,
         ):
@@ -766,33 +804,16 @@ def assess_answer_adequacy(
                 diagnostic_context,
             )
         )
-        if diagnostic_required and diagnostic_match:
+        if scope_match and diagnostic_required and diagnostic_match:
             diagnostic_publications.add(publication_id)
         # A result sentence may say "the battery" while the exact surrounding
         # passage establishes that it is the requested technology. Such a record
         # is safe to quote in an answer, but it must not independently satisfy the
         # stricter cross-publication adequacy count unless the sentence names the
         # subject itself.
-        if (
-            complete_scope
-            and subject_match
-            and statement_scope_match
-            and outcome_match
-            and task_match
-            and exact_count_match
-            and diagnostic_match
-            and item.get("id")
-        ):
+        if scope_match and task_match and exact_count_match and diagnostic_match and item.get("id"):
             answer_evidence_ids.append(str(item["id"]))
-        if (
-            complete_scope
-            and subject_match
-            and statement_scope_match
-            and outcome_match
-            and task_match
-            and exact_count_match
-            and diagnostic_match
-        ):
+        if scope_match and task_match and exact_count_match and diagnostic_match:
             qualifying_publications.add(publication_id)
             for dimension_id in driver_dimensions & statement_matched:
                 dimension_publications[dimension_id].add(publication_id)

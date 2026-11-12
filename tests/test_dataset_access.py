@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from tests.test_autonomous_data import strategy
+from tests.data_workflow_fixtures import strategy
 
 ZENODO = "https://zenodo.org/records/8418278"
 RECORD = {

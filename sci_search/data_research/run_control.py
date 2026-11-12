@@ -23,9 +23,9 @@ class RunControl:
         self.directory = Path(directory)
         self.started = time.monotonic()
         self.counts = dict.fromkeys(("model_calls", "search_calls", "downloads"), 0)
-        self.state = None
-        self.seed = None
-        self.staged = None
+        self.state: dict | None = None
+        self.seed: dict | None = None
+        self.staged: dict | None = None
         self.stop_reason = ""
 
     def snapshot(self):

@@ -227,7 +227,7 @@ def assess(*, scope, analysis, documents, complete):
         cell, series = cells[ci], analysis["series"][si]
         if any(
             c["measurement"] == cell["measurement"]
-            and any(m["entity"] == series["entity"] for m in c["sources"])
+            and any(m["series_index"] == si for m in c["sources"])
             for c in existing_cells
         ):
             result["rejected"].append(

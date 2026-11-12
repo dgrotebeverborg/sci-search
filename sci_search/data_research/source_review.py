@@ -8,8 +8,11 @@ from sci_search.data_research.artifacts import execute_analysis
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.coverage import planning_summary
 from sci_search.data_research.execution import digest, run_python
+from sci_search.data_research.failures import record_failure
+from sci_search.data_research.publication import publish_analysis
 from sci_search.data_research.python_recovery import INSPECT_CODE, recover
 from sci_search.data_research.retrieval import inspect_page
+from sci_search.data_research.source_state import resolve_source
 
 
 def inherit_context(candidate, assessments, retained):
@@ -18,9 +21,8 @@ def inherit_context(candidate, assessments, retained):
         if (
             assessment.get("url") == candidate.get("recovery_from")
             and candidate["url"] in assessment.get("recovery_links", [])
-            and index in retained
+            and (record := resolve_source(index, assessments, retained)[1]) is not None
         ):
-            record = retained[index]
             return record["metadata"], [assessment["url"]]
     return "", []
 
@@ -71,10 +73,9 @@ def reassess_source(
     check_cancelled,
     knowledge_dir=None,
 ):
-    source_record = retained.get(index)
+    assessment, source_record = resolve_source(index, result["assessments"], retained)
     if source_record is None:
         raise ValueError("No downloaded source bytes are available for reassessment")
-    assessment = result["assessments"][index]
     already_retained = {
         s["label"]
         for a in result["analyses"]
@@ -95,7 +96,9 @@ def reassess_source(
             "reason": "Requested source measurements are already retained; no extraction repeated.",
         }
     # The candidate's own folder; assessment positions can differ from folder numbers.
-    source_folder = source_record.get("folder", f"source-{index + 1}")
+    source_folder = source_record.get("folder") or (
+        f"source-{index + 1}" if type(index) is int else index
+    )
     folder = Path(directory) / f"{source_folder}-review-{round_number}"
     folder.mkdir()
     record = {
@@ -156,41 +159,29 @@ def reassess_source(
             progress=progress,
             check_cancelled=check_cancelled,
         )
-        analysis = execute_analysis(analysis, folder, check_cancelled=check_cancelled)
-        # Retained analyses are immutable. Do not publish a second copy of the same source/series.
-        existing = {
-            (a["source"]["sha256"], s["label"], s["entity"])
-            for a in result["analyses"]
-            for s in a.get("series", [])
-        }
-        keys = {(analysis["source"]["sha256"], s["label"], s["entity"]) for s in analysis["series"]}
-        if keys & existing:
-            raise ValueError(
-                "Reassessment overlaps already retained series; existing results preserved"
-            )
-        (folder / "analysis.json").write_text(json.dumps(analysis, ensure_ascii=False, indent=2))
-        result["analyses"].append(analysis)
+        retained_measurements = sorted({s["label"] for s in analysis["series"]})
+        analysis = publish_analysis(
+            analysis,
+            folder,
+            result=result,
+            assessment=assessment,
+            reason="Reassessed and validated: " + ", ".join(retained_measurements),
+            overlap_policy="reject_source_series",
+            execute=execute_analysis,
+            check_cancelled=check_cancelled,
+            preserve_initial=True,
+        )
         record.update(
             status="retained",
             reason="Validated requested subset",
             measurements=sorted({s["label"] for s in analysis["series"]}),
         )
-        assessment.setdefault(
-            "initial_assessment",
-            {k: assessment.get(k) for k in ("decision", "reason", "failure_stage", "availability")},
-        )
-        assessment.update(
-            decision="analysed",
-            reason="Reassessed and validated: " + ", ".join(record["measurements"]),
-            source=analysis["source"],
-        )
-        assessment.pop("availability", None)
-        assessment.pop("failure_stage", None)
         progress(
             "Source review retained validated results for: " + ", ".join(record["measurements"])
         )
     except (OSError, ValueError, KeyError, TypeError, http.client.HTTPException) as error:
-        record.update(status="blocked", reason=str(error)[:1000])
+        record["status"] = "blocked"
+        record_failure(record, error, stage="source_reassessment")
     finally:
         record["execution_review"] = execution_summary(folder)
         (folder / "review.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))

@@ -21,11 +21,18 @@ def prepare_jobs(scope, analyses):
             if not match["years"]:
                 continue
             source_index = match["source_index"]
-            for index, series in enumerate(analyses[source_index].get("series", [])):
-                if series["label"] == measurement and series["entity"] == match["entity"]:
-                    candidate = [source_index, index]
-                    if candidate not in candidates:
-                        candidates.append(candidate)
+            series_index = match.get("series_index")
+            series_list = analyses[source_index].get("series", [])
+            # Older coverage records do not identify the matched stratum. Never
+            # reconstruct it from a label/entity shared by several source series.
+            if type(series_index) is not int or not 0 <= series_index < len(series_list):
+                return None, 0
+            series = series_list[series_index]
+            if series["label"] != measurement or series["entity"] != match["entity"]:
+                return None, 0
+            candidate = [source_index, series_index]
+            if candidate not in candidates:
+                candidates.append(candidate)
         return candidates[0] if len(candidates) == 1 else None, len(candidates)
 
     jobs = []
