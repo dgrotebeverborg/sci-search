@@ -232,3 +232,39 @@ class PopulationWordingScreeningTests(unittest.TestCase):
         self.assertIn(
             "adults with type 2 diabetes", self.screen("adolescents with type 1 diabetes")
         )
+
+
+class DefinedAbbreviationTests(unittest.TestCase):
+    def test_document_defined_abbreviation_extends_the_group(self) -> None:
+        from sci_search.fulltext_screening import _with_defined_abbreviations
+
+        text = (
+            "Adults with type 2 diabetes mellitus (T2DM) were enrolled. T2DM duration was 8 years."
+        )
+        [(_, aliases)] = _with_defined_abbreviations([("t2d", ("type 2 diabetes",))], text)
+        self.assertIn("T2DM", aliases)
+
+    def test_unrelated_parentheticals_are_not_abbreviations(self) -> None:
+        from sci_search.fulltext_screening import _with_defined_abbreviations
+
+        for text in (
+            "Patients with type 2 diabetes (n=40) were enrolled.",
+            "Patients with type 2 diabetes (Table 2) were enrolled.",
+            "Patients with type 2 diabetes (MODY excluded) were enrolled.",
+        ):
+            with self.subTest(text=text):
+                [(_, aliases)] = _with_defined_abbreviations([("t2d", ("type 2 diabetes",))], text)
+                self.assertEqual(aliases, ("type 2 diabetes",))
+
+    def test_population_written_only_as_abbreviation_near_the_subject(self) -> None:
+        tests = PopulationWordingScreeningTests()
+        question, plan = tests.plan()
+        intro = "This review covers adults with type 2 diabetes (T2D). " + "Background. " * 200
+        body = (
+            "In people with T2D, intermittent fasting lowered HbA1c compared with continuous "
+            "calorie restriction. "
+        ) * 3
+        text = intro + body
+        item = candidate("review", "Intermittent fasting and HbA1c", body)
+        decision = screen_full_text(question, plan, item, text)
+        self.assertNotIn("adults with type 2 diabetes", decision.missing_groups)

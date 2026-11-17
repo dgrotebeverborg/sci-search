@@ -75,7 +75,9 @@ def screen_full_text(
     dimensions = [item for item in scope.get("dimensions", []) if isinstance(item, dict)]
     subject = next((item for item in dimensions if item.get("kind") == "subject"), {})
     raw_core = subject.get("term_groups") or [[term] for term in subject.get("terms", [])]
-    core_groups = [(str(group[0]), tuple(map(str, group))) for group in raw_core if group]
+    core_groups = _with_defined_abbreviations(
+        [(str(group[0]), tuple(map(str, group))) for group in raw_core if group], text
+    )
     mandatory = {
         int(item) for item in subject.get("mandatory_group_indexes", []) if isinstance(item, int)
     }
@@ -90,7 +92,9 @@ def screen_full_text(
     weak_core = {index for index, strength in enumerate(core_matches) if strength == 1}
     core_ok = len(strong_core) >= required_core and mandatory <= strong_core
 
-    support_groups = _support_groups(dimensions, core_groups, plan)
+    support_groups = _with_defined_abbreviations(
+        _support_groups(dimensions, core_groups, plan), text
+    )
     if focus and plan.intent == "relationship":
         # Different studies can establish different drivers. Require one
         # driver per study; overall coverage still checks each driver separately.
@@ -325,6 +329,39 @@ def _abstract_subject_focus(abstract: str, aliases: tuple[str, ...]) -> bool:
         research_statement.search(sentence) and any(_contains(sentence, alias) for alias in aliases)
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", abstract.casefold())
     )
+
+
+def _with_defined_abbreviations(
+    groups: list[tuple[str, tuple[str, ...]]], text: str
+) -> list[tuple[str, tuple[str, ...]]]:
+    """Add abbreviations that this document itself defines for a group's terms.
+
+    Papers define a term once ("type 2 diabetes (T2D)", "atrial fibrillation
+    (AF)") and use only the abbreviation afterwards. Only an explicit
+    parenthetical definition counts, and the abbreviation must start with the
+    term's first letter, so no outside synonym knowledge is introduced.
+    """
+    result = []
+    for label, aliases in groups:
+        defined = []
+        for alias in aliases:
+            words = alias.split()
+            if len(words) < 2:
+                continue
+            pattern = (
+                r"(?<!\w)"
+                + r"[\s\-‐‑‒–—]+".join(re.escape(word) for word in words)
+                + r"(?:\s+[^\W\d_]+){0,2}\s*\(\s*([^\W_][\w\-]{1,9})\s*[;,)]"
+            )
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                abbreviation = match[1]
+                if (
+                    abbreviation[0].casefold() == alias[0].casefold()
+                    and sum(char.isupper() for char in abbreviation) >= 2
+                ):
+                    defined.append(abbreviation)
+        result.append((label, tuple(dict.fromkeys([*aliases, *defined]))))
+    return result
 
 
 def _support_groups(
