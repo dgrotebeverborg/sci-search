@@ -148,7 +148,7 @@ def research_candidates(
                 "Next research step could not be planned; existing results retained."
             )
             process["planner_error"] = type(exc).__name__
-            record_failure(process, exc, stage="planning")
+            record_failure(process, exc, stage="planning", reason_field="failure_reason")
             break
         step = {"round": round_number, **plan, "status": "planned"}
         process["steps"].append(step)
@@ -232,7 +232,8 @@ def research_candidates(
         except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
             step["status"] = "failed"
             step["error"] = str(exc)[:400]
-            record_failure(step, exc, stage="follow_up")
+            # step["reason"] is the planner's rationale and feeds previous_steps.
+            record_failure(step, exc, stage="follow_up", reason_field="failure_reason")
     if not process["stop_reason"]:
         process["stop_reason"] = "Maximum follow-up rounds reached; unresolved gaps remain."
     process["sources_checked"] = len(seen)

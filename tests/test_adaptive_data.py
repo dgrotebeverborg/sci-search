@@ -436,3 +436,35 @@ def test_repeated_search_without_new_sources_stops_before_spending_all_rounds():
     )
     assert len(calls) == 2
     assert "progress" in result["research_process"]["stop_reason"].lower()
+
+
+def test_failed_follow_up_keeps_the_planner_reason():
+    result = {"analyses": [], "assessments": [], "limitations": []}
+    plans = iter(
+        [
+            dict(action="search", source_index=-1, link_index=-1, query="q", reason="Need 2019"),
+            dict(action="stop", source_index=-1, link_index=-1, query="", reason="Done"),
+        ]
+    )
+
+    def search(*a, **k):
+        raise ValueError("Source search unavailable")
+
+    list(
+        research_candidates(
+            "trend",
+            {},
+            {"candidates": []},
+            result,
+            search,
+            None,
+            lambda *a: next(plans),
+            lambda *a: None,
+            lambda *a: None,
+            lambda: None,
+        )
+    )
+    step = result["research_process"]["steps"][0]
+    assert step["status"] == "failed"
+    assert step["reason"] == "Need 2019"
+    assert step["failure_reason"] == "Source search unavailable"

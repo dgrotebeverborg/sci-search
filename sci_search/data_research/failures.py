@@ -17,11 +17,13 @@ EXPECTED_SOURCE_ERRORS = (
 )
 
 
-def record_failure(record, error, *, stage):
+def record_failure(record, error, *, stage, reason_field="reason"):
     """Preserve recoverability without attributing a programming bug to a dataset.
 
     Cancellation and budget exhaustion are BaseExceptions, not accepted here.
     Callers still decide their state transition; this helper only records failure.
+    Records whose ``reason`` means something else (planner steps) pass another
+    ``reason_field`` so the failure text does not overwrite it.
     """
     if not isinstance(error, Exception):
         raise error
@@ -30,9 +32,11 @@ def record_failure(record, error, *, stage):
         failure_stage=stage,
         failure_category="internal_error" if internal else "source_error",
         error_class=type(error).__name__,
-        reason="Processing failed; retained source material can be inspected and retried."
+    )
+    record[reason_field] = (
+        "Processing failed; retained source material can be inspected and retried."
         if internal
-        else str(error)[:1000],
+        else str(error)[:1000]
     )
     if internal:
         record.pop("availability", None)

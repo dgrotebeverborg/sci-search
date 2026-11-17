@@ -500,7 +500,7 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
         if wearable:
             qualifier = (wearable[1] + " ") if wearable[1] else ""
             aliases.extend(
-                qualifier + alias
+                alias if alias.casefold().startswith(qualifier) else qualifier + alias
                 for alias in (
                     "wearable device",
                     "consumer wearable",

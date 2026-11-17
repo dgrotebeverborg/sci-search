@@ -273,3 +273,64 @@ def test_pandas_excel_optional_engines_are_recorded(tmp_path, monkeypatch, expre
     assert report["dependencies"] == {"openpyxl": "3.1", "pandas": "2.3"}
     assert "pandas Excel engine: xlrd" in report["unresolved_imports"]
     assert "pandas Excel engine: openpyxl" not in report["unresolved_imports"]
+
+
+def test_symlinked_ancestor_of_artifact_root_is_accepted(tmp_path):
+    from sci_search.data_research.artifact_validation import validate_artifacts
+
+    real = tmp_path / "real"
+    (real / "run").mkdir(parents=True)
+    (real / "run" / "data").write_bytes(b"original")
+    (tmp_path / "home").symlink_to(real, target_is_directory=True)
+    checksum = hashlib.sha256(b"original").hexdigest()
+    validate_artifacts(tmp_path / "home" / "run", {"data": checksum})
+    (tmp_path / "linked-run").symlink_to(real / "run", target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink"):
+        validate_artifacts(tmp_path / "linked-run", {"data": checksum})
+
+
+def test_application_package_is_not_a_replay_dependency(tmp_path, monkeypatch):
+    from sci_search.data_research import execution
+
+    (tmp_path / "script.py").write_text("from helper import run\n")
+    incoming = tmp_path / "input"
+    incoming.mkdir()
+    (incoming / "helper.py").write_text(
+        "try:\n    from sci_search.data_research.calculations import calculate\n"
+        "except ImportError:\n    from calculations import calculate\n"
+    )
+    monkeypatch.setattr(
+        execution.importlib.metadata,
+        "packages_distributions",
+        lambda: {"sci_search": ["sci-search"]},
+    )
+    report = execution.replay_dependencies(
+        tmp_path, {"dependencies": {"sci-search": "0.1.0", "Replay-Lib": "1.2"}}
+    )
+    assert report["dependencies"] == {}
+    assert report["unresolved_imports"] == ["calculations"]
+
+
+def test_installed_transitive_dependencies_are_pinned(tmp_path, monkeypatch):
+    from sci_search.data_research import execution
+
+    (tmp_path / "script.py").write_text("import replaylib\n")
+    monkeypatch.setattr(
+        execution.importlib.metadata,
+        "packages_distributions",
+        lambda: {"replaylib": ["Replay-Lib"]},
+    )
+    requires = {
+        "Replay-Lib": ["numpy>=1.26", 'docs-tool; extra == "docs"', "Not-Installed"],
+        "numpy": [],
+    }
+    monkeypatch.setattr(execution.importlib.metadata, "requires", lambda name: requires.get(name))
+    inventory = {"Replay-Lib": "1.2", "numpy": "2.1.0", "docs-tool": "9", "Unrelated": "1"}
+    report = execution.replay_dependencies(tmp_path, {"dependencies": inventory})
+    assert report["dependencies"] == {"Replay-Lib": "1.2", "numpy": "2.1.0"}
+
+
+def test_engine_manifest_includes_cbs_odata_local_imports():
+    from sci_search.data_research.replay_manifest import engine_modules
+
+    assert "packages.py" in engine_modules("cbs_odata.py")
