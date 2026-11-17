@@ -68,3 +68,44 @@ def test_setting_populations_and_exposure_drivers_accept_common_wording():
         _exposure_aliases("microplastic exposure")
     )
     assert _exposure_aliases("class size") == ()
+
+
+def test_outcome_only_abstract_is_reviewed_not_auto_selected_for_a_relationship():
+    from sci_search.discovery import PublicationCandidate, screen_candidates
+
+    question = "How effective are carbon taxes at reducing greenhouse gas emissions?"
+    plan = replace(
+        plan_question(question),
+        intent="relationship",
+        concepts=("greenhouse gas emissions", "carbon taxes"),
+        subject_terms=("greenhouse gas emissions",),
+        driver_terms=("carbon taxes",),
+        term_synonyms=(("carbon taxes", ("carbon taxation",)),),
+    )
+
+    def paper(identifier, abstract):
+        return PublicationCandidate(
+            id=identifier,
+            title="Greenhouse gas emissions study",
+            abstract=abstract,
+            year=2024,
+            doi=None,
+            authors=(),
+            publication_type="article",
+            source_url=None,
+            is_open_access=True,
+            full_text_url="https://example.org/a.pdf",
+            has_pdf=True,
+        )
+
+    screened = {
+        c.id: c.screening_status
+        for c in screen_candidates(
+            [
+                paper("meat", "Greenhouse gas emissions of beef production systems were modelled."),
+                paper("tax", "Carbon taxation lowered greenhouse gas emissions in Norway."),
+            ],
+            plan,
+        )
+    }
+    assert screened == {"meat": "uncertain", "tax": "selected"}

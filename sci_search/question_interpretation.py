@@ -353,7 +353,10 @@ def _model_interpretation(
                     "term_synonyms lists, for each subject, driver, population and outcome term, up to 6 "
                     "wording variants that papers use for the SAME concept: abbreviations, spelling "
                     "variants, standard equivalent names (elementary school for primary school) and "
-                    "commonly studied members that fully belong to it (Daphnia for freshwater zooplankton). "
+                    "commonly studied members that fully belong to it (Daphnia for freshwater zooplankton, "
+                    "CO2 emissions for greenhouse gas emissions), and the phrasing used in result "
+                    "sentences, including of-constructions combined with the subject (onset of dementia "
+                    "and delayed onset for age at onset of dementia; survival of zooplankton). "
                     "Never list broader terms, related but different concepts, or outcome metrics "
                     "(sensitivity is not a synonym of accuracy). Each term must be copied exactly from "
                     "the plan." + STRATEGY_PROMPT

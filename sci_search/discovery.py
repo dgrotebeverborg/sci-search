@@ -407,6 +407,13 @@ def screen_candidates(
                     "excluded",
                     f"the explanatory subject {focus[0]!r} is absent from the metadata",
                 )
+            elif candidate.abstract and focus[1] and not any(
+                _concept_present(driver, plan, searchable, source_terms) for driver in focus[1]
+            ):
+                # Outcome-only abstracts (e.g. emissions inventories for a carbon-tax
+                # question) otherwise fill the full-text budget; let review decide.
+                status = "uncertain"
+                reason = "the explanatory subject is present, but no requested factor is named in the title or abstract"
             else:
                 status = "selected" if processable else "unavailable"
                 reason = "the explanatory subject is present; driver and geographic relevance require full-text screening"
