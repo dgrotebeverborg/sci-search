@@ -126,9 +126,17 @@ PROMPT = (
 )
 
 
+OPTIONAL_LISTS = frozenset(
+    {"requirements", "calculations", "unresolved_calculations", "calculation_requests"}
+)
+
+
 def validate_strategy(value: dict, *, infer_route=False, require_calculation_intent=False) -> dict:
     if not isinstance(value, dict) or value.get("route") not in {"data", "literature", "both"}:
         raise ValueError("Invalid research approach")
+    # Models (notably the Codex provider, which does not enforce the schema) send
+    # null for optional data-only lists on literature questions. Null means absent.
+    value = {k: v for k, v in value.items() if not (k in OPTIONAL_LISTS and v is None)}
     result = {"adapter": "discovered_data_v1", "route": value["route"]}
     for key in ("rationale", "geography"):
         if not isinstance(value.get(key), str) or len(value[key]) > 1500:

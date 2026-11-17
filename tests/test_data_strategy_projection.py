@@ -44,3 +44,23 @@ def test_a_reversed_interval_is_rejected():
 def test_the_prompts_allow_projections_and_require_their_scenario():
     assert "projected" in PROMPT
     assert "scenario" in semantics.INSTRUCTIONS
+
+
+def test_literature_strategy_accepts_null_optional_data_lists():
+    """The Codex provider returns null for data-only lists on literature questions."""
+    result = validate_strategy(
+        {
+            "route": "literature",
+            "rationale": "Diagnostic accuracy studies.",
+            "geography": "",
+            "measurements": [],
+            "requirements": None,
+            "calculations": None,
+            "unresolved_calculations": None,
+            "calculation_requests": None,
+            "start_year": None,
+            "end_year": None,
+        }
+    )
+    assert result["route"] == "literature"
+    assert "requirements" not in result
