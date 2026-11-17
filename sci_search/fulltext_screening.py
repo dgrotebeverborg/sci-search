@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sci_search.concept_matching import concept_spans
-from sci_search.coverage import decompose_question
+from sci_search.coverage import decompose_question, defined_abbreviations
 from sci_search.discovery import PublicationCandidate
 from sci_search.question_planning import ResearchPlan, plan_focus
 
@@ -350,27 +350,20 @@ def _with_defined_abbreviations(
     parenthetical definition counts, and the abbreviation must start with the
     term's first letter, so no outside synonym knowledge is introduced.
     """
-    result = []
-    for label, aliases in groups:
-        defined = []
-        for alias in aliases:
-            words = alias.split()
-            if len(words) < 2:
-                continue
-            pattern = (
-                r"(?<!\w)"
-                + r"[\s\-‐‑‒–—]+".join(re.escape(word) for word in words)
-                + r"(?:\s+[^\W\d_]+){0,2}\s*\(\s*([^\W_][\w\-]{1,9})\s*[;,)]"
-            )
-            for match in re.finditer(pattern, text, re.IGNORECASE):
-                abbreviation = match[1]
-                if (
-                    abbreviation[0].casefold() == alias[0].casefold()
-                    and sum(char.isupper() for char in abbreviation) >= 2
-                ):
-                    defined.append(abbreviation)
-        result.append((label, tuple(dict.fromkeys([*aliases, *defined]))))
-    return result
+    return [
+        (
+            label,
+            tuple(
+                dict.fromkeys(
+                    [
+                        *aliases,
+                        *(abbr for alias in aliases for abbr in defined_abbreviations(alias, text)),
+                    ]
+                )
+            ),
+        )
+        for label, aliases in groups
+    ]
 
 
 def _support_groups(

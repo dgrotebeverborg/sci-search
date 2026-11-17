@@ -603,7 +603,128 @@ _EXPLANATORY_CUES = (
     "due to",
     "driven by",
     "associated with",
+    # A result sentence naming what changes the outcome is equally a finding
+    # about its determinants ("additive X improves long-term stability").
+    "caused by",
+    "depends on",
+    "dependent on",
+    "stemming from",
+    "stems from",
+    "leads to",
+    "led to",
+    "results in",
+    "resulted in",
+    "affects",
+    "affected by",
+    "influences",
+    "influenced by",
+    "improves",
+    "improved",
+    "enhances",
+    "enhanced",
+    "reduces",
+    "reduced",
+    "controlling for",
 )
+
+# Head nouns too generic to stand in for their full phrase on their own.
+_GENERIC_HEADS = frozenset(
+    {
+        "reduction",
+        "reductions",
+        "increase",
+        "increases",
+        "changes",
+        "effects",
+        "impacts",
+        "exposure",
+        "population",
+        "populations",
+        "performance",
+        "outcomes",
+        "students",
+        "patients",
+        "countries",
+        "treatment",
+        "intervention",
+        "interventions",
+        "development",
+        "determinants",
+        "pesticides",
+        "insecticides",
+        "learning",
+    }
+)
+
+
+def defined_abbreviations(term: str, text: str) -> tuple[str, ...]:
+    """Abbreviations a document itself defines for ``term`` ("ocean acidification (OA)").
+
+    Only an explicit parenthetical definition counts, and the abbreviation must
+    start with the term's first letter, so no outside synonym knowledge is used.
+    """
+    words = term.split()
+    if len(words) < 2:
+        return ()
+    pattern = (
+        r"(?<!\w)"
+        + r"[\s\-‐‑‒–—]+".join(re.escape(word) for word in words)
+        + r"(?:\s+[^\W\d_]+){0,2}\s*\(\s*([^\W_][\w\-]{1,9})\s*[;,)]"
+    )
+    found = [
+        match[1]
+        for match in re.finditer(pattern, text, re.IGNORECASE)
+        if match[1][0].casefold() == term[0].casefold()
+        and sum(char.isupper() for char in match[1]) >= 2
+    ]
+    return tuple(dict.fromkeys(found))
+
+
+def statement_scope(
+    decomposition: dict[str, Any], passage: str, document_text: str
+) -> dict[str, Any]:
+    """Let a result sentence use the shorthand its own source has established.
+
+    After naming "ocean acidification" a passage says "under acidification",
+    and after defining "antimicrobial resistance (AMR)" a paper writes "AMR".
+    The head noun counts only when the full phrase occurs in the same passage,
+    and an abbreviation only when the document defines it.
+    """
+    lowered_passage = " ".join(re.sub(r"(?<=\w)-\s+(?=\w)", "", passage.casefold()).split())
+
+    def shorthand(terms: list[Any]) -> list[str]:
+        extra: list[str] = []
+        for raw in terms:
+            term = str(raw)
+            words = term.casefold().split()
+            if len(words) < 2:
+                continue
+            extra.extend(defined_abbreviations(term, document_text))
+            head = words[-1]
+            if (
+                len(head) >= 7
+                and head.isalpha()
+                and head not in _GENERIC_HEADS
+                and _term_present(lowered_passage, term)
+            ):
+                extra.append(head)
+        return [item for item in dict.fromkeys(extra) if item not in terms]
+
+    dimensions = []
+    for dimension in decomposition.get("dimensions", []):
+        if not (
+            dimension.get("statement_required") and dimension.get("kind") in {"subject", "topic"}
+        ):
+            dimensions.append(dimension)
+            continue
+        widened = dict(dimension)
+        widened["terms"] = [*dimension.get("terms", []), *shorthand(dimension.get("terms", []))]
+        if dimension.get("term_groups"):
+            widened["term_groups"] = [
+                [*group, *shorthand(list(group))] for group in dimension["term_groups"]
+            ]
+        dimensions.append(widened)
+    return {**decomposition, "dimensions": dimensions}
 
 
 def _with_plan_synonyms(

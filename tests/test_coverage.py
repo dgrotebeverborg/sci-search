@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from sci_search.corpus import CorpusDocument
@@ -429,3 +430,100 @@ def test_evaluated_concepts_accept_the_evaluated_activity_wording():
     assert {"accuracy in detecting atrial fibrillation", "af detection accuracy"} <= set(outcome)
     assert "sensitivity" not in outcome
     assert _evaluated_outcome_aliases("hba1c", GENERIC_PROFILE) == ("hba1c",)
+
+
+def _statement_ids(statement: str, passage: str, document: str, scope: dict) -> set[str]:
+    from sci_search.coverage import evidence_context, statement_scope
+
+    return set(
+        evidence_context(statement, statement_scope(scope, passage, document))[
+            "scope_dimension_ids"
+        ]
+    )
+
+
+_ACIDIFICATION_SCOPE = {
+    "dimensions": [
+        {
+            "id": "topic:0",
+            "kind": "topic",
+            "terms": ["ocean acidification"],
+            "required": True,
+            "statement_required": True,
+        }
+    ]
+}
+
+
+def test_statement_may_use_head_noun_of_phrase_named_in_its_passage():
+    statement = "Calcification declined in scleractinian corals under acidification."
+    passage = "We exposed corals to ocean acidification for 60 days. " + statement
+    assert _statement_ids(statement, passage, passage, _ACIDIFICATION_SCOPE) == {"topic:0"}
+
+
+def test_head_noun_alone_does_not_count_without_full_phrase_nearby():
+    statement = "Calcification declined in corals under acidification."
+    assert _statement_ids(statement, statement, statement, _ACIDIFICATION_SCOPE) == set()
+
+
+def test_statement_may_use_abbreviation_its_document_defines():
+    document = "Ocean acidification (OA) threatens reefs. Later text."
+    statement = "Coral calcification generally decreases under OA."
+    assert _statement_ids(statement, statement, document, _ACIDIFICATION_SCOPE) == {"topic:0"}
+    assert (
+        _statement_ids(statement, statement, "No definition here.", _ACIDIFICATION_SCOPE) == set()
+    )
+
+
+def test_generic_head_noun_does_not_stand_in_for_phrase():
+    scope = {
+        "dimensions": [
+            {
+                "id": "topic:0",
+                "kind": "topic",
+                "terms": ["class size reduction"],
+                "required": True,
+                "statement_required": True,
+            }
+        ]
+    }
+    passage = "Class size reduction was evaluated. A reduction in fees had no effect."
+    assert _statement_ids("A reduction in fees had no effect.", passage, passage, scope) == set()
+
+
+def test_study_population_named_in_methods_scopes_result_passages():
+    filler = " ".join(f"Unrelated calibration note {i} about the testing room." for i in range(80))
+    paper = CorpusDocument(
+        publication=Publication("sleep", "Sleep and memory", "papers/sleep.txt", year=2024),
+        text=(
+            "## Methods\n\nThirty healthy adults were enrolled in the laboratory study.\n\n"
+            f"## Discussion\n\n{filler}\n\n"
+            "## Results\n\nWorking memory accuracy declined after 36 h of sleep deprivation.\n"
+        ),
+        evidence_type=EvidenceType.OBSERVATIONAL_STUDY,
+        result_nature=ResultNature.MEASURED,
+        technology=None,
+        configuration=None,
+        system_scale=None,
+        calculation_boundary=None,
+        assumptions=(),
+    )
+    question = "How does sleep deprivation affect working memory in adults?"
+    plan = replace(
+        plan_question(question),
+        intent="relationship",
+        subject_terms=("working memory",),
+        driver_terms=("sleep deprivation",),
+        population_terms=("adults",),
+        concepts=("working memory", "sleep deprivation", "adults"),
+    )
+    report = GenericResearchEngine((paper,)).investigate(question, plan=plan)
+    result_records = [item for item in report.evidence if "declined after 36 h" in item.statement]
+    assert result_records
+    population_ids = {
+        dimension["id"]
+        for dimension in report.research_scope["dimensions"]
+        if dimension["kind"] == "population"
+    }
+    assert population_ids
+    assert all(population_ids <= set(item.scope_dimension_ids) for item in result_records)

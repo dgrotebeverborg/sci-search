@@ -8,7 +8,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from sci_search.corpus import CorpusDocument
-from sci_search.coverage import assess_answer_adequacy, decompose_question, evidence_context
+from sci_search.coverage import (
+    assess_answer_adequacy,
+    decompose_question,
+    evidence_context,
+    statement_scope,
+)
 from sci_search.evidence_lifecycle import validate_extractive_evidence
 from sci_search.models import dataclass_to_dict
 from sci_search.profiles import PROFILES, contains_term
@@ -202,6 +207,17 @@ def _extract_evidence(
 ) -> tuple[GenericEvidenceRecord, ...]:
     by_id = {item.publication.id: item for item in documents}
     records: list[GenericEvidenceRecord] = []
+    population_scope = {
+        **research_scope,
+        "dimensions": [
+            dimension
+            for dimension in research_scope.get("dimensions", [])  # type: ignore[union-attr]
+            if isinstance(dimension, dict)
+            and dimension.get("kind") == "population"
+            and not dimension.get("statement_required")
+        ],
+    }
+    study_populations: dict[str, tuple[str, ...]] = {}
     for item in retrieved:
         if item.passage.section == "references":
             continue
@@ -237,7 +253,24 @@ def _extract_evidence(
             extraction_method="extractive_scientific_evidence_v1",
         )
         context = evidence_context(f"{statement} {item.passage.text}", research_scope)
-        statement_context = evidence_context(statement, research_scope)
+        statement_context = evidence_context(
+            statement, statement_scope(research_scope, item.passage.text, document.text)
+        )
+        if item.publication_id not in study_populations:
+            study_populations[item.publication_id] = evidence_context(
+                document.text, population_scope
+            )["scope_dimension_ids"]
+        # The studied population is a property of the study: a results passage
+        # rarely repeats "adults" or "primary school pupils" once the methods
+        # have said so. It never substitutes for a statement-level requirement.
+        context = {
+            **context,
+            "scope_dimension_ids": tuple(
+                dict.fromkeys(
+                    [*context["scope_dimension_ids"], *study_populations[item.publication_id]]
+                )
+            ),
+        }
         records.append(
             GenericEvidenceRecord(
                 id=record_id,
