@@ -223,7 +223,10 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 "id": f"outcome:{name}",
                 "kind": "outcome",
                 "label": name,
-                "terms": list(_OUTCOME_ALIASES.get(name, (name,))),
+                "terms": list(
+                    _OUTCOME_ALIASES.get(name)
+                    or _evaluated_outcome_aliases(name, PROFILES[plan.profile_id])
+                ),
                 "required": True,
             }
         )
@@ -499,8 +502,15 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
         wearable = re.fullmatch(r"(?:(.+)\s+)?wearable (?:devices?|monitors?)", lowered)
         if wearable:
             qualifier = (wearable[1] + " ") if wearable[1] else ""
+            # Smartwatches are consumer products, so a consumer/commercial qualifier
+            # adds nothing to them; location qualifiers ("chest-patch") still apply.
+            inherent = (
+                {"smartwatch", "smart watch"} if qualifier.strip() in _MARKET_QUALIFIERS else set()
+            )
             aliases.extend(
-                alias if alias.casefold().startswith(qualifier) else qualifier + alias
+                alias
+                if alias.casefold().startswith(qualifier) or alias in inherent
+                else qualifier + alias
                 for alias in (
                     "wearable device",
                     "consumer wearable",
@@ -525,8 +535,13 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
             )
         if "fine particulate matter" in lowered:
             aliases.extend(("PM2.5", "PM 2.5", "fine particles"))
+    measured = re.fullmatch(rf"({'|'.join(_EVALUATION_HEADS)}) of (?:the )?(.+)", lowered)
+    if measured:
+        # "accuracy of X detection" is a property of X detection: the property
+        # is checked as an outcome; scope needs X detection, however written.
+        aliases.extend(_scope_aliases(measured[2], profile, question))
     action = re.fullmatch(rf"(.+?)\s+({'|'.join(_ACTION_GERUNDS)})", lowered)
-    if action:
+    if action and not measured:
         # "X detection" is equally written "detection of X" or "detecting X".
         target, noun = action[1], action[2]
         targets = [target]
@@ -544,6 +559,17 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
     return tuple(dict.fromkeys(aliases))
 
 
+_EVALUATION_HEADS = (
+    "diagnostic accuracy",
+    "accuracy",
+    "performance",
+    "diagnostic performance",
+    "reliability",
+    "validity",
+)
+_MARKET_QUALIFIERS = frozenset(
+    {"consumer", "consumer-grade", "consumer grade", "commercial", "commercially available"}
+)
 # Nominalised research actions and the verb form used for the same concept.
 _ACTION_GERUNDS = {
     "detection": "detecting",
@@ -568,6 +594,29 @@ _POPULATION_HEADS = (
     "participants",
     "subjects",
 )
+
+
+def _evaluated_outcome_aliases(name: str, profile: Any) -> tuple[str, ...]:
+    """Grammatical variants of "accuracy of X" for an outcome; no metric synonyms.
+
+    Sensitivity or specificity alone are deliberately not accepted: every
+    classification study reports them, whatever it classifies.
+    """
+    lowered = " ".join(name.casefold().split())
+    measured = re.fullmatch(rf"({'|'.join(_EVALUATION_HEADS)}) of (?:the )?(.+)", lowered)
+    if not measured:
+        return (name,)
+    head, target = measured[1], measured[2]
+    variants = [target, *(a.casefold() for a in _scope_aliases(target, profile, ""))]
+    aliases = [name]
+    for variant in dict.fromkeys(variants):
+        if variant.split()[0].endswith("ing"):
+            aliases.extend((f"{head} in {variant}", f"{head} for {variant}"))
+        else:
+            aliases.append(f"{head} of {variant}")
+            if " of " not in variant:
+                aliases.append(f"{variant} {head}")
+    return tuple(dict.fromkeys(aliases))
 
 
 def _population_aliases(population: str) -> tuple[str, ...]:

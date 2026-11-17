@@ -404,3 +404,28 @@ def test_action_noun_concepts_accept_verbal_and_of_forms():
     aliases = _scope_aliases("atrial fibrillation detection", GENERIC_PROFILE, "")
     assert {"detecting atrial fibrillation", "detection of atrial fibrillation"} <= set(aliases)
     assert "af detection" in aliases
+
+
+def test_consumer_qualifier_does_not_restrict_smartwatches():
+    from sci_search.coverage import _scope_aliases
+    from sci_search.profiles import GENERIC_PROFILE
+
+    consumer = _scope_aliases("consumer wearable devices", GENERIC_PROFILE, "")
+    assert "smartwatch" in consumer
+    located = _scope_aliases("chest-patch wearable devices", GENERIC_PROFILE, "")
+    assert "smartwatch" not in located
+    assert "chest-patch smartwatch" in located
+
+
+def test_evaluated_concepts_accept_the_evaluated_activity_wording():
+    from sci_search.coverage import _evaluated_outcome_aliases, _scope_aliases
+    from sci_search.profiles import GENERIC_PROFILE
+
+    scope = _scope_aliases("accuracy of atrial fibrillation detection", GENERIC_PROFILE, "")
+    assert "detecting atrial fibrillation" in scope
+    outcome = _evaluated_outcome_aliases(
+        "accuracy of atrial fibrillation detection", GENERIC_PROFILE
+    )
+    assert {"accuracy in detecting atrial fibrillation", "af detection accuracy"} <= set(outcome)
+    assert "sensitivity" not in outcome
+    assert _evaluated_outcome_aliases("hba1c", GENERIC_PROFILE) == ("hba1c",)
