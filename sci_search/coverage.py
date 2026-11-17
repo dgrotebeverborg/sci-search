@@ -188,7 +188,7 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 "id": f"population:{index}",
                 "kind": "population",
                 "label": population,
-                "terms": [population],
+                "terms": list(_population_aliases(population)),
                 "required": True,
                 "statement_required": False,
             }
@@ -525,7 +525,76 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
             )
         if "fine particulate matter" in lowered:
             aliases.extend(("PM2.5", "PM 2.5", "fine particles"))
+    action = re.fullmatch(rf"(.+?)\s+({'|'.join(_ACTION_GERUNDS)})", lowered)
+    if action:
+        # "X detection" is equally written "detection of X" or "detecting X".
+        target, noun = action[1], action[2]
+        targets = [target]
+        if profile.id == "generic":
+            for alias in _scope_aliases(target, profile, question):
+                alias = alias.casefold()
+                if alias.endswith(" " + noun):
+                    aliases.append(alias)  # e.g. a curated "AF detection"
+                elif not alias.endswith(tuple(_ACTION_GERUNDS)):
+                    targets.append(alias)
+        for item in dict.fromkeys(targets):
+            aliases.extend(
+                (f"{item} {noun}", f"{noun} of {item}", f"{_ACTION_GERUNDS[noun]} {item}")
+            )
     return tuple(dict.fromkeys(aliases))
+
+
+# Nominalised research actions and the verb form used for the same concept.
+_ACTION_GERUNDS = {
+    "detection": "detecting",
+    "diagnosis": "diagnosing",
+    "prediction": "predicting",
+    "classification": "classifying",
+    "identification": "identifying",
+    "estimation": "estimating",
+    "measurement": "measuring",
+    "monitoring": "monitoring",
+    "screening": "screening for",
+}
+# Generic head nouns that name who was studied, not what condition defines them.
+_POPULATION_HEADS = (
+    "adults",
+    "adult",
+    "patients",
+    "patient",
+    "people",
+    "persons",
+    "individuals",
+    "participants",
+    "subjects",
+)
+
+
+def _population_aliases(population: str) -> tuple[str, ...]:
+    """Equivalent ways of naming a condition-defined population.
+
+    "adults with type 2 diabetes" is reported as "patients with type 2
+    diabetes", "people with ... type 2 diabetes" or simply as the condition.
+    Age- or sex-specific heads (children, women) stay literal because they
+    restrict the population materially.
+    """
+    lowered = " ".join(population.casefold().split())
+    match = re.fullmatch(
+        rf"(?:{'|'.join(_POPULATION_HEADS)})\s+(?:with|who have|having|living with)\s+(.+)",
+        lowered,
+    )
+    if not match:
+        return (population,)
+    condition = match[1]
+    return tuple(
+        dict.fromkeys(
+            [
+                population,
+                *(f"{head} with {condition}" for head in ("patients", "people", "individuals")),
+                condition,
+            ]
+        )
+    )
 
 
 def evidence_context(text: str, decomposition: dict[str, Any]) -> dict[str, Any]:

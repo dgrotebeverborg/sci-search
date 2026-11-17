@@ -67,7 +67,7 @@ def _literal_spans(text: str, term: str) -> list[tuple[int, int]]:
     # Only separators between words can vary. Keep slash, charge/polarity,
     # programming-language suffixes, and other meaningful symbols literal.
     pieces = re.split(r"(?<=\w)[\s\-‐‑‒–—]+(?=\w)", normalized_term.strip())
-    pattern = r"(?<![\w+−])" + r"[\s\-‐‑‒–—]+".join(re.escape(part) for part in pieces)
+    pattern = r"(?<![\w+−])" + r"[\s\-‐‑‒–—]+".join(_subscript_tolerant(part) for part in pieces)
     pattern += r"(?!\w|[+−]|-(?!\w))"
     return [
         (
@@ -76,6 +76,16 @@ def _literal_spans(text: str, term: str) -> list[tuple[int, int]]:
         )
         for match in re.finditer(pattern, normalized)
     ]
+
+
+def _subscript_tolerant(part: str) -> str:
+    """Escape *part*, allowing one space where letters meet digits.
+
+    PDF extraction renders subscripts as separate words: HbA<sub>1c</sub>
+    becomes "HbA 1c" and CO<sub>2</sub> becomes "CO 2". Only this boundary
+    may vary; the characters themselves stay literal.
+    """
+    return re.sub(r"(?<=[^\W\d_])(?=\d)", r"\\s?", re.escape(part))
 
 
 def _singular(token: str) -> str:

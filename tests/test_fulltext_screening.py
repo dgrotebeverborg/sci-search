@@ -193,3 +193,42 @@ def test_background_is_retained_as_context_but_not_active_evidence():
         )
         == []
     )
+
+
+class PopulationWordingScreeningTests(unittest.TestCase):
+    """Live run 2026-11-17: every fasting/HbA1c trial was excluded on exact wording."""
+
+    def plan(self):
+        from dataclasses import replace
+
+        question = (
+            "Does intermittent fasting reduce HbA1c in adults with type 2 diabetes "
+            "compared with continuous calorie restriction?"
+        )
+        # The plan the live Codex interpretation produced for this question.
+        return question, replace(
+            plan_question(question),
+            profile_id="generic",
+            intent="relationship",
+            subject_terms=("hba1c",),
+            driver_terms=("intermittent fasting", "continuous calorie restriction"),
+            population_terms=("adults with type 2 diabetes",),
+        )
+
+    def screen(self, population: str) -> tuple[str, ...]:
+        question, plan = self.plan()
+        text = (
+            f"We randomised 120 {population} to intermittent fasting or continuous calorie "
+            "restriction. HbA 1c decreased by 0.8% with intermittent fasting and by 0.6% "
+            "with continuous calorie restriction. "
+        ) * 2
+        item = candidate("trial", f"Fasting in {population}", text)
+        return screen_full_text(question, plan, item, text).missing_groups
+
+    def test_patients_with_the_condition_satisfy_the_population(self) -> None:
+        self.assertEqual(self.screen("patients with type 2 diabetes"), ())
+
+    def test_a_different_condition_does_not(self) -> None:
+        self.assertIn(
+            "adults with type 2 diabetes", self.screen("adolescents with type 1 diabetes")
+        )

@@ -171,3 +171,16 @@ def test_unicode_charge_sign_does_not_enable_relaxed_opposite_match():
     term = "CD4＋ cell population response following targeted immune therapy"
     text = "CD4− cell population response following targeted immune therapy"
     assert not concept_present(text, term)
+
+
+@pytest.mark.parametrize(
+    ("text", "term"),
+    [("baseline HbA 1C ≥7.0%", "hba1c"), ("CO 2 emissions", "co2"), ("PM 2.5 levels", "pm2.5")],
+)
+def test_pdf_subscript_spacing_matches_the_literal_term(text, term):
+    assert concept_spans(text, term)
+
+
+def test_subscript_tolerance_does_not_change_the_characters():
+    assert not concept_spans("HbA 12c was not measured", "hba1c")
+    assert not concept_spans("HbA levels", "hba1c")

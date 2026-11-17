@@ -385,3 +385,22 @@ class CoverageSearchLoopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_condition_defined_population_accepts_equivalent_wording():
+    from sci_search.coverage import _population_aliases
+
+    aliases = _population_aliases("adults with type 2 diabetes")
+    assert "patients with type 2 diabetes" in aliases
+    assert "type 2 diabetes" in aliases
+    # Age-specific populations stay literal.
+    assert _population_aliases("children with asthma") == ("children with asthma",)
+
+
+def test_action_noun_concepts_accept_verbal_and_of_forms():
+    from sci_search.coverage import _scope_aliases
+    from sci_search.profiles import GENERIC_PROFILE
+
+    aliases = _scope_aliases("atrial fibrillation detection", GENERIC_PROFILE, "")
+    assert {"detecting atrial fibrillation", "detection of atrial fibrillation"} <= set(aliases)
+    assert "af detection" in aliases
