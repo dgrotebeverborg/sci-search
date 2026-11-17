@@ -254,6 +254,16 @@ class ResearchRunManager:
         if self._cancellation_check is not None and self._cancellation_check():
             raise ResearchCancelled("Research cancelled")
 
+    def _metadata_reviewer(self):
+        """The injected analyzer, else the configured provider (as later review stages use).
+
+        Without a reviewer, every uncertain candidate stays unassessed and only
+        deterministically selected (often weaker) matches are acquired.
+        """
+        from sci_search.model_provider import configured_analyzer
+
+        return self.analyzer or configured_analyzer()
+
     def run_sync(
         self,
         question: str,
@@ -1162,7 +1172,7 @@ class ResearchRunManager:
         screened = review_metadata_candidates(
             merged,
             plan,
-            analyzer=self.analyzer,
+            analyzer=self._metadata_reviewer(),
             limit=limits.max_selected,
             cache=metadata_review_cache,
             check_cancelled=self._check_cancelled,
@@ -1351,7 +1361,7 @@ class ResearchRunManager:
             screened = review_metadata_candidates(
                 merged,
                 plan,
-                analyzer=self.analyzer,
+                analyzer=self._metadata_reviewer(),
                 limit=limits.max_selected,
                 cache=metadata_review_cache,
                 check_cancelled=self._check_cancelled,
