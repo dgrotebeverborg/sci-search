@@ -184,3 +184,21 @@ def test_pdf_subscript_spacing_matches_the_literal_term(text, term):
 def test_subscript_tolerance_does_not_change_the_characters():
     assert not concept_spans("HbA 12c was not measured", "hba1c")
     assert not concept_spans("HbA levels", "hba1c")
+
+
+@pytest.mark.parametrize(
+    ("text", "term", "expected"),
+    [
+        ("the use of antibiotics in livestock farms", "antibiotic use in livestock", True),
+        ("Long-term stability of perovskite solar cells", "perovskite solar cell stability", True),
+        ("working on memory tasks", "working memory", False),
+        (
+            "antibiotic resistance in humans was high; separately, livestock numbers rose and "
+            "land use changed over decades of policy",
+            "antibiotic use in livestock",
+            False,
+        ),
+    ],
+)
+def test_short_phrases_may_be_reordered_only_within_a_sentence_span(text, term, expected):
+    assert concept_present(text, term) is expected

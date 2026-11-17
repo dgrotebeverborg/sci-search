@@ -1,7 +1,8 @@
 """Conservative, domain-independent matching of research concepts.
 
-Short phrases require an exact normalized token sequence. Long descriptions can
-be restated locally, but every content anchor must occur within 80 tokens. No
+Two-anchor phrases require an exact normalized token sequence. Phrases with
+three to five content anchors may be reordered within 12 tokens; long
+descriptions within 80 tokens. Every content anchor must occur. No
 synonyms, partial anchor scores, or document-wide word bags are used.
 """
 
@@ -35,6 +36,10 @@ _CONNECTORS = frozenset(
 )
 _MIN_ANCHORS = 6
 _MAX_WINDOW_TOKENS = 80
+# Shorter phrases may be reordered only within a sentence-sized span; two-word
+# terms stay literal ("working memory" must not match "working on memory").
+_MIN_SHORT_ANCHORS = 3
+_SHORT_WINDOW_TOKENS = 12
 
 
 @lru_cache(maxsize=4)
@@ -134,8 +139,13 @@ def concept_spans(text: str, term: str) -> list[tuple[int, int]]:
     exact = _literal_spans(text, term)
     groups = _anchor_groups(term_words)
     normalized_term, _ = _normalized(term)
-    if len(groups) < _MIN_ANCHORS or re.search(r"[+−]|-(?:$|\s+(?!and\b|or\b))", normalized_term):
+    if len(groups) < _MIN_SHORT_ANCHORS or re.search(
+        r"[+−]|-(?:$|\s+(?!and\b|or\b))", normalized_term
+    ):
         return exact
+    # Three to five anchors ("antibiotic use in livestock") are restated in a
+    # short span ("use of antibiotics in livestock"); long descriptions more loosely.
+    window = _MAX_WINDOW_TOKENS if len(groups) >= _MIN_ANCHORS else _SHORT_WINDOW_TOKENS
     text_tokens = _tokens(text)
 
     compounds = [
@@ -156,7 +166,7 @@ def concept_spans(text: str, term: str) -> list[tuple[int, int]]:
             continue
         events.append((index, matched))
         counts.update(matched)
-        while events and index - events[0][0] >= _MAX_WINDOW_TOKENS:
+        while events and index - events[0][0] >= window:
             _, expired = events.popleft()
             counts.subtract(expired)
             counts += Counter()  # Remove zero counts before checking coverage.

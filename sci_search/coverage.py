@@ -760,6 +760,14 @@ _EXPOSURE_FORMS = {
     "content": ("{x}",),
     "incorporation": ("{x}", "incorporation of {x}"),
     "application": ("{x}", "application of {x}"),
+    # A policy change is studied as the policy: "minimum wage increases" papers
+    # write "minimum wages" and report the direction in their results.
+    "increases": ("{x}", "increases in {x}", "{x} increase"),
+    "increase": ("{x}", "increases in {x}"),
+    "changes": ("{x}", "changes in {x}"),
+    "reductions": ("{x}", "reductions in {x}"),
+    "cuts": ("{x}", "cuts in {x}"),
+    "hikes": ("{x}", "{x} hike"),
 }
 
 
