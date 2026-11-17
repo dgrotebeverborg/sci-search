@@ -44,7 +44,12 @@ from sci_search.metadata_recall import review_metadata_candidates
 from sci_search.mistral_analysis import MistralAnalyzer, analyze_if_configured
 from sci_search.model_provider import configured_model, selected_profile
 from sci_search.models import dataclass_to_dict
-from sci_search.question_planning import ResearchPlan, plan_from_brief, research_question
+from sci_search.question_planning import (
+    ResearchPlan,
+    parse_term_synonyms,
+    plan_from_brief,
+    research_question,
+)
 from sci_search.research.stages.acquisition import AcquisitionStage
 from sci_search.research.stages.analysis import AnalysisStage
 from sci_search.research.stages.base import StageContext
@@ -2115,6 +2120,9 @@ def _research_plan(payload: object) -> ResearchPlan:
         outcome_measure_terms=tuple(payload["outcome_measure_terms"])
         if payload.get("outcome_measure_terms") is not None
         else None,
+        term_synonyms=parse_term_synonyms(
+            payload.get("term_synonyms"), tuple(str(item) for item in payload["concepts"])
+        ),
     )
 
 

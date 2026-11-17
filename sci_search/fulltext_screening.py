@@ -149,7 +149,11 @@ def screen_full_text(
                 _contains(local_context, alias) for alias in aliases
             )
         if dimension.get("kind") == "population":
-            present = any(_contains(local_context, alias) for alias in aliases)
+            # The studied population is normally stated in the title or abstract,
+            # or else near the subject's results.
+            present = any(
+                _contains(metadata, alias) or _contains(local_context, alias) for alias in aliases
+            )
         if label in strict_scope_labels:
             if present:
                 strong_support.add(index)

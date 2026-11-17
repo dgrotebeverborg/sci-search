@@ -342,7 +342,9 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 "id": f"topic:{index}",
                 "kind": "topic",
                 "label": concept,
-                "terms": list(profile.expand(concept)),
+                "terms": list(_EXPLANATORY_CUES)
+                if _GENERIC_DRIVER.fullmatch(concept.casefold())
+                else list(dict.fromkeys([*profile.expand(concept), *_exposure_aliases(concept)])),
                 "required": True,
                 "statement_required": (
                     task in {"relationship", "comparison", "contradiction", "limitation"}
@@ -418,6 +420,7 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 },
             )
         )
+    dimensions = _with_plan_synonyms(dimensions, plan)
     return {
         "schema_version": "question_decomposition_v1",
         "task": task,
@@ -559,6 +562,66 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
     return tuple(dict.fromkeys(aliases))
 
 
+# "What factors explain X?" names no factor: any explicit explanation counts.
+_GENERIC_DRIVER = re.compile(
+    r"(?:the )?(?:main |key |possible |potential |underlying )?"
+    r"(?:factors?|drivers?|determinants?|causes?|reasons?|explanations?)"
+    r"(?:\s+(?:of|for|behind|explaining|that explain|driving)\b.*)?"
+)
+_EXPLANATORY_CUES = (
+    "determinant",
+    "determined by",
+    "explain",
+    "explains",
+    "explained",
+    "explaining",
+    "explained by",
+    "explanation",
+    "contribute to",
+    "contributes to",
+    "contributed to",
+    "contributing to",
+    "contribution of",
+    "decomposition",
+    "attributable to",
+    "attributed to",
+    "accounted for",
+    "accounts for",
+    "due to",
+    "driven by",
+    "associated with",
+)
+
+
+def _with_plan_synonyms(
+    dimensions: list[dict[str, Any]], plan: ResearchPlan
+) -> list[dict[str, Any]]:
+    """Add the plan's validated wording variants to every dimension using that term."""
+    synonyms = {term: variants for term, variants in plan.term_synonyms}
+    if not synonyms:
+        return dimensions
+
+    def widen(terms: list[Any]) -> list[str]:
+        words = [str(term) for term in terms]
+        extra = [v for term in words for v in synonyms.get(" ".join(term.casefold().split()), ())]
+        return list(dict.fromkeys([*words, *extra]))
+
+    result = []
+    for dimension in dimensions:
+        item = dict(dimension)
+        label = " ".join(str(item.get("label") or "").casefold().split())
+        if isinstance(item.get("terms"), list):
+            item["terms"] = widen([*item["terms"], *([label] if label in synonyms else [])])
+            if item.get("kind") == "population":
+                item["terms"] = list(
+                    dict.fromkeys(a for t in item["terms"] for a in _population_aliases(t))
+                )
+        if isinstance(item.get("term_groups"), list):
+            item["term_groups"] = [widen(list(group)) for group in item["term_groups"]]
+        result.append(item)
+    return result
+
+
 _EVALUATION_HEADS = (
     "diagnostic accuracy",
     "accuracy",
@@ -619,6 +682,43 @@ def _evaluated_outcome_aliases(name: str, profile: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(aliases))
 
 
+_SETTING_HEADS = (
+    "students",
+    "student",
+    "pupils",
+    "pupil",
+    "learners",
+    "patients",
+    "participants",
+    "residents",
+    "workers",
+    "employees",
+    "users",
+    "individuals",
+    "people",
+)
+# A bare modifier too vague to stand for the population on its own.
+_VAGUE_SETTINGS = frozenset({"adult", "young", "older", "elderly", "all", "the", "these"})
+
+
+_EXPOSURE_FORMS = {
+    "exposure": ("exposure to {x}", "{x}"),
+    "use": ("use of {x}", "{x}"),
+    "intake": ("intake of {x}", "{x} consumption", "consumption of {x}"),
+    "consumption": ("consumption of {x}", "{x} intake", "intake of {x}"),
+    "supplementation": ("supplementation with {x}", "{x} supplement"),
+}
+
+
+def _exposure_aliases(concept: str) -> tuple[str, ...]:
+    """ "X exposure" is equally written "exposure to X" or simply named as X."""
+    lowered = " ".join(concept.casefold().split())
+    match = re.fullmatch(rf"(.+?)\s+({'|'.join(_EXPOSURE_FORMS)})", lowered)
+    if not match:
+        return ()
+    return tuple(form.format(x=match[1]) for form in _EXPOSURE_FORMS[match[2]])
+
+
 def _population_aliases(population: str) -> tuple[str, ...]:
     """Equivalent ways of naming a condition-defined population.
 
@@ -633,6 +733,11 @@ def _population_aliases(population: str) -> tuple[str, ...]:
         lowered,
     )
     if not match:
+        # "<setting> students" / "<condition> patients": the setting or condition
+        # names the population; the generic person noun varies between papers.
+        setting = re.fullmatch(rf"(.+?)\s+(?:{'|'.join(_SETTING_HEADS)})", lowered)
+        if setting and len(setting[1].split()) >= 1 and setting[1] not in _VAGUE_SETTINGS:
+            return tuple(dict.fromkeys([population, setting[1]]))
         return (population,)
     condition = match[1]
     return tuple(

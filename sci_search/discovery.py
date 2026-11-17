@@ -489,7 +489,12 @@ def relationship_metadata_present(candidate: PublicationCandidate, plan: Researc
 def _concept_present(
     concept: str, plan: ResearchPlan, searchable: str, source_terms: set[str]
 ) -> bool:
-    aliases = PROFILES[plan.profile_id].expand(concept)
+    from sci_search.coverage import _GENERIC_DRIVER, _exposure_aliases
+
+    if concept in plan.driver_terms and _GENERIC_DRIVER.fullmatch(concept.casefold()):
+        return True  # "what factors explain X": any study of X may report them
+    synonyms = dict(plan.term_synonyms).get(" ".join(concept.casefold().split()), ())
+    aliases = (*PROFILES[plan.profile_id].expand(concept), *synonyms, *_exposure_aliases(concept))
     for alias in aliases:
         if _term_in_text(alias, searchable):
             return True

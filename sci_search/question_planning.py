@@ -210,6 +210,9 @@ class ResearchPlan:
     population_terms: tuple[str, ...] = ()
     time_terms: tuple[str, ...] | None = None
     outcome_measure_terms: tuple[str, ...] | None = None
+    # Wording variants for plan terms as papers write them (validated equivalents
+    # or narrower names, e.g. "zooplankton" -> "daphnia"); never broader terms.
+    term_synonyms: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 RESEARCH_INTENTS = (
@@ -300,6 +303,7 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
     concepts = tuple(
         dict.fromkeys((*subjects, *geography, *drivers, *measures, *population, *period))
     )
+    synonyms = parse_term_synonyms(structure.get("term_synonyms"), concepts)
     return replace(
         base,
         intent=structure["intent"],
@@ -307,7 +311,14 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
         entity_phrases=tuple(term for term in concepts if " " in term),
         expanded_terms=tuple(
             dict.fromkeys(
-                alias for term in concepts for alias in detect_profile(question).expand(term)
+                [
+                    *(
+                        alias
+                        for term in concepts
+                        for alias in detect_profile(question).expand(term)
+                    ),
+                    *(variant.casefold() for _, variants in synonyms for variant in variants),
+                ]
             )
         ),
         subject_terms=subjects,
@@ -320,7 +331,43 @@ def plan_from_brief(question: str, brief: dict[str, Any] | None) -> ResearchPlan
         population_terms=population,
         time_terms=period if "time_terms" in structure else None,
         outcome_measure_terms=measures if "outcome_measure_terms" in structure else None,
+        term_synonyms=synonyms,
     )
+
+
+def parse_term_synonyms(
+    value: Any, concepts: tuple[str, ...]
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Keep bounded wording variants for known plan terms; drop anything malformed.
+
+    Synonyms only widen how a term is recognised in text. Invalid entries are
+    ignored rather than failing the plan, because they never narrow scope.
+    """
+    if not isinstance(value, (list, tuple)):
+        return ()
+    known = set(concepts)
+    result: dict[str, list[str]] = {}
+    for entry in value[:16]:
+        if isinstance(entry, dict):
+            term, variants = entry.get("term"), entry.get("synonyms")
+        elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+            term, variants = entry
+        else:
+            continue
+        if not isinstance(term, str) or not isinstance(variants, (list, tuple)):
+            continue
+        term = " ".join(term.casefold().split())
+        if term not in known:
+            continue
+        for variant in variants[:6]:
+            if not isinstance(variant, str):
+                continue
+            cleaned = " ".join(variant.split())
+            if 2 <= len(cleaned) <= 80 and cleaned.casefold() != term:
+                result.setdefault(term, [])
+                if cleaned not in result[term]:
+                    result[term].append(cleaned)
+    return tuple((term, tuple(variants)) for term, variants in result.items())
 
 
 def _without_places(subjects: tuple[str, ...], places: tuple[str, ...]) -> tuple[str, ...]:

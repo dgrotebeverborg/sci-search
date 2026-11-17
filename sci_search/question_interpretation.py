@@ -83,9 +83,27 @@ QUESTION_BRIEF_SCHEMA: dict[str, Any] = {
                 "population_terms",
                 "time_terms",
                 "outcome_measure_terms",
+                "term_synonyms",
             ],
             "properties": {
                 "intent": {"type": "string", "enum": list(RESEARCH_INTENTS)},
+                "term_synonyms": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["term", "synonyms"],
+                        "properties": {
+                            "term": {"type": "string", "minLength": 1, "maxLength": 150},
+                            "synonyms": {
+                                "type": "array",
+                                "maxItems": 6,
+                                "items": {"type": "string", "minLength": 2, "maxLength": 80},
+                            },
+                        },
+                    },
+                },
                 "relationship_type": {
                     "type": "string",
                     "enum": ["association", "influence", "unspecified"],
@@ -327,7 +345,18 @@ def _model_interpretation(
                     "example ['insect biomass'] rather than ['insect biomass in Germany']. "
                     "evidence_scope must describe studies that measure or compare the factor and outcome, "
                     "not repeat the topic keywords, and must allow supportive, null and opposing results."
-                    + STRATEGY_PROMPT
+                    " Keep every plan term a short noun phrase that papers actually use (2-4 words), "
+                    "never a description such as 'factors explaining X' or a combination of two "
+                    "terms such as 'zooplankton survival' when the population and outcome are separate terms. "
+                    "For 'what factors explain X' questions with no named factor, driver_terms is "
+                    "['determinants'] and relationship_type is influence. "
+                    "term_synonyms lists, for each subject, driver, population and outcome term, up to 6 "
+                    "wording variants that papers use for the SAME concept: abbreviations, spelling "
+                    "variants, standard equivalent names (elementary school for primary school) and "
+                    "commonly studied members that fully belong to it (Daphnia for freshwater zooplankton). "
+                    "Never list broader terms, related but different concepts, or outcome metrics "
+                    "(sensitivity is not a synonym of accuracy). Each term must be copied exactly from "
+                    "the plan." + STRATEGY_PROMPT
                 ),
             },
             {
