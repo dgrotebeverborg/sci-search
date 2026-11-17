@@ -9,6 +9,7 @@ import os
 import re
 import socket
 import time
+import unicodedata
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -147,6 +148,7 @@ def acquire_full_text(
             ) as exc:
                 errors.append(f"Repository OA PDF: {type(exc).__name__}: {exc}")
     openalex_work_id = _openalex_work_id(candidate.openalex_id)
+    openalex_other_document = False
     if openalex_work_id and candidate.is_open_access and candidate.has_structured_fulltext:
         url = f"https://content.openalex.org/works/{openalex_work_id}.grobid-xml"
         try:
@@ -155,6 +157,13 @@ def acquire_full_text(
             text = tei_xml_to_text(body)
             if len(text) < 1000:
                 raise ValueError("structured full text contains fewer than 1000 text characters")
+            if not _matches_candidate_title(body, candidate):
+                # OpenAlex sometimes holds a protocol or supplement for the work;
+                # its PDF is the same file, so neither is this publication.
+                openalex_other_document = True
+                raise ValueError(
+                    "structured full text is a different document: " + _structured_title(body)[:160]
+                )
             path = papers / f"{safe_id}.xml"
             path.write_bytes(body)
             relative = path.relative_to(corpus_directory).as_posix()
@@ -187,7 +196,12 @@ def acquire_full_text(
             )
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, ET.ParseError) as exc:
             errors.append(f"OpenAlex XML: {type(exc).__name__}: {exc}")
-    if openalex_work_id and candidate.is_open_access and candidate.has_pdf:
+    if (
+        openalex_work_id
+        and candidate.is_open_access
+        and candidate.has_pdf
+        and not openalex_other_document
+    ):
         url = f"https://content.openalex.org/works/{openalex_work_id}.pdf"
         try:
             body, content_type = fetch(url, {"api_key": openalex_api_key})
@@ -220,6 +234,36 @@ def acquire_full_text(
         0,
         0,
         "; ".join(errors) or "no trusted open full-text location was available",
+    )
+
+
+def _structured_title(body: bytes) -> str:
+    """The document's own title from a TEI header or JATS title group, if present."""
+    raw = body.decode("utf-8", errors="ignore")
+    match = re.search(r"<titleStmt>\s*<title[^>]*>(.*?)</title>", raw, re.S) or re.search(
+        r"<title-group>\s*<article-title[^>]*>(.*?)</article-title>", raw, re.S
+    )
+    return " ".join(re.sub(r"<[^>]+>", " ", match.group(1)).split()) if match else ""
+
+
+def _matches_candidate_title(body: bytes, candidate: PublicationCandidate) -> bool:
+    """False only when the document names a clearly different title.
+
+    Over 520 retained structured texts this flagged only a study protocol stored
+    for a trial article; documents without a header title are accepted.
+    """
+    from difflib import SequenceMatcher
+
+    def key(value: str) -> str:
+        return re.sub(r"[^\w]+", "", unicodedata.normalize("NFKC", value).casefold())
+
+    found, expected = key(_structured_title(body)), key(candidate.title)
+    if not found or not expected:
+        return True
+    return (
+        expected[:40] in found
+        or found[:40] in expected
+        or SequenceMatcher(None, expected, found).ratio() >= 0.6
     )
 
 

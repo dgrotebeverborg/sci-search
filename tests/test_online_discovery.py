@@ -786,6 +786,67 @@ class OnlineDiscoveryTests(unittest.TestCase):
                 .startswith(b"%PDF-")
             )
 
+    def _tei(self, title: str) -> bytes:
+        paragraph = "Fasting lowered HbA1c in adults with type 2 diabetes. " * 30
+        return (
+            "<TEI xmlns='http://www.tei-c.org/ns/1.0'><teiHeader><fileDesc><titleStmt>"
+            f"<title level='a' type='main'>{title}</title></titleStmt></fileDesc></teiHeader>"
+            f"<text><body><div><head>Results</head><p>{paragraph}</p></div></body></text></TEI>"
+        ).encode()
+
+    def _structured_source(self, title: str) -> PublicationCandidate:
+        base = candidate("publication:early", title, "Glycemic control trial.")
+        return PublicationCandidate(
+            **{
+                field: (True if field == "has_pdf" else getattr(base, field))
+                for field in base.__dataclass_fields__
+            }
+        )
+
+    def test_structured_text_of_a_different_document_is_rejected_with_its_pdf(self) -> None:
+        # Live run 2026-11-17: OpenAlex held the trial's study protocol for the article.
+        source = self._structured_source(
+            "A 5:2 Intermittent Fasting Meal Replacement Diet and Glycemic Control for "
+            "Adults With Diabetes: The EARLY Randomized Clinical Trial"
+        )
+        requested: list[str] = []
+
+        def fetch(url: str, params: dict[str, str]) -> tuple[bytes, str]:
+            requested.append(url)
+            if url.endswith(".pdf"):
+                return b"%PDF-1.7\nprotocol", "application/pdf"
+            return self._tei("Study Protocol Topic name: Exploration of Treatment Models"), (
+                "application/xml"
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            outcome = acquire_full_text(
+                source, Path(temporary), openalex_api_key="test-key", fetch_bytes=fetch
+            )
+        self.assertEqual(outcome.status, "failed")
+        self.assertIn("different document", str(outcome.error))
+        self.assertFalse(any(url.endswith(".pdf") for url in requested))
+
+    def test_structured_text_with_matching_or_missing_title_is_accepted(self) -> None:
+        title = "Intermittent fasting and glycemic control in type 2 diabetes"
+        for header in (title.upper() + ": a randomized trial", ""):
+            with self.subTest(header=header):
+                source = self._structured_source(title)
+
+                def fetch(
+                    url: str, params: dict[str, str], header: str = header
+                ) -> tuple[bytes, str]:
+                    if url.endswith(".pdf"):
+                        return b"%PDF-1.7\narticle", "application/pdf"
+                    return self._tei(header), "application/xml"
+
+                with tempfile.TemporaryDirectory() as temporary:
+                    outcome = acquire_full_text(
+                        source, Path(temporary), openalex_api_key="test-key", fetch_bytes=fetch
+                    )
+                self.assertEqual(outcome.status, "acquired")
+                self.assertEqual(outcome.source, "openalex_grobid")
+
     def test_acquisition_uses_explicit_open_publisher_pdf(self) -> None:
         base = candidate(
             "publication:publisher-pdf",
