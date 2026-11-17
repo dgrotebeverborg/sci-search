@@ -4,7 +4,7 @@
 # coverage code, while its offline compute entry point needs only calculations.
 ENGINE_MANIFEST = {
     "calculations.py": (),
-    "cbs_odata.py": (),
+    "cbs_odata.py": ("packages.py",),
     "tabular.py": ("calculations.py",),
     "packages.py": (
         "tabular.py",

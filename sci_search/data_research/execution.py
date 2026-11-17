@@ -65,7 +65,22 @@ def replay_dependencies(directory, environment):
         retained = inventory.get(canonical(name))
         if retained is None:
             return False
+        if retained in dependencies:
+            return True
         dependencies[retained] = installed[retained]
+        # Lock the installed closure too: a newer transitive release (numpy,
+        # dateutil...) can change replayed numbers. Optional extras are skipped.
+        try:
+            requirements = importlib.metadata.requires(retained) or []
+        except importlib.metadata.PackageNotFoundError:
+            requirements = []
+        for requirement in requirements:
+            requirement_name, _, marker = requirement.partition(";")
+            if "extra" in marker:
+                continue
+            match = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", requirement_name)
+            if match:
+                pin(match[1])
         return True
 
     # pandas documents these optional readers; pip installing pandas alone does
@@ -80,7 +95,9 @@ def replay_dependencies(directory, environment):
     for script in sorted(Path(directory).rglob("script.py")):
         copied = set((script.parent / "input").glob("*.py"))
         copied.update(script.parent.glob("*.py"))
-        local = {p.stem for p in copied}
+        # Copied helpers may optionally import the application package itself;
+        # that is never a replay dependency and cannot be installed offline.
+        local = {p.stem for p in copied} | {__name__.partition(".")[0]}
         for helper in sorted(copied):
             if helper.is_symlink():
                 dynamic.add(str(helper.relative_to(directory)) + ": symlink was not inspected")
@@ -136,7 +153,8 @@ def replay_dependencies(directory, environment):
         "unresolved_imports": sorted(unresolved),
         "dynamic_imports": sorted(dynamic),
         "scope": "Static imports in retained scripts and copied Python helpers, plus installed "
-        "documented pandas Excel engines; pip resolves transitive dependencies. "
+        "documented pandas Excel engines, with their installed non-optional "
+        "transitive dependencies pinned. "
         "Missing optional Excel engines are reported conservatively. Dynamic and other "
         "indirect library imports may need additional packages.",
     }

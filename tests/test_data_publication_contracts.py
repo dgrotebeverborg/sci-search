@@ -257,3 +257,34 @@ def test_duplicate_source_ids_are_not_resolved_by_list_order():
 
     with pytest.raises(ValueError):
         resolve_source("source-1", [{"source_id": "source-1"}, {"source_id": "source-1"}], {})
+
+
+@pytest.mark.parametrize("name", ["api-response.bin", "detail.bin"])
+def test_resume_restores_api_and_detail_page_bodies(tmp_path, name):
+    import hashlib
+    import json
+
+    from sci_search.data_research.source_state import restore_retained
+
+    folder = tmp_path / "source-3"
+    folder.mkdir()
+    body, metadata = b"api bytes", "Observed metadata"
+    assessment = {
+        "source_id": "source-3",
+        "source_digest": hashlib.sha256(body).hexdigest(),
+        "context_digest": hashlib.sha256(metadata.encode()).hexdigest(),
+    }
+    (folder / "source-context.json").write_text(
+        json.dumps(
+            {
+                "source_id": "source-3",
+                "folder": "source-3",
+                "metadata": metadata,
+                "source": {"sha256": assessment["source_digest"]},
+            }
+        )
+    )
+    (folder / "assessment.json").write_text(json.dumps(assessment))
+    (folder / "landing.bin").write_bytes(b"landing page")
+    (folder / name).write_bytes(body)
+    assert restore_retained(tmp_path, [assessment])["source-3"]["body"] == body

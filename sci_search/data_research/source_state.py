@@ -47,7 +47,7 @@ def restore_retained(directory, assessments):
         context_path, assessment_path = folder / "source-context.json", folder / "assessment.json"
         # Dossiers are metadata rather than sealed execution artifacts; never
         # follow links while discovering their identity and expected digests.
-        if any(p.is_symlink() for p in (context_path, assessment_path, folder, *folder.parents)):
+        if any(p.is_symlink() for p in (context_path, assessment_path, folder)):
             continue
         try:
             context = json.loads(context_path.read_text())
@@ -80,7 +80,13 @@ def restore_retained(directory, assessments):
                 continue
             if hashlib.sha256(context["metadata"].encode()).hexdigest() != context_digest:
                 continue
-            for name in ("download.bin", "source.bin", "landing.bin"):
+            for name in (
+                "download.bin",
+                "source.bin",
+                "detail.bin",
+                "api-response.bin",
+                "landing.bin",
+            ):
                 try:
                     validate_artifacts(folder, {name: source_digest})
                 except ValueError:
