@@ -111,7 +111,8 @@ def screen_full_text(
         if driver_aliases:
             support_groups.append(("explanatory drivers", driver_aliases))
     local_context = _subject_context(
-        substantive, tuple(alias for _, aliases in core_groups for alias in aliases)
+        substantive,
+        _context_anchors((alias for _, aliases in core_groups for alias in aliases), text),
     )
     support_body = (
         local_context
@@ -415,7 +416,7 @@ def _group_strength(
     aliases: tuple[str, ...], metadata: str, body: str, *, primary: bool = False
 ) -> int:
     metadata_hit = any(_contains(metadata, alias) for alias in aliases)
-    body_count = max((_count(body, alias) for alias in aliases), default=0)
+    body_count = _count_any(body, aliases)
     if primary:
         return 2 if metadata_hit and body_count >= 1 else 1 if metadata_hit or body_count else 0
     if body_count >= 2 or (metadata_hit and body_count >= 1):
@@ -433,6 +434,24 @@ def _without_references(text: str) -> str:
             cut = match.start()
             break
     return lowered[:cut]
+
+
+def _context_anchors(aliases: Any, text: str) -> tuple[str, ...]:
+    """Subject phrases used to locate the passages that discuss the subject.
+
+    A subject qualified by its setting ("antimicrobial resistance in humans")
+    is discussed under its core name; the qualifier is checked on the whole
+    document by the subject match itself, so only the context search uses the
+    core name, and under the abbreviation the document defines for it.
+    """
+    anchors: list[str] = []
+    for alias in aliases:
+        anchors.append(alias)
+        core = re.match(r"(.+?)\s+(?:in|among|of)\s+\S.*$", alias)
+        if core and len(core[1].split()) >= 2:
+            anchors.append(core[1])
+            anchors.extend(defined_abbreviations(core[1], text))
+    return tuple(dict.fromkeys(anchors))
 
 
 def _subject_context(text: str, aliases: tuple[str, ...], *, radius: int = 600) -> str:
@@ -499,6 +518,23 @@ def _count(text: str, term: str) -> int:
                 previous_end = end
         counts.append(nonoverlapping)
     return max(counts, default=0)
+
+
+def _count_any(text: str, aliases: tuple[str, ...]) -> int:
+    """Distinct mentions of a concept, whichever of its equivalent wordings is used."""
+    spans = sorted(
+        span
+        for alias in aliases
+        for form in _inflection_forms(alias)
+        for span in concept_spans(text, form)
+    )
+    count = 0
+    previous_end = -1
+    for start, end in spans:
+        if start >= previous_end:
+            count += 1
+            previous_end = end
+    return count
 
 
 def _inflection_forms(term: str) -> tuple[str, ...]:

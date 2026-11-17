@@ -268,3 +268,21 @@ class DefinedAbbreviationTests(unittest.TestCase):
         item = candidate("review", "Intermittent fasting and HbA1c", body)
         decision = screen_full_text(question, plan, item, text)
         self.assertNotIn("adults with type 2 diabetes", decision.missing_groups)
+
+
+def test_context_anchors_use_core_name_and_its_defined_abbreviation():
+    from sci_search.fulltext_screening import _context_anchors
+
+    text = "Antimicrobial resistance (AMR) is rising. AMR genes spread."
+    anchors = _context_anchors(["antimicrobial resistance in humans"], text)
+    assert "antimicrobial resistance" in anchors
+    assert "AMR" in anchors
+    # A one-word core is too broad to locate the subject on its own.
+    assert _context_anchors(["memory in adults"], text) == ("memory in adults",)
+
+
+def test_mentions_count_across_equivalent_wordings():
+    from sci_search.fulltext_screening import _count_any
+
+    text = "antibiotic use in livestock rose. later, antimicrobial use in livestock fell."
+    assert _count_any(text, ("antibiotic use in livestock", "antimicrobial use in livestock")) == 2
