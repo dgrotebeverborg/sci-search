@@ -109,3 +109,40 @@ def test_outcome_only_abstract_is_reviewed_not_auto_selected_for_a_relationship(
         )
     }
     assert screened == {"meat": "uncertain", "tax": "selected"}
+
+
+def test_metadata_gate_accepts_reordered_and_process_noun_concepts():
+    from sci_search.discovery import _concept_present, _tokens
+
+    question = "What role did the printing press play in the spread of the Protestant Reformation?"
+    plan = replace(
+        plan_question(question),
+        intent="relationship",
+        concepts=("protestant reformation spread", "printing press"),
+        subject_terms=("protestant reformation spread",),
+        driver_terms=("printing press",),
+    )
+    for title in (
+        "The Spread of the Protestant Reformation of the Sixteenth Century",
+        "Printing and the Protestant Reformation",
+    ):
+        text = title.lower()
+        assert _concept_present("protestant reformation spread", plan, text, set(_tokens(text)))
+    text = "reformed spreadsheets for protestant schools"
+    assert not _concept_present("protestant reformation spread", plan, text, set(_tokens(text)))
+
+
+def test_class_geography_uses_equivalent_names_and_is_not_statement_bound():
+    question = "Does microfinance reduce household poverty in developing countries?"
+    plan = replace(
+        plan_question(question),
+        intent="relationship",
+        subject_terms=("household poverty",),
+        driver_terms=("microfinance",),
+        geography_terms=("developing countries",),
+    )
+    geography = next(
+        d for d in decompose_question(question, plan)["dimensions"] if d["kind"] == "geography"
+    )
+    assert {"lmics", "low-income countries"} <= set(geography["terms"])
+    assert geography["place_class"] and not geography["statement_required"]

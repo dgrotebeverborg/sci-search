@@ -140,7 +140,12 @@ def screen_full_text(
                 _contains(metadata, alias) or _contains(substantive, alias) for alias in aliases
             )
         )
-        if focus and dimension.get("kind") == "geography":
+        if dimension.get("place_class"):
+            # "developing countries" frames a study; any mention in the paper counts.
+            present = any(_contains(substantive, alias) for alias in aliases) or any(
+                _contains(metadata, alias) for alias in aliases
+            )
+        elif focus and dimension.get("kind") == "geography":
             # A geographic name elsewhere in a document (or a reference to
             # another region) does not establish the location of this study.
             regional_study = any(_contains(metadata, alias) for alias in aliases)

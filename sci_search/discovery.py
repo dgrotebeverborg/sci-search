@@ -407,8 +407,12 @@ def screen_candidates(
                     "excluded",
                     f"the explanatory subject {focus[0]!r} is absent from the metadata",
                 )
-            elif candidate.abstract and focus[1] and not any(
-                _concept_present(driver, plan, searchable, source_terms) for driver in focus[1]
+            elif (
+                candidate.abstract
+                and focus[1]
+                and not any(
+                    _concept_present(driver, plan, searchable, source_terms) for driver in focus[1]
+                )
             ):
                 # Outcome-only abstracts (e.g. emissions inventories for a carbon-tax
                 # question) otherwise fill the full-text budget; let review decide.
@@ -496,12 +500,21 @@ def relationship_metadata_present(candidate: PublicationCandidate, plan: Researc
 def _concept_present(
     concept: str, plan: ResearchPlan, searchable: str, source_terms: set[str]
 ) -> bool:
-    from sci_search.coverage import _GENERIC_DRIVER, _exposure_aliases
+    from sci_search.coverage import _ACTION_GERUNDS, _GENERIC_DRIVER, _exposure_aliases
 
     if concept in plan.driver_terms and _GENERIC_DRIVER.fullmatch(concept.casefold()):
         return True  # "what factors explain X": any study of X may report them
     synonyms = dict(plan.term_synonyms).get(" ".join(concept.casefold().split()), ())
-    aliases = (*PROFILES[plan.profile_id].expand(concept), *synonyms, *_exposure_aliases(concept))
+    process = re.fullmatch(
+        rf"(.+?)\s+(?:{'|'.join(_ACTION_GERUNDS)})", " ".join(concept.casefold().split())
+    )
+    aliases = (
+        *PROFILES[plan.profile_id].expand(concept),
+        *synonyms,
+        *_exposure_aliases(concept),
+        # Recall gate: "X spread" studies are found by X; full text checks the rest.
+        *((process[1],) if process else ()),
+    )
     for alias in aliases:
         if _term_in_text(alias, searchable):
             return True
@@ -510,7 +523,33 @@ def _concept_present(
             _inflection_match(alias_tokens[0], source) for source in source_terms
         ):
             return True
-        if len(alias_tokens) > 1 and _ordered_alias_match(alias, searchable):
+        if len(alias_tokens) > 1 and (
+            _ordered_alias_match(alias, searchable) or _local_alias_match(alias, searchable)
+        ):
+            return True
+    return False
+
+
+_CONNECTOR_WORDS = frozenset({"of", "the", "a", "an", "in", "on", "for", "to", "and", "with", "by"})
+
+
+def _local_alias_match(alias: str, text: str, *, window: int = 8) -> bool:
+    """All content words of a multi-word concept within a short span, in any order.
+
+    "protestant reformation spread" is written "the spread of the Protestant
+    Reformation". This is a metadata recall gate; full-text screening stays strict.
+    """
+    expected = [
+        word
+        for word in re.findall(r"[a-z][a-z0-9]{1,}", alias.lower())
+        if word not in _CONNECTOR_WORDS
+    ]
+    available = re.findall(r"[a-z][a-z0-9]{1,}", text.lower())
+    if len(expected) < 2:
+        return False
+    for start in range(len(available)):
+        span = available[start : start + window]
+        if all(any(_inflection_match(word, value) for value in span) for word in expected):
             return True
     return False
 

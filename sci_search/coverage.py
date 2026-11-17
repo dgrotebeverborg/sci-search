@@ -157,7 +157,9 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
             if any(_contains(lowered, term) for term in terms)
         ]
     )
-    location_groups = {name: _LOCATIONS.get(name, (name,)) for name in locations}
+    location_groups = {
+        name: _LOCATIONS.get(name) or _PLACE_CLASSES.get(name, (name,)) for name in locations
+    }
     for name in locations:
         broad_requested = (name == "europe" and bool(re.search(r"\beurope(?:an)?\b", lowered))) or (
             name == "global" and bool(re.search(r"\b(?:global|worldwide|world)\b", lowered))
@@ -177,8 +179,14 @@ def decompose_question(question: str, plan: ResearchPlan) -> dict[str, Any]:
                 "terms": terms,
                 "required": True,
                 "broad_requested": broad_requested,
-                "statement_required": broad_requested
-                or task in {"relationship", "comparison", "contradiction", "temporal_trend"},
+                # A class of places is named in a paper's framing, while its results
+                # name the specific country; it cannot be required in each statement.
+                "place_class": name in _PLACE_CLASSES,
+                "statement_required": name not in _PLACE_CLASSES
+                and (
+                    broad_requested
+                    or task in {"relationship", "comparison", "contradiction", "temporal_trend"}
+                ),
             }
         )
 
@@ -557,7 +565,12 @@ def _scope_aliases(concept: str, profile: Any, question: str) -> tuple[str, ...]
                     targets.append(alias)
         for item in dict.fromkeys(targets):
             aliases.extend(
-                (f"{item} {noun}", f"{noun} of {item}", f"{_ACTION_GERUNDS[noun]} {item}")
+                (
+                    f"{item} {noun}",
+                    f"{noun} of {item}",
+                    f"{noun} of the {item}",
+                    f"{_ACTION_GERUNDS[noun]} {item}",
+                )
             )
     return tuple(dict.fromkeys(aliases))
 
@@ -622,6 +635,34 @@ def _with_plan_synonyms(
     return result
 
 
+_DEVELOPING = (
+    "developing countries",
+    "developing country",
+    "developing economies",
+    "developing nations",
+    "low-income countries",
+    "low- and middle-income countries",
+    "low and middle income countries",
+    "lmics",
+    "lmic",
+    "emerging economies",
+    "global south",
+)
+# Classes of places, recognised by their standard equivalent names.
+_PLACE_CLASSES: dict[str, tuple[str, ...]] = {
+    name: _DEVELOPING
+    for name in (
+        "developing countries",
+        "developing economies",
+        "developing nations",
+        "low-income countries",
+        "low- and middle-income countries",
+        "low and middle income countries",
+        "lmics",
+        "global south",
+        "emerging economies",
+    )
+}
 _EVALUATION_HEADS = (
     "diagnostic accuracy",
     "accuracy",
@@ -635,6 +676,12 @@ _MARKET_QUALIFIERS = frozenset(
 )
 # Nominalised research actions and the verb form used for the same concept.
 _ACTION_GERUNDS = {
+    "spread": "spreading",
+    "diffusion": "diffusing",
+    "adoption": "adopting",
+    "expansion": "expanding",
+    "growth": "growing",
+    "decline": "declining",
     "detection": "detecting",
     "diagnosis": "diagnosing",
     "prediction": "predicting",
@@ -707,6 +754,12 @@ _EXPOSURE_FORMS = {
     "intake": ("intake of {x}", "{x} consumption", "consumption of {x}"),
     "consumption": ("consumption of {x}", "{x} intake", "intake of {x}"),
     "supplementation": ("supplementation with {x}", "{x} supplement"),
+    "replacement": ("{x}", "replacement with {x}"),
+    "substitution": ("{x}", "substitution with {x}"),
+    "addition": ("{x}", "addition of {x}"),
+    "content": ("{x}",),
+    "incorporation": ("{x}", "incorporation of {x}"),
+    "application": ("{x}", "application of {x}"),
 }
 
 
