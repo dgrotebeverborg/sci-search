@@ -28,6 +28,23 @@ def result_quality(investigation: dict[str, Any]) -> dict[str, Any]:
         }
     if data.get("kind") == "discovered":
         blocked = not data.get("analyses")
+        completion = data.get("output_completion") or {}
+        cells = (data.get("coverage") or {}).get("cells") or []
+        if (
+            not blocked
+            and completion.get("numerical_answer_status") == "complete"
+            and not any(cell.get("conflicts") for cell in cells)
+        ):
+            return {
+                "status": "adequate",
+                "label": "Numerical answer complete",
+                "explanation": "Every requested measurement, entity, year and calculation has a "
+                "verified value from a retained source, with no conflicting sources. Inspect "
+                "source definitions before drawing conclusions.",
+                "expert_validation": False,
+                "qualifying_passages": 0,
+                "validation_note": "Model-assisted source assessment is not expert validation. Literature, when requested, is assessed separately.",
+            }
         return {
             "status": "insufficient" if blocked else "partial",
             "label": "Numerical answer unavailable" if blocked else "Data coverage requires review",

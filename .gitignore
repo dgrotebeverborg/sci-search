@@ -18,3 +18,6 @@ data/research_runs
 data/local_research_runs/
 data/scientific_memory
 data/validation_replays
+data/validation_runs/
+# Separate repository for the promotional site.
+promo/

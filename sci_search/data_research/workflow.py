@@ -1451,18 +1451,64 @@ def _execute(
     return conclude(covered)
 
 
+def _numerically_complete(result):
+    """Every requested value and calculation is verified and no sources conflict."""
+    cells = (result.get("coverage") or {}).get("cells") or []
+    return (
+        bool(result.get("analyses"))
+        and (result.get("output_completion") or {}).get("numerical_answer_status") == "complete"
+        and not any(cell.get("conflicts") for cell in cells)
+    )
+
+
+def _data_answer_summary(result, count):
+    """Describe what the verified numbers cover; never states a finding itself."""
+    cells = (result.get("coverage") or {}).get("cells") or []
+    strategy = result.get("strategy") or {}
+    measurements = ", ".join(strategy.get("measurements") or []) or "the requested measurements"
+    entities = sorted({str(c.get("entity")) for c in cells if c.get("entity")})
+    start, end = strategy.get("start_year"), strategy.get("end_year")
+    period = f" for {start}–{end}" if start and end else ""
+    where = f" ({', '.join(entities)})" if entities else ""
+    conflicted = sorted({str(c.get("entity")) for c in cells if c.get("conflicts")})
+    if _numerically_complete(result):
+        summary = (
+            f"Verified annual data for {measurements}{where}{period} from {count} dataset(s)"
+        )
+        if (result.get("output_completion") or {}).get("calculation_status") == "complete":
+            summary += ", including the requested calculations"
+        return summary + ". See the series and source decisions below."
+    summary = f"Analysed {count} downloaded dataset(s) for {measurements}{where}{period}."
+    if conflicted:
+        summary += (
+            " Sources report different values for "
+            + ", ".join(conflicted)
+            + "; the conflicting series are shown side by side rather than merged."
+        )
+    missing = sorted(
+        {str(c.get("entity")) for c in cells if c.get("status") not in {"complete", None}}
+        - set(conflicted)
+    )
+    if missing:
+        summary += " Coverage is incomplete for " + ", ".join(missing) + "."
+    return summary + " Inspect the measurements, coverage and source decisions below."
+
+
 def investigation(question, brief, result):
     count = len(result["analyses"])
+    complete = _numerically_complete(result)
     return {
         "question": question,
         "question_brief": brief,
         "data_analysis": result,
-        "answer_summary": f"Analysed {count} downloaded dataset(s). Inspect the measurements, coverage and source decisions below."
+        "answer_summary": _data_answer_summary(result, count)
         if count
         else "Dataset research did not yield a supported numerical analysis. Source decisions and access limitations are shown below.",
+        # Numerical completeness is checked against every requested measurement,
+        # entity, year and calculation; it is not an interpretation of the data.
         "answer_adequacy": {
-            "status": "partial" if count else "insufficient",
-            "can_answer_overall_question": False,
+            "status": "adequate" if complete else "partial" if count else "insufficient",
+            "can_answer_overall_question": complete,
         },
         "ai_analysis": {
             "status": "complete",
