@@ -1472,9 +1472,7 @@ def _data_answer_summary(result, count):
     where = f" ({', '.join(entities)})" if entities else ""
     conflicted = sorted({str(c.get("entity")) for c in cells if c.get("conflicts")})
     if _numerically_complete(result):
-        summary = (
-            f"Verified annual data for {measurements}{where}{period} from {count} dataset(s)"
-        )
+        summary = f"Verified annual data for {measurements}{where}{period} from {count} dataset(s)"
         if (result.get("output_completion") or {}).get("calculation_status") == "complete":
             summary += ", including the requested calculations"
         return summary + ". See the series and source decisions below."
