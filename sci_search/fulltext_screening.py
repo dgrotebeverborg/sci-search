@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sci_search.concept_matching import concept_spans
-from sci_search.coverage import decompose_question, defined_abbreviations
+from sci_search.coverage import decompose_question, defined_abbreviations, species_variants
 from sci_search.discovery import PublicationCandidate
 from sci_search.question_planning import ResearchPlan, plan_focus
 
@@ -348,7 +348,8 @@ def _with_defined_abbreviations(
     Papers define a term once ("type 2 diabetes (T2D)", "atrial fibrillation
     (AF)") and use only the abbreviation afterwards. Only an explicit
     parenthetical definition counts, and the abbreviation must start with the
-    term's first letter, so no outside synonym knowledge is introduced.
+    term's first letter, so no outside synonym knowledge is introduced. Genus
+    names are likewise widened to the binomials the document itself uses.
     """
     return [
         (
@@ -358,6 +359,7 @@ def _with_defined_abbreviations(
                     [
                         *aliases,
                         *(abbr for alias in aliases for abbr in defined_abbreviations(alias, text)),
+                        *(name for alias in aliases for name in species_variants(alias, text)),
                     ]
                 )
             ),

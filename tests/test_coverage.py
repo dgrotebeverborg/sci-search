@@ -527,3 +527,33 @@ def test_study_population_named_in_methods_scopes_result_passages():
     }
     assert population_ids
     assert all(population_ids <= set(item.scope_dimension_ids) for item in result_records)
+
+
+def test_genus_term_accepts_binomials_the_document_abbreviates():
+    from sci_search.coverage import species_variants
+
+    text = "Daphnia magna were exposed. Survival of D. magna fell. Daphnia were fed algae."
+    variants = species_variants("Daphnia survival", text)
+    assert "survival of D. magna" in variants
+    assert "Daphnia magna survival" in variants
+    # "Daphnia were" is not a species name: the genus is never abbreviated with it.
+    assert not any("were" in item for item in variants)
+    assert species_variants("Daphnia survival", "Daphnia magna only, never abbreviated.") == ()
+
+
+def test_subject_synonyms_also_accept_of_form():
+    question = "How does microplastic exposure affect zooplankton survival?"
+    plan = replace(
+        plan_question(question),
+        intent="relationship",
+        subject_terms=("zooplankton survival",),
+        driver_terms=("microplastic exposure",),
+        concepts=("zooplankton survival", "microplastic exposure"),
+        term_synonyms=(("zooplankton survival", ("Daphnia survival",)),),
+    )
+    subject = next(
+        item
+        for item in decompose_question(question, plan)["dimensions"]
+        if item["kind"] == "subject"
+    )
+    assert "survival of Daphnia" in subject["terms"]

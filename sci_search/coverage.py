@@ -680,6 +680,31 @@ def defined_abbreviations(term: str, text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(found))
 
 
+def species_variants(term: str, text: str) -> tuple[str, ...]:
+    """Binomial names a document uses for a genus named in ``term``.
+
+    "Daphnia survival" is written "Daphnia magna survival" or "survival of
+    D. magna". An epithet counts only when the document also abbreviates the
+    genus with it ("D. magna"), which marks a species name rather than a verb.
+    """
+    words = term.split()
+    variants: list[str] = []
+    for index, word in enumerate(words):
+        if not (word[:1].isupper() and word[1:].islower() and word.isalpha() and len(word) >= 4):
+            continue
+        for epithet in dict.fromkeys(
+            match[1] for match in re.finditer(rf"\b{word}\s+([a-z]{{3,}})\b", text)
+        ):
+            if not re.search(rf"\b{word[0]}\.\s?{epithet}\b", text):
+                continue
+            for name in (f"{word} {epithet}", f"{word[0]}. {epithet}"):
+                variants.append(" ".join([*words[:index], name, *words[index + 1 :]]))
+                if len(words) == 2:
+                    other = words[1 - index]
+                    variants.append(f"{other} of {name}" if index == 0 else f"{name} of {other}")
+    return tuple(dict.fromkeys(variants))
+
+
 def statement_scope(
     decomposition: dict[str, Any], passage: str, document_text: str
 ) -> dict[str, Any]:
@@ -700,6 +725,7 @@ def statement_scope(
             if len(words) < 2:
                 continue
             extra.extend(defined_abbreviations(term, document_text))
+            extra.extend(species_variants(term, document_text))
             head = words[-1]
             if (
                 len(head) >= 7
@@ -735,23 +761,36 @@ def _with_plan_synonyms(
     if not synonyms:
         return dimensions
 
-    def widen(terms: list[Any]) -> list[str]:
+    def widen(terms: list[Any], *, subject: bool = False) -> list[str]:
         words = [str(term) for term in terms]
         extra = [v for term in words for v in synonyms.get(" ".join(term.casefold().split()), ())]
+        if subject:
+            # "Daphnia survival" is as often written "survival of Daphnia".
+            extra += [
+                f"{parts[1]} of {parts[0]}"
+                for variant in extra
+                for parts in [variant.split()]
+                if len(parts) == 2 and all(part.isalpha() for part in parts)
+            ]
         return list(dict.fromkeys([*words, *extra]))
 
     result = []
     for dimension in dimensions:
         item = dict(dimension)
         label = " ".join(str(item.get("label") or "").casefold().split())
+        subject = item.get("kind") in {"subject", "subject_part"}
         if isinstance(item.get("terms"), list):
-            item["terms"] = widen([*item["terms"], *([label] if label in synonyms else [])])
+            item["terms"] = widen(
+                [*item["terms"], *([label] if label in synonyms else [])], subject=subject
+            )
             if item.get("kind") == "population":
                 item["terms"] = list(
                     dict.fromkeys(a for t in item["terms"] for a in _population_aliases(t))
                 )
         if isinstance(item.get("term_groups"), list):
-            item["term_groups"] = [widen(list(group)) for group in item["term_groups"]]
+            item["term_groups"] = [
+                widen(list(group), subject=subject) for group in item["term_groups"]
+            ]
         result.append(item)
     return result
 
