@@ -64,3 +64,25 @@ def test_literature_strategy_accepts_null_optional_data_lists():
     )
     assert result["route"] == "literature"
     assert "requirements" not in result
+
+
+@pytest.mark.parametrize(
+    "placeholder", ["Unspecified", "unspecified", "Cities", "Various countries"]
+)
+def test_placeholder_geography_means_no_geography(placeholder):
+    from sci_search.data_research.strategy import validate_strategy
+
+    strategy = validate_strategy(
+        {"route": "data", "rationale": "x", "geography": placeholder, "measurements": ["m"]}
+    )
+    assert strategy["geography"] == ""
+
+
+def test_real_geography_is_kept():
+    from sci_search.data_research.strategy import validate_strategy
+
+    for place in ("Europe", "Netherlands", "Global"):
+        strategy = validate_strategy(
+            {"route": "data", "rationale": "x", "geography": place, "measurements": ["m"]}
+        )
+        assert strategy["geography"] == place

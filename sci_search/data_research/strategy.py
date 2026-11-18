@@ -126,6 +126,11 @@ PROMPT = (
 )
 
 
+_PLACEHOLDER_GEOGRAPHY = re.compile(
+    r"(?:unspecified|not specified|no specific (?:geography|place|location)|none|n/?a|any|various|"
+    r"(?:(?:any|all|various|multiple|several|selected) )?"
+    r"(?:cities|countries|regions|nations|locations|sites|places|study sites|study areas))\.?"
+)
 OPTIONAL_LISTS = frozenset(
     {"requirements", "calculations", "unresolved_calculations", "calculation_requests"}
 )
@@ -142,6 +147,10 @@ def validate_strategy(value: dict, *, infer_route=False, require_calculation_int
         if not isinstance(value.get(key), str) or len(value[key]) > 1500:
             raise ValueError(f"Invalid research strategy {key}")
         result[key] = value[key].strip()
+    if _PLACEHOLDER_GEOGRAPHY.fullmatch(result["geography"].casefold()):
+        # "Unspecified" or "Cities" names no place; treated literally it becomes an
+        # entity that no dataset can ever match.
+        result["geography"] = ""
     country_scope = value.get("country_scope")
     if country_scope is None:
         geo = result["geography"].casefold()
