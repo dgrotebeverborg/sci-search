@@ -50,6 +50,60 @@ def _dimension_matches(dimension, value, text):
     return match(value, text)
 
 
+def _region_members(scope, entity):
+    """Countries of the requested region when the question names only the region."""
+    from sci_search.data_research.wildfire import EU27, EUROPE
+
+    if scope.get("countries") or not entity or entity != (scope.get("geography") or ""):
+        return ()
+    return {"eu27": tuple(EU27), "europe": tuple(EUROPE)}.get(scope.get("country_scope"), ())
+
+
+def _country_panel(scope, entity, measurement, analyses, start, end):
+    """A source reporting most of a region's countries covers the regional question.
+
+    A single country never stands in for its region, and countries are not
+    averaged: the panel is retained as separate country series. Only years that
+    a majority of the region's countries report count as covered.
+    """
+    members = set(_region_members(scope, entity))
+    if not members:
+        return None
+    best = None
+    for source_index, analysis in enumerate(analyses):
+        by_year: dict[int, set[str]] = {}
+        countries = set()
+        for series in analysis.get("series", []):
+            if series.get("label") != measurement:
+                continue
+            identity = series.get("identity", {})
+            mentioned = country_mentions(identity.get("geography", series.get("entity", "")))
+            if len(mentioned) != 1 or not mentioned <= members:
+                continue
+            countries |= mentioned
+            for row in series.get("annual", []):
+                if (
+                    _finite(row.get("value"))
+                    and (start is None or row["year"] >= start)
+                    and (end is None or row["year"] <= end)
+                ):
+                    by_year.setdefault(row["year"], set()).update(mentioned)
+        needed = len(members) // 2 + 1
+        years = sorted(y for y, present in by_year.items() if len(present) >= needed)
+        if years and (best is None or len(years) > len(best["years"])):
+            best = {
+                "source_index": source_index,
+                "series_index": None,
+                "country_panel": sorted(countries),
+                "sex_identity": (),
+                "entity": f"{len(countries)} countries",
+                "unit": None,
+                "years": years,
+                "values": {},
+            }
+    return best
+
+
 def _finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
@@ -107,7 +161,12 @@ def _source_choices(scope, analyses):
     return choices
 
 
-def evaluate(scope, analyses):
+def evaluate(scope, analyses, *, period_searched=False):
+    """Coverage of every requested cell.
+
+    An open period is satisfied only after a follow-up search for earlier or
+    longer comparable data has been carried out (``period_searched``).
+    """
     choices = _source_choices(scope, analyses)
     requirements = {r["measurement"]: r for r in scope.get("requirements", [])}
     # A regional request is not an implicit request for every constituent country.
@@ -224,6 +283,10 @@ def evaluate(scope, analyses):
                             },
                         }
                     )
+            if not matches and not dimensions:
+                panel = _country_panel(scope, entity, measurement, analyses, start, end)
+                if panel:
+                    matches.append(panel)
             best = max(matches, key=lambda m: len(m["years"]), default={"years": []})
             years = set(best["years"])
             missing = sorted(requested_years - years) if requested_years is not None else []
@@ -257,7 +320,7 @@ def evaluate(scope, analyses):
                 reason = "No single reviewed source covers the requested comparison under one documented definition"
             elif conflicts:
                 reason = "Overlapping sources differ; definitions, units or revisions need reconciliation"
-            elif requested_years is None:
+            elif requested_years is None and not period_searched:
                 reason = "Open period requires a coverage search"
             elif missing:
                 reason = "Requested years missing from a single source series"
@@ -292,13 +355,21 @@ def evaluate(scope, analyses):
     }
 
 
-def pending(scope, analyses):
-    complete = evaluate(scope, analyses)["complete_measurements"]
+def pending(scope, analyses, *, period_searched=False):
+    complete = evaluate(scope, analyses, period_searched=period_searched)["complete_measurements"]
     return [m for m in scope["measurements"] if m not in complete]
 
 
-def planning_summary(scope, analyses):
-    coverage = evaluate(scope, analyses)
+def period_searched(process):
+    """Whether a follow-up search for longer or earlier comparable data completed."""
+    return any(
+        step.get("action") == "search" and step.get("status") in {"checked", "no_new_sources"}
+        for step in (process or {}).get("steps", [])
+    )
+
+
+def planning_summary(scope, analyses, *, searched=False):
+    coverage = evaluate(scope, analyses, period_searched=searched)
     gaps = coverage["gaps"]
     return {
         "complete_measurements": coverage["complete_measurements"],

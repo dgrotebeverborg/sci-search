@@ -5,6 +5,7 @@ import ipaddress
 import json
 import re
 import socket
+import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
@@ -35,6 +36,30 @@ def public_addresses(url):
     if not addresses or any(not ipaddress.ip_address(ip).is_global for ip in addresses):
         raise ValueError("Dataset URL resolves to a non-public address")
     return addresses
+
+
+DOWNLOAD_SECONDS = 180
+
+
+def _read_bounded(response, limit, seconds=DOWNLOAD_SECONDS):
+    """Read at most ``limit`` bytes within an overall deadline.
+
+    The socket timeout applies per read, so a slowly trickling server could
+    otherwise hold one download open far beyond the investigation's budget.
+    """
+    deadline = time.monotonic() + seconds
+    chunks, size = [], 0
+    while True:
+        chunk = response.read(min(1_000_000, limit + 1 - size))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        size += len(chunk)
+        if size > limit:
+            raise ValueError(f"Dataset exceeds the {limit // 1_000_000} MB acquisition limit")
+        if time.monotonic() > deadline:
+            raise ValueError(f"Dataset download exceeded {seconds} seconds")
+    return b"".join(chunks)
 
 
 def _request(method, url, body, limit, follow):
@@ -71,9 +96,11 @@ def _request(method, url, body, limit, follow):
                 continue
             if response.status != 200:
                 raise ValueError(f"Dataset server returned HTTP {response.status}")
-            data = response.read(limit + 1)
-            if len(data) > limit:
+            declared = response.getheader("Content-Length", "")
+            if declared.isdigit() and int(declared) > limit:
+                # Refuse before transferring a file that cannot be accepted.
                 raise ValueError(f"Dataset exceeds the {limit // 1_000_000} MB acquisition limit")
+            data = _read_bounded(response, limit)
             return data, response.getheader("Content-Type", ""), url
         finally:
             connection.close()

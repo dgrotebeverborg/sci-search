@@ -10,7 +10,9 @@ class FakeResponse:
         self.status, self._body, self._headers = status, body, headers or {}
 
     def read(self, n):
-        return self._body[:n]
+        # Like http.client: consume the stream and return b"" at its end.
+        chunk, self._body = self._body[:n], self._body[n:]
+        return chunk
 
     def getheader(self, name, default=None):
         return self._headers.get(name, default)

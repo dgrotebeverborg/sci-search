@@ -19,6 +19,7 @@ from sci_search.data_research.connectors import CONNECTORS, base, dataset_from_u
 from sci_search.data_research.connectors import stage as connector_stage
 from sci_search.data_research.coverage import evaluate as evaluate_coverage
 from sci_search.data_research.coverage import pending as pending_measurements
+from sci_search.data_research.coverage import period_searched
 from sci_search.data_research.derived_artifacts import finalize as finalize_outputs
 from sci_search.data_research.discovery import complete_object, discover
 from sci_search.data_research.failures import record_failure
@@ -174,7 +175,11 @@ def execute(question, strategy, directory, *, budget_limits=None, resume_from=No
             raise
         result["status"] = "partial" if result["analyses"] else "blocked"
         result["limitations"].append(control.stop_reason + "; retained sources remain available.")
-        result["coverage"] = evaluate_coverage(result["strategy"], result["analyses"])
+        result["coverage"] = evaluate_coverage(
+            result["strategy"],
+            result["analyses"],
+            period_searched=period_searched(result.get("research_process")),
+        )
         result["period"] = period_summary(result["strategy"], result["analyses"])
         result["run_control"] = control.snapshot()
         finalize_outputs(
@@ -268,7 +273,11 @@ def _execute(
     def finish():
         finalize_outputs(result, directory, complete=complete, check_cancelled=original_check)
         result["run_control"] = control.snapshot()
-        result["coverage"] = evaluate_coverage(full_strategy, result["analyses"])
+        result["coverage"] = evaluate_coverage(
+            full_strategy,
+            result["analyses"],
+            period_searched=period_searched(result.get("research_process")),
+        )
         result["period"] = period_summary(full_strategy, result["analyses"])
         write_replay(directory)
         save(directory / "analysis.json", result)
@@ -419,9 +428,11 @@ def _execute(
         result["assessments"] += staged["assessments"]
         result["connector_search"] = staged["search"]
         control.staged = None
-        connector_covered = evaluate_coverage(full_strategy, result["analyses"])[
-            "complete_measurements"
-        ]
+        connector_covered = evaluate_coverage(
+            full_strategy,
+            result["analyses"],
+            period_searched=period_searched(result.get("research_process")),
+        )["complete_measurements"]
         remaining = pending_measurements(full_strategy, result["analyses"])
         if not remaining:
             return conclude(set(connector_covered))
@@ -1470,7 +1481,12 @@ def _data_answer_summary(result, count):
     start, end = strategy.get("start_year"), strategy.get("end_year")
     period = f" for {start}–{end}" if start and end else ""
     where = f" ({', '.join(entities)})" if entities else ""
-    conflicted = sorted({str(c.get("entity")) for c in cells if c.get("conflicts")})
+
+    def named(cell):
+        # Cells of a question without a geography have no entity; name the measurement.
+        return str(cell.get("entity") or cell.get("measurement") or "")
+
+    conflicted = sorted({named(c) for c in cells if c.get("conflicts")})
     if _numerically_complete(result):
         summary = f"Verified annual data for {measurements}{where}{period} from {count} dataset(s)"
         if (result.get("output_completion") or {}).get("calculation_status") == "complete":
@@ -1484,8 +1500,7 @@ def _data_answer_summary(result, count):
             + "; the conflicting series are shown side by side rather than merged."
         )
     missing = sorted(
-        {str(c.get("entity")) for c in cells if c.get("status") not in {"complete", None}}
-        - set(conflicted)
+        {named(c) for c in cells if c.get("status") not in {"complete", None}} - set(conflicted)
     )
     if missing:
         summary += " Coverage is incomplete for " + ", ".join(missing) + "."

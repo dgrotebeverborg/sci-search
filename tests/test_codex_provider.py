@@ -196,7 +196,7 @@ def test_search_budget_is_enforced(fake_codex):
 
     fake_codex(
         events=[
-            {"type": "item.started", "item": {"type": "web_search", "id": str(i)}} for i in range(6)
+            {"type": "item.started", "item": {"type": "web_search", "id": str(i)}} for i in range(9)
         ]
     )
     with pytest.raises(ValueError, match="web-search budget"):
@@ -304,3 +304,9 @@ def test_invalid_codex_plan_repair_is_bounded():
     assert brief["ambiguity"] == "material"
     assert brief["provider"] is None
     assert len(requests) == 2
+
+
+def test_one_search_over_the_instructed_number_is_tolerated(fake_codex):
+    from sci_search.codex_provider import SEARCH_LIMIT
+
+    assert SEARCH_LIMIT > 5

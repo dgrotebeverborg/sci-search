@@ -357,3 +357,43 @@ def test_sex_aliases_in_question_match_source_and_keep_opposite_sexes_separate(v
         == []
     )
     assert len(coverage(scope, [analysis("Netherlands females and males")])["gaps"]) == 2
+
+
+def _panel(countries, years=(2020, 2021)):
+    return {
+        "kind": "tabular",
+        "source": {"sha256": "panel"},
+        "series": [
+            {
+                "label": "life expectancy",
+                "entity": name,
+                "unit": "years",
+                "annual": [{"year": y, "value": 80} for y in years],
+            }
+            for name in countries
+        ],
+    }
+
+
+def test_panel_of_most_member_countries_covers_a_regional_question():
+    from sci_search.data_research.wildfire import COUNTRY_NAMES as EU_NAMES
+    from sci_search.data_research.wildfire import EU27
+
+    scope = {**SCOPE, "geography": "EU27", "country_scope": "eu27", "countries": []}
+    majority = [EU_NAMES[code] for code in EU27[:14]]
+    minority = [EU_NAMES[code] for code in EU27[:5]]
+    assert coverage(scope, [_panel(majority)])["complete_measurements"] == ["life expectancy"]
+    assert coverage(scope, [_panel(minority)])["complete_measurements"] == []
+
+
+def test_open_period_is_satisfied_after_a_completed_period_search():
+    from sci_search.data_research.coverage import evaluate, period_searched
+
+    scope = validate_strategy({**SCOPE, "countries": ["NLD"], "start_year": None, "end_year": None})
+    assert not evaluate(scope, [analysis("Netherlands")])["complete_measurements"]
+    process = {"steps": [{"action": "search", "status": "no_new_sources"}]}
+    assert period_searched(process)
+    assert not period_searched({"steps": [{"action": "search", "status": "failed"}]})
+    assert evaluate(scope, [analysis("Netherlands")], period_searched=True)[
+        "complete_measurements"
+    ] == ["life expectancy"]

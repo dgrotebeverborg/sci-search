@@ -21,7 +21,9 @@ from sci_search.model_provider import openai_strict_schema
 
 REQUEST_TIMEOUT = 240
 OUTPUT_LIMIT = 8_000_000
-SEARCH_LIMIT = 5
+# The hard stop leaves headroom above the instructed number, so one extra search
+# does not discard a whole discovery.
+SEARCH_LIMIT = 8
 
 
 class CodexRequestError(OSError):
@@ -248,7 +250,7 @@ def search_datasets(prompt: str, model: str) -> dict:
         },
     }
     response = _run(
-        prompt + "\nUse at most five web tool calls. Do not use other tools or access local files. "
+        prompt + "\nUse at most four web tool calls. Do not use other tools or access local files. "
         "Return dataset URLs exactly as observed in web tool results.",
         schema,
         model,

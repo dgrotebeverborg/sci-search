@@ -49,3 +49,24 @@ def test_conflicting_sources_are_never_adequate_and_are_named():
     assert payload["answer_adequacy"]["status"] == "partial"
     assert "Sources report different values for DEU" in payload["answer_summary"]
     assert result_quality(payload)["status"] == "partial"
+
+
+def test_summary_names_measurement_when_question_has_no_geography():
+    from sci_search.data_research.workflow import _data_answer_summary
+
+    result = {
+        "strategy": {"measurements": ["student achievement"]},
+        "coverage": {
+            "cells": [
+                {
+                    "measurement": "student achievement",
+                    "entity": "",
+                    "status": "partial",
+                    "conflicts": [{"sources": [0, 1]}],
+                }
+            ]
+        },
+        "analyses": [{}],
+    }
+    summary = _data_answer_summary(result, 1)
+    assert "different values for student achievement;" in summary
