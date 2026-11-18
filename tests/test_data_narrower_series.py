@@ -135,3 +135,15 @@ Path('/output/observations.json').write_text(json.dumps(payload))
         assert result["source_verification"]["value_verified"] == 1
         assert result["uncovered_measurements"] == ["population"]
         assert result["execution"]["status"] == "verified"
+
+
+@pytest.mark.parametrize("year,accepted", [(1517, True), (999, False), (2200, False)])
+def test_historical_annual_observations_are_accepted(year, accepted):
+    scope = {"measurements": ["population"], "geography": "Saxony"}
+    row = {**PAYLOAD["observations"][0], "entity": "Saxony", "year": year}
+    payload = {"observations": [row]}
+    if accepted:
+        assert analyse_observations(payload, scope)["series"][0]["annual"][0]["year"] == 1517
+    else:
+        with pytest.raises(ValueError, match="observation year"):
+            analyse_observations(payload, scope)

@@ -3,6 +3,7 @@
 import re
 
 from sci_search.data_research import calculation_contract, requirements
+from sci_search.data_research.tabular import FIRST_YEAR
 
 LAST_PROJECTED_YEAR = 2100
 SCHEMA = {
@@ -233,7 +234,9 @@ def validate_strategy(value: dict, *, infer_route=False, require_calculation_int
     # Requested dates describe scope, not whether observations already exist.
     for key in ("start_year", "end_year"):
         year = value.get(key)
-        if year is not None and (type(year) is not int or not 1800 <= year <= LAST_PROJECTED_YEAR):
+        if year is not None and (
+            type(year) is not int or not FIRST_YEAR <= year <= LAST_PROJECTED_YEAR
+        ):
             raise ValueError("Invalid research years")
         result[key] = year
     start, end = result["start_year"], result["end_year"]

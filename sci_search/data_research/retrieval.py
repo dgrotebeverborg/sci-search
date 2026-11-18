@@ -107,8 +107,21 @@ def _request(method, url, body, limit, follow):
     raise ValueError("Dataset exceeded the redirect limit")
 
 
+def direct_download_url(url):
+    """Google Drive "view"/"edit" links serve an HTML viewer; use the file export."""
+    import re
+
+    parts = urlsplit(url.replace("&amp;", "&"))
+    if parts.scheme != "https" or parts.hostname != "drive.google.com":
+        return url
+    match = re.match(r"^/file/d/([A-Za-z0-9_-]{10,})(?:/|$)", parts.path)
+    if not match:
+        return url
+    return f"https://drive.google.com/uc?export=download&id={match[1]}"
+
+
 def fetch_public(url, *, limit=50_000_000):
-    return _request("GET", url, None, limit, True)
+    return _request("GET", direct_download_url(url), None, limit, True)
 
 
 def post_public(url, payload, *, limit=5_000_000):

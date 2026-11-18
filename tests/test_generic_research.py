@@ -48,3 +48,16 @@ class GenericResearchTests(unittest.TestCase):
         side_topic = "Tomato seed germination reached 90 percent after treatment."
         self.assertEqual(_statement_concept_coverage(direct, plan), len(plan.concepts))
         self.assertLess(_statement_concept_coverage(side_topic, plan), len(plan.concepts))
+
+
+def test_flattened_tables_are_not_prose_findings():
+    from sci_search.generic_research import _is_table_text
+
+    assert _is_table_text(
+        "A B C D 0 1 2 3 0 1 2 3 0 1 2 3 Svastra obliqua expurgata Peponapis pruinosa "
+        "Osmia regulina Melissodes tepida Melissodes robustior Lasioglossum incompletum"
+    )
+    assert not _is_table_text(
+        "Wild bee abundance was 37% lower at sites with neonicotinoid-treated seed than at "
+        "untreated sites in both years of the survey (p < 0.01)."
+    )

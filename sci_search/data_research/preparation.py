@@ -10,9 +10,9 @@ from datetime import datetime
 from pathlib import PurePosixPath
 
 try:
-    from .tabular import read_csv
+    from .tabular import FIRST_YEAR, LAST_YEAR, YEAR_PATTERN, read_csv
 except ImportError:
-    from tabular import read_csv
+    from tabular import FIRST_YEAR, LAST_YEAR, YEAR_PATTERN, read_csv
 
 ENCODINGS = ("utf-8-sig", "utf-16", "cp1252")
 PLAN_SCHEMA = {
@@ -280,7 +280,7 @@ def transform_table(body, preparation, plan):
             not columns
             or len(set(columns)) != len(columns)
             or not set(columns) <= set(headers)
-            or any(not re.fullmatch(r"(18|19|20|21)\d{2}", c) for c in columns)
+            or any(not re.fullmatch(YEAR_PATTERN, c) for c in columns)
         ):
             raise ValueError("Unpivot requires distinct observed four-digit year columns")
         keep = [h for h in headers if h not in columns]
@@ -301,12 +301,12 @@ def transform_table(body, preparation, plan):
         for row in rows:
             raw = row[key].strip()
             if fmt in {"", "%Y"}:
-                if not re.fullmatch(r"(18|19|20|21)\d{2}", raw):
+                if not re.fullmatch(YEAR_PATTERN, raw):
                     raise ValueError("Expected an unambiguous year; explicit date format required")
                 year = int(raw)
             else:
                 year = datetime.strptime(raw, fmt).year
-            if not 1800 <= year <= 2199:
+            if not FIRST_YEAR <= year <= LAST_YEAR:
                 raise ValueError("Year outside supported range")
             years.append(str(year))
         if operation == "year_from_date":

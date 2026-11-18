@@ -8,9 +8,9 @@ import io
 import math
 
 try:
-    from .tabular import analyse_csv
+    from .tabular import FIRST_YEAR, LAST_YEAR, analyse_csv
 except ImportError:
-    from tabular import analyse_csv
+    from tabular import FIRST_YEAR, LAST_YEAR, analyse_csv
 
 
 def measurement_definitions(payload, scope):
@@ -68,7 +68,7 @@ def analyse_observations(payload, scope):
                 raise ValueError("Invalid observation " + key)
         if row["measurement"] not in scope["measurements"]:
             raise ValueError("Unrequested measurement")
-        if type(row.get("year")) is not int or not 1800 <= row["year"] <= 2199:
+        if type(row.get("year")) is not int or not FIRST_YEAR <= row["year"] <= LAST_YEAR:
             raise ValueError("Invalid observation year")
         value = row.get("value")
         if value is not None and type(value) not in (int, float):

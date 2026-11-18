@@ -7,6 +7,7 @@ from sci_search.data_research import knowledge, semantics
 from sci_search.data_research.execution import digest, run_python
 from sci_search.data_research.inspection import REQUEST_SCHEMA, inspect_source
 from sci_search.data_research.python_rows import analyse_observations, measurement_definitions
+from sci_search.data_research.tabular import FIRST_YEAR, LAST_YEAR
 from sci_search.data_research.verification import verify_observations
 
 CODE_SCHEMA = {
@@ -480,8 +481,8 @@ def recover(
                                 )
                             if field == "years" and any(
                                 type(year) is not int
-                                or year < (scope.get("start_year") or 1800)
-                                or year > (scope.get("end_year") or 2199)
+                                or year < (scope.get("start_year") or FIRST_YEAR)
+                                or year > (scope.get("end_year") or LAST_YEAR)
                                 for year in values
                             ):
                                 raise ValueError(

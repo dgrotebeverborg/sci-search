@@ -6,6 +6,12 @@ import math
 import re
 from typing import Literal, overload
 
+# Historical series (e.g. early-modern city panels) are annual too; the floor only
+# rejects non-year numbers such as IDs or test ages misread as years.
+FIRST_YEAR = 1000
+LAST_YEAR = 2199
+YEAR_PATTERN = r"(?:1\d|20|21)\d{2}"
+
 try:
     from .calculations import factor as unit_factor
 except ImportError:  # Retained offline execution.
@@ -198,7 +204,7 @@ def analyse_csv(body, mapping, scope):
         entity = row[entity_key] if entity_key else mapping["label"]
         if entity_key and entity not in entities:
             continue
-        if not re.fullmatch(r"(?:18|19|20|21)\d{2}", row[year_key].strip()):
+        if not re.fullmatch(YEAR_PATTERN, row[year_key].strip()):
             raise ValueError("Expected annual four-digit years; aggregation is not automatic")
         year = int(row[year_key])
         if scope.get("start_year") is not None and year < scope["start_year"]:

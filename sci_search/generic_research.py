@@ -818,6 +818,9 @@ def _answer_records(
         for item in evidence
         if not any(marker in item.statement.lower() for marker in method_markers)
     )
+    prose = tuple(item for item in preferred if not _is_table_text(item.statement))
+    if prose:
+        preferred = prose
     if re.search(r"^\s*why\b|\bwhat explains?\b", plan.question.casefold()):
         explanatory = tuple(
             item
@@ -1015,6 +1018,25 @@ def _normalized_statement(statement: str) -> str:
 def _noncitation_years(text: str) -> list[int]:
     without_parentheses = re.sub(r"\([^)]*\)", " ", text)
     return sorted({int(value) for value in re.findall(r"\b(?:19|20)\d{2}\b", without_parentheses)})
+
+
+_FUNCTION_WORDS = frozenset(
+    "the a an of and or in on at to for with by from than was were is are be been "
+    "that this these which as not no while has have had into through over including "
+    "between after before during".split()
+)
+
+
+def _is_table_text(statement: str) -> bool:
+    """Flattened table cells (axis labels, species lists, numbers) rather than prose."""
+    tokens = [token.strip(".,;:()[]") for token in statement.split()]
+    tokens = [token for token in tokens if token]
+    if len(tokens) < 12:
+        return False
+    # Lone cell labels ("A", "0", "12"); measured values such as "6.6%" stay prose.
+    fragments = sum(bool(re.fullmatch(r"[A-Za-z]|\d{1,2}", token)) for token in tokens)
+    function = sum(token.casefold() in _FUNCTION_WORDS for token in tokens)
+    return fragments / len(tokens) > 0.3 or function / len(tokens) < 0.05
 
 
 def _display_statement(statement: str) -> str:
