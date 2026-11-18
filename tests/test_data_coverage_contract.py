@@ -397,3 +397,17 @@ def test_open_period_is_satisfied_after_a_completed_period_search():
     assert evaluate(scope, [analysis("Netherlands")], period_searched=True)[
         "complete_measurements"
     ] == ["life expectancy"]
+
+
+def test_answer_status_uses_the_completed_period_search(tmp_path):
+    from sci_search.data_research.derived_artifacts import finalize
+
+    scope = validate_strategy({**SCOPE, "countries": ["NLD"], "start_year": None, "end_year": None})
+    result = {
+        "strategy": {**scope, "calculations": []},
+        "analyses": [analysis("Netherlands")],
+        "research_process": {"steps": [{"action": "search", "status": "no_new_sources"}]},
+    }
+    finalize(result, tmp_path)
+    assert result["coverage"]["complete_measurements"] == ["life expectancy"]
+    assert result["output_completion"]["numerical_answer_status"] == "complete"

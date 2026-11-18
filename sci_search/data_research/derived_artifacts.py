@@ -7,7 +7,7 @@ from pathlib import Path
 from sci_search.data_research import derived_outputs, semantics
 from sci_search.data_research.artifact_validation import validate_artifacts
 from sci_search.data_research.calculations import calculate
-from sci_search.data_research.coverage import evaluate
+from sci_search.data_research.coverage import evaluate, period_searched
 from sci_search.data_research.execution import digest, run_python
 from sci_search.data_research.failures import record_failure
 from sci_search.data_research.replay_manifest import engine_modules
@@ -199,7 +199,12 @@ def _review(result, jobs, folders, complete):
 def finalize(result, directory, *, complete=None, check_cancelled=lambda: None):
     """Called on ordinary finish and after a discovery budget is exhausted."""
     directory = Path(directory)
-    coverage = evaluate(result["strategy"], result["analyses"])
+    # Must match the coverage the run reports, or the answer status uses stale gaps.
+    coverage = evaluate(
+        result["strategy"],
+        result["analyses"],
+        period_searched=period_searched(result.get("research_process")),
+    )
     result["coverage"] = coverage
     if not result["strategy"].get("calculations"):
         derived = derived_outputs.compute(
