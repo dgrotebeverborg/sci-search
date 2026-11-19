@@ -74,7 +74,9 @@ def test_points_about_the_question_can_be_dismissed(study_url: str, chromium_bro
     page.goto(study_url)
     page.get_by_label("Research question").fill("How much storage at 0, 50 and 100%?")
     page.get_by_role("button", name="Make study plan").click()
-    section = page.locator("section.section", has=page.get_by_role("heading", name="Questions about the question"))
+    section = page.locator(
+        "section.section", has=page.get_by_role("heading", name="Questions about the question")
+    )
     expect(section).to_contain_text("The shares 0, 50 and 100% are arbitrary.")
     expect(section).to_contain_text("Alternative: Use 0-100% in steps of 10%.")
     expect(section.get_by_role("button", name="Adopt")).to_be_visible()
