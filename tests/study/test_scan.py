@@ -145,3 +145,18 @@ def test_extend_scan_continues_ids_and_skips_duplicates():
     new = extended["publications"][len(scan["publications"]) :]
     assert [(p["id"], p["title"]) for p in new] == [("P3", "Hydrogen storage")]
     assert "hydrogen storage" in provider.queries[0].text
+
+
+def test_extra_search_terms_keep_the_study_subject():
+    scan = run_scan("Q?", interpret=interpret, providers=(FakeProvider(),), find_datasets=datasets)
+    scan["interpretation"]["brief"]["research_plan"] = {
+        "subject_terms": ["electricity storage", "Netherlands"]
+    }
+    provider = FakeProvider(results=())
+    extend_scan(
+        scan,
+        ["hydrogen storage"],
+        providers=(provider,),
+        find_datasets=lambda q, s: {"candidates": []},
+    )
+    assert provider.queries[0].text == "hydrogen storage electricity storage Netherlands"

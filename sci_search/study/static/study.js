@@ -41,7 +41,7 @@ async function loadStudies() {
     const item = el('li');
     const a = link(study.question, '#'); a.href = `#${study.id}`;
     a.setAttribute('aria-current', String(current?.study.id === study.id));
-    a.onclick = event => { event.preventDefault(); openStudy(study.id); };
+    a.onclick = event => { event.preventDefault(); changed = []; openStudy(study.id); };
     const date = new Date(study.created_at).toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
     item.append(a, el('span', `${date} · ${study.status}${study.version ? ` · v${study.version}` : ''}`, 'meta'));
     list.append(item);
@@ -49,7 +49,7 @@ async function loadStudies() {
 }
 
 function showStart() {
-  clearTimeout(pollTimer); current = null; viewing = null;
+  clearTimeout(pollTimer); current = null; viewing = null; changed = [];
   $('start').hidden = false; $('study').hidden = true;
   history.replaceState(null, '', '/');
   loadStudies();
@@ -60,7 +60,7 @@ async function openStudy(id, {keepView = false} = {}) {
   try {
     current = await api(`/api/studies/${id}`);
   } catch (error) { status($('start-status'), error.message, true); showStart(); return; }
-  if (!keepView) { viewing = null; changed = []; }
+  if (!keepView) viewing = null;
   history.replaceState(null, '', `#${id}`);
   $('start').hidden = true; $('study').hidden = false;
   render();
@@ -80,6 +80,7 @@ async function render() {
   status($('study-status'),
     study.status === 'failed' ? `The plan could not be made: ${study.error}` :
     study.error ? study.error :
+    study.notice && !busy ? study.notice :
     busy ? 'Working… this can take a few minutes. You can leave this page and come back.' :
     approved ? `Approved (version ${study.approved_version}).` : '',
     study.status === 'failed' || Boolean(study.error));
@@ -263,7 +264,7 @@ async function init() {
   $('start-form').onsubmit = async event => {
     event.preventDefault();
     const button = event.submitter; button.disabled = true;
-    try { const {id} = await api('/api/studies', {method: 'POST', body: {question: $('question').value}}); $('question').value = ''; await openStudy(id); }
+    try { const {id} = await api('/api/studies', {method: 'POST', body: {question: $('question').value}}); $('question').value = ''; changed = []; await openStudy(id); }
     catch (error) { status($('start-status'), error.message, true); }
     finally { button.disabled = false; }
   };

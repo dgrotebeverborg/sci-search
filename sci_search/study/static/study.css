@@ -1,4 +1,5 @@
 :root { --ink: #25322e; --muted: #6e7973; --line: #e3e8e4; --surface: #f6f8f6; --accent: #ffcd00; --green: #294f40; --red: #c00a35; }
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: #fff; line-height: 1.5; }
 .top { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.5rem; border-bottom: 1px solid var(--line); }

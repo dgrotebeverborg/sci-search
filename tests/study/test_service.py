@@ -159,3 +159,13 @@ def test_restore_creates_a_new_version(tmp_path):
     assert svc.restore(sid, 1) == 3
     assert svc.store.version(sid, 3)["plan"] == svc.store.version(sid, 1)["plan"]
     assert svc.store.versions(sid)[-1]["origin"] == "restore v1"
+
+
+def test_search_more_reports_what_it_found(tmp_path):
+    svc = service(tmp_path)
+    sid = svc.start("Q")
+    svc.search_more(sid, ["hydrogen storage"])
+    assert svc.store.get(sid)["notice"] == (
+        "Extra search found 1 new publication and 0 new datasets. "
+        "Ask for a change in a section to use them."
+    )

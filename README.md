@@ -270,6 +270,24 @@ python3 scripts/acquire_iron_air_corpus.py
 
 Repository access can change; unavailable sources are reported and skipped rather than replaced with unverified copies.
 
+## Study plans (experimental)
+
+A separate local tool turns a broad research question into a study plan you can correct and
+approve before any chapter is written. It leaves the main app unchanged.
+
+```bash
+python -m sci_search.study            # http://127.0.0.1:8020
+```
+
+It interprets the question, scans titles and abstracts (OpenAlex, Europe PMC, Crossref) for
+studies and existing models or scenario studies, looks for datasets, and writes a plan: the
+question as understood, definitions, sub-questions, scope, what is out of reach (anything that
+would need real-world experiments), existing work and data from the scan with links, chapters
+with their method, and the plan's limits. Every section can be corrected with an instruction
+or edited directly; "Search more" adds sources for new topics. Every version is kept and can
+be restored; "Approve plan" locks it. Studies are stored in `data/studies/` (not in git).
+It uses the AI model configured in `.env.local` and runs on this computer only.
+
 ## Run the vertical slice
 
 ```bash

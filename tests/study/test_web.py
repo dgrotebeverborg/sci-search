@@ -95,3 +95,9 @@ def test_main_refuses_non_loopback_host():
 
 def test_page_never_uses_innerhtml():
     assert "innerHTML" not in Path("sci_search/study/static/study.js").read_text()
+
+
+def test_hidden_controls_stay_hidden():
+    # .button sets display, which would otherwise override the hidden attribute.
+    css = Path("sci_search/study/static/study.css").read_text()
+    assert "[hidden] { display: none !important; }" in css

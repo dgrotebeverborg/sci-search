@@ -144,6 +144,7 @@ class StudyService:
             version = self.store.add_version(
                 study_id, plan, f"instruction: {instruction.strip()}", section
             )
+            self.store.update(study_id, notice=None)
             return {"version": version, "changed": changed}
         finally:
             self._work.release()
@@ -162,15 +163,21 @@ class StudyService:
 
         def job() -> None:
             try:
-                self.store.update(study_id, working=True, error=None)
+                self.store.update(study_id, working=True, error=None, notice=None)
+                before = self.store.read_scan(study_id)
                 scan = self.extend(
-                    self.store.read_scan(study_id),
-                    terms,
-                    progress=lambda m: self.store.add_progress(study_id, m),
+                    before, terms, progress=lambda m: self.store.add_progress(study_id, m)
                 )
                 self.store.write_scan(study_id, scan)
-                self.store.add_progress(study_id, "Extra search finished.")
-                self.store.update(study_id, working=False)
+                papers = len(scan.get("publications") or []) - len(before.get("publications") or [])
+                sets = len(scan.get("datasets") or []) - len(before.get("datasets") or [])
+                notice = (
+                    f"Extra search found {papers} new publication{'' if papers == 1 else 's'} "
+                    f"and {sets} new dataset{'' if sets == 1 else 's'}. "
+                    "Ask for a change in a section to use them."
+                )
+                self.store.add_progress(study_id, notice)
+                self.store.update(study_id, working=False, notice=notice)
             except Exception as error:  # recorded for the page; the plan is unchanged
                 self.store.update(study_id, working=False, error=str(error))
 

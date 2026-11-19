@@ -187,7 +187,13 @@ def extend_scan(
     steps = list(scan.get("steps") or [])
     providers = providers if providers is not None else default_providers()
     progress("Searching publications for: " + ", ".join(terms))
-    queries = [SearchQuery(f"extra-{i}", term, "extra search") for i, term in enumerate(terms, 1)]
+    # Bare terms drift to other fields ("hydrogen storage" → materials science); keep the subject.
+    brief = (scan.get("interpretation") or {}).get("brief") or {}
+    subject = " ".join(((brief.get("research_plan") or {}).get("subject_terms") or [])[:2])
+    queries = [
+        SearchQuery(f"extra-{i}", f"{term} {subject}".strip(), "extra search")
+        for i, term in enumerate(terms, 1)
+    ]
     seen = {_key(p.get("title") or "", p.get("doi")) for p in publications}
     added = []
     try:
@@ -201,7 +207,6 @@ def extend_scan(
         steps.append({"name": "extra publications", "status": "failed", "detail": str(error)})
     publications += _number(added, "P", len(publications) + 1)
 
-    brief = (scan.get("interpretation") or {}).get("brief") or {}
     strategy = brief.get("data_research") if isinstance(brief.get("data_research"), dict) else None
     if strategy and strategy.get("route") != "literature":
         progress("Looking for datasets for: " + ", ".join(terms))
