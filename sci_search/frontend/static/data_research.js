@@ -1,6 +1,6 @@
 import {element, dataTable, safeLink} from './dashboard.js';
-const format = value => value == null ? 'Missing' : Number(value).toLocaleString('nl-NL', {maximumFractionDigits: 1});
-const observation = value => value == null ? 'Missing' : Number(value).toLocaleString('nl-NL', {maximumSignificantDigits: 15});
+const format = value => value == null ? 'Missing' : Number(value).toLocaleString('en-GB', {maximumFractionDigits: 1});
+const observation = value => value == null ? 'Missing' : Number(value).toLocaleString('en-GB', {maximumSignificantDigits: 15});
 function axisScale(values) {
   const low = Math.min(0, ...values);
   const high = Math.max(0, ...values);
@@ -84,7 +84,8 @@ export function renderDataResearch(data, parent) {
 
 function renderDerived(data, parent) {
   const completion = data.output_completion;
-  if (!completion) return;
+  // Without requested calculations, the input completeness is already in the summary.
+  if (!completion || (!(data.derived_outputs?.outputs || []).length && ['not_requested', 'not_assessed'].includes(completion.calculation_status))) return;
   const section = element('section', '', 'derived-outputs');
   section.append(element('h3', 'Requested calculations'));
   const inputs = {complete: 'Requested input data complete', partial: 'Requested input data incomplete', blocked: 'Requested input data unavailable'};
@@ -113,11 +114,62 @@ function renderDerived(data, parent) {
   parent.append(section);
 }
 
+// Charts and values first; how the data were found and checked follows in one folded section.
 function renderDiscovered(data, parent) {
-  const notice = element('aside', '', 'landscape-shared-reason');
-  notice.append(element('strong', data.analyses.length ? 'Calculated from downloaded data · check coverage' : 'No supported numerical answer yet'));
-  for (const note of data.limitations || []) notice.append(element('p', note));
-  parent.append(notice);
+  if (!(data.analyses || []).length) parent.append(element('p', 'No dataset gave a supported numerical answer.', 'help'));
+  for (const analysis of data.analyses || []) {
+    if (analysis.kind === 'wildfire') { renderDataResearch(analysis, parent); continue; }
+    renderSeries(analysis, parent);
+  }
+  renderDerived(data, parent);
+  const notUsed = (data.assessments || []).filter(item => item.decision !== 'analysed').length;
+  const how = element('details', '', 'result-more data-provenance');
+  // Without a usable dataset, why sources failed is the whole result of the data search.
+  how.open = !(data.analyses || []).length;
+  how.append(element('summary', `How the data were found and checked${notUsed ? ` · ${notUsed} ${notUsed === 1 ? 'source' : 'sources'} not used` : ''}`));
+  provenance(data, how);
+  parent.append(how);
+}
+
+function renderSeries(analysis, parent) {
+  const heading = element('h3');
+  heading.append(safeLink(analysis.source.title, analysis.source.url));
+  if (analysis.source.publisher) heading.append(element('span', ' · ' + analysis.source.publisher, 'help'));
+  parent.append(heading);
+  for (const series of analysis.series || []) {
+    const labels = analysis.preparation?.selection?.code_labels || {};
+    const dims = series.annual.find(row => row.source_dimensions)?.source_dimensions;
+    const display = dims ? (analysis.preparation.selection.series_dimensions || []).map(d => labels[d]?.[dims[d]] || dims[d]).join(' · ') : series.entity;
+    const title = !display || display === series.label ? series.label : display + ' — ' + series.label;
+    const unit = labels.unit?.[series.unit] || series.unit;
+    let host = parent;
+    let detail;
+    if ((analysis.series || []).length > 10) {
+      detail = element('details'); detail.append(element('summary', display)); parent.append(detail);
+      host = element('div'); detail.append(host);
+    }
+    const draw = () => {
+      host.append(chart(series.annual, 'value', title, unit));
+      const observed = series.annual.filter(row => row.value != null);
+      const span = observed.length > 1 ? `${observed[0].year}–${observed[observed.length - 1].year}` : '';
+      const parts = [];
+      const signed = (value, text) => (value > 0 ? '+' : '') + text;
+      if (series.absolute_change != null) parts.push(`${signed(series.absolute_change, format(series.absolute_change))} ${series.absolute_change_unit || unit}`);
+      if (series.change_percent != null) parts.push(`${signed(series.change_percent, format(series.change_percent))}%`);
+      if (parts.length) host.append(element('p', `Change ${span}: ${parts.join(' (')}${parts.length > 1 ? ')' : ''}. Descriptive only.`));
+      else if (series.change_note) host.append(element('p', series.change_note));
+      if ((series.missing_years || []).length) host.append(element('p', 'Missing years: ' + series.missing_years.join(', '), 'help'));
+      if (series.comparability_note) host.append(element('p', series.comparability_note, 'help'));
+      const table = element('details'); table.append(element('summary', 'Annual values and source rows'));
+      table.append(dataTable(series.annual.map(r => ({year:r.year,value:observation(r.value),row:r.source_reference || r.source_row || 'No source observation',status:r.source_status || 'Not specified'})), [['year','Year'],['value',unit],['row','Source row'],['status','Reporting status']]));
+      host.append(table);
+    };
+    if (detail) detail.addEventListener('toggle', () => { if (detail.open && !host.childElementCount) draw(); });
+    else draw();
+  }
+}
+
+function provenance(data, parent) {
   if (data.coverage) {
     const cells = data.coverage.cells || [];
     parent.append(element('p', `${cells.filter(c => c.status === 'complete').length} of ${cells.length} requested combinations covered. Coverage does not establish scientific validity.`));
@@ -125,19 +177,37 @@ function renderDiscovered(data, parent) {
       const source = data.analyses[choice.source_index].source;
       parent.append(element('p', `Chosen definition for ${measurement}: ${choice.definition}. Source: ${source.title}. Alternative sources remain separate and are not combined in this comparison.`));
     }
-    const gaps = element('details');
-    gaps.append(element('summary', 'Missing coverage and next research questions'));
-    for (const gap of data.coverage.gaps || []) {
-      gaps.append(element('p', `${gap.measurement} · ${gap.entity} · ${Object.entries(gap.dimensions || {}).map(([k,v]) => k + ': ' + v).join(', ')} — ${gap.reason}`));
-      if ((gap.missing_years || []).length) gaps.append(element('p', 'Missing years: ' + gap.missing_years.join(', ')));
+    if ((data.coverage.gaps || []).length) {
+      const gaps = element('details');
+      gaps.append(element('summary', 'Missing coverage'));
+      for (const gap of data.coverage.gaps) {
+        gaps.append(element('p', `${gap.measurement} · ${gap.entity} · ${Object.entries(gap.dimensions || {}).map(([k,v]) => k + ': ' + v).join(', ')} — ${gap.reason}`));
+        if ((gap.missing_years || []).length) gaps.append(element('p', 'Missing years: ' + gap.missing_years.join(', ')));
+      }
+      parent.append(gaps);
     }
-    parent.append(gaps);
   }
-  renderDerived(data, parent);
+  const completion = data.output_completion;
+  if (completion?.calculation_status && completion.calculation_status !== 'not_requested') {
+    parent.append(element('p', completion.numerical_answer_status === 'complete' ? 'Requested numerical outputs complete.' : 'Requested numerical outputs incomplete.'));
+  }
   if (data.run_control?.stop_reason) parent.append(element('p', 'Stopped: ' + data.run_control.stop_reason));
-  const strategy = data.strategy || {};
   if (data.literature_fallback) parent.append(element('p', data.literature_fallback));
   for (const gap of data.connector_gaps || []) parent.append(element('p', 'Needs an API connector for ' + gap.host + ' (' + gap.measurement + ')'));
+  const period = data.period;
+  if (period) {
+    parent.append(element('p', 'Requested period: ' + period.requested));
+    const coverage = element('details'); coverage.append(element('summary', 'Analysed period per series'));
+    for (const row of period.analysed || []) {
+      coverage.append(element('p', (row.first_year == null ? 'No numeric observations' : row.first_year + '–' + row.last_year) + ' · ' + row.source + ' · ' + row.entity + ((row.missing_years || []).length ? ' · Missing years: ' + row.missing_years.join(', ') : '')));
+    }
+    coverage.append(element('p', period.qualification, 'help'));
+    if ((period.analysed || []).length) parent.append(coverage);
+  }
+  if (data.followup) parent.append(element('p', 'Additional search for earlier data and missing coverage: ' + data.followup.status + '. Series with different definitions remain separate.'));
+  const strategy = data.strategy || {};
+  if ((strategy.measurements || []).length) parent.append(element('p', 'Requested measurements: ' + strategy.measurements.join(', ')));
+  if (strategy.rationale) parent.append(element('p', 'Why this approach: ' + strategy.rationale, 'help'));
   const process = data.research_process;
   if (process) {
     const details = element('details');
@@ -151,81 +221,40 @@ function renderDiscovered(data, parent) {
     details.append(element('p', 'Stopped: ' + process.stop_reason), element('p', process.qualification));
     parent.append(details);
   }
-
-  const period = data.period;
-  if (period) {
-    parent.append(element('p', 'Requested search period: ' + period.requested));
-    let coverageHost = parent;
-    if ((period.analysed || []).length > 10) {
-      const available = period.analysed.filter(row => row.first_year != null);
-      if (available.length) parent.append(element('p', `Available observations across these series: ${Math.min(...available.map(row => row.first_year))}–${Math.max(...available.map(row => row.last_year))}. Coverage differs by series.`));
-      coverageHost = element('details'); coverageHost.append(element('summary', `Coverage and missing years for ${period.analysed.length} series`)); parent.append(coverageHost);
-    }
-    for (const row of period.analysed || []) {
-      coverageHost.append(element('p', 'Analysed period: ' + (row.first_year == null ? 'No numeric observations' : row.first_year + '–' + row.last_year) + ' · ' + row.source + ' · ' + row.entity + (row.missing_years.length ? ' · Missing years: ' + row.missing_years.join(', ') : '')));
-    }
-    parent.append(element('p', period.qualification));
-  }
-  if (data.followup) parent.append(element('p', 'Additional search for earlier data and missing coverage: ' + data.followup.status + '. Series with different definitions remain separate.'));
-  parent.append(element('p', strategy.rationale || ''), element('p', 'Requested measurements: ' + (strategy.measurements || []).join(', ')));
   if (data.discovery) {
-    parent.append(element('p', 'Source discovery: ' + data.discovery.provider + ' · ' + data.discovery.model));
     const trace = element('details'); trace.append(element('summary', 'Web searches and consulted sources'));
+    trace.append(element('p', 'Source discovery: ' + data.discovery.provider + ' · ' + data.discovery.model, 'help'));
     for (const action of [...(data.discovery.search_actions || []), ...(data.followup?.discovery?.search_actions || []), ...(data.research_process?.steps || []).flatMap(s => s.discovery?.search_actions || [])]) {
       if (action?.query || action?.queries) trace.append(element('p', action.query || action.queries.join('; ')));
     }
     for (const url of new Set([...(data.discovery.observed_urls || []), ...(data.followup?.discovery?.observed_urls || []), ...(data.research_process?.steps || []).flatMap(s => s.discovery?.observed_urls || [])])) { const p = element('p'); p.append(safeLink(url, url)); trace.append(p); }
     parent.append(trace);
   }
-  for (const analysis of data.analyses) {
-    if (analysis.kind === 'wildfire') { renderDataResearch(analysis, parent); continue; }
-    parent.append(element('h3', analysis.source.title), safeLink('Open downloaded data source', analysis.source.url));
-    executionDetails(analysis, parent);
+  for (const analysis of data.analyses || []) {
+    if (analysis.kind === 'wildfire') continue;
+    const source = element('details'); source.append(element('summary', 'Source checks: ' + analysis.source.title));
+    source.append(safeLink('Open downloaded data source', analysis.source.url));
+    if (analysis.source.definition) source.append(element('p', 'Source definition: ' + analysis.source.definition));
     if (analysis.source_verification) {
       const check = analysis.source_verification;
-      parent.append(element('p', `${check.value_verified} values checked directly against source bytes; ${check.unverified} values without an independently checked numeric reference. Meaning remains a separate review.`));
+      source.append(element('p', `${check.value_verified} values checked directly against source bytes; ${check.unverified} values without an independently checked numeric reference. Meaning remains a separate review.`));
     }
-    parent.append(element('p', analysis.source.definition));
-    if (analysis.preparation?.format === 'statistical_tsv_v1') parent.append(element('p', 'Source status codes: b = break in time series; p = provisional; e = estimated; d = differing definition; c = confidential. Combined codes retain each qualification.'));
-    for (const series of analysis.series) {
-      const labels = analysis.preparation?.selection?.code_labels || {};
-      const dims = series.annual.find(row => row.source_dimensions)?.source_dimensions;
-      const display = dims ? (analysis.preparation.selection.series_dimensions || []).map(d => labels[d]?.[dims[d]] || dims[d]).join(' · ') : series.entity;
-      const title = display === series.label ? series.label : display + ' — ' + series.label;
-      const unit = labels.unit?.[series.unit] || series.unit;
-      let host = parent;
-      let detail;
-      if (analysis.series.length > 10) {
-        detail = element('details'); detail.append(element('summary', display)); parent.append(detail);
-        host = element('div'); detail.append(host);
-      }
-      const draw = () => {
-      host.append(chart(series.annual, 'value', title, unit));
-      host.append(element('p', 'Unit: ' + unit + '. Missing years: ' + (series.missing_years.join(', ') || 'none') + '.'));
-      if (series.comparability_note) host.append(element('p', series.comparability_note));
-      if (series.absolute_change != null) host.append(element('p', 'Change between analysed endpoint years: ' + observation(series.absolute_change) + ' ' + (series.absolute_change_unit || unit) + '.'));
-      if (series.change_percent != null) host.append(element('p', 'Change between analysed endpoint years: ' + format(series.change_percent) + '%. Descriptive only.'));
-      else if (series.change_note) host.append(element('p', series.change_note));
-      const table = element('details'); table.append(element('summary', 'Annual observations and source rows'));
-      table.append(dataTable(series.annual.map(r => ({year:r.year,value:observation(r.value),row:r.source_reference || r.source_row || 'No source observation',status:r.source_status || 'Not specified'})), [['year','Year'],['value',unit],['row','Source row'],['status','Reporting status']]));
-      host.append(table);
-      };
-      if (detail) detail.addEventListener('toggle', () => { if (detail.open && !host.childElementCount) draw(); });
-      else draw();
-    }
+    if (analysis.preparation?.format === 'statistical_tsv_v1') source.append(element('p', 'Source status codes: b = break in time series; p = provisional; e = estimated; d = differing definition; c = confidential. Combined codes retain each qualification.'));
+    executionDetails(analysis, source);
     const meaningReviews = [analysis.semantic_review, ...(analysis.components || []).map(c => c.semantic_review)].filter(Boolean);
     const displayed = new Set();
     for (const review of meaningReviews) {
       const key = JSON.stringify(review);
-      if (!displayed.has(key)) meaningDetails(review, parent);
+      if (!displayed.has(key)) meaningDetails(review, source);
       displayed.add(key);
     }
-    parent.append(element('p', 'Source SHA-256: ' + analysis.source.sha256, 'data-source-hash'));
-    parent.append(element('p', 'Licence assessment: ' + analysis.source.license_note));
-    if (analysis.source.connector) parent.append(element('p', 'Queried the ' + analysis.source.publisher + ' API: dataset ' + analysis.source.connector.dataset), safeLink('Exact request', analysis.source.connector.request.url));
-    for (const note of analysis.limitations) parent.append(element('p',note));
+    if (analysis.source.license_note) source.append(element('p', 'Licence assessment: ' + analysis.source.license_note));
+    if (analysis.source.connector) source.append(element('p', 'Queried the ' + analysis.source.publisher + ' API: dataset ' + analysis.source.connector.dataset), safeLink('Exact request', analysis.source.connector.request.url));
+    for (const note of analysis.limitations || []) source.append(element('p', note));
+    if (analysis.source.sha256) source.append(element('p', 'Source SHA-256: ' + analysis.source.sha256, 'data-source-hash'));
+    parent.append(source);
   }
-  const decisions = element('details'); decisions.open = !data.analyses.length;
+  const decisions = element('details'); decisions.open = !(data.analyses || []).length;
   decisions.append(element('summary', 'Why sources were used or could not be used'));
   for (const item of [...(data.assessments || []), ...(data.discovery?.rejected || []), ...(data.followup?.discovery?.rejected || [])]) {
     const article = element('article');

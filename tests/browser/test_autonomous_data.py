@@ -24,12 +24,12 @@ def test_automatic_plan_and_source_failure_are_clear(live_browser_url, chromium_
     page.route("**/runs/interpret", lambda route: route.fulfill(json=brief))
     page.goto(live_browser_url + "/app")
     page.get_by_label("Research question", exact=True).fill("Population in the Netherlands")
-    page.get_by_role("button", name="Review question", exact=True).click()
+    page.get_by_role("button", name="Check question", exact=True).click()
     approach = page.locator(".choice-row[data-detail='approach']")
     expect(approach.locator(".choice-current")).to_have_text("Find and analyse datasets")
     approach.get_by_role("button", name="Datasets and literature", exact=True).click()
     expect(approach.locator(".choice-current")).to_have_text("Datasets and literature")
-    expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
+    expect(page.get_by_role("button", name="Start research")).to_be_enabled()
     page.close()
 
 
@@ -141,12 +141,14 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     page.request.post(live_browser_url + "/auth/development")
     page.goto(live_browser_url + "/app?project=development-project&run=auto-data")
     expect(page.locator("#dashboard-data svg")).to_have_count(1)
-    expect(page.locator("#dashboard-model")).to_contain_text("openai · fixture")
+    expect(page.locator("#dashboard-model")).to_contain_text("OpenAI · fixture")
     expect(page.locator("#dashboard-data")).to_contain_text("1 of 2 requested combinations covered")
     expect(page.locator("#dashboard-data")).to_contain_text("Second station")
     expect(page.locator("#dashboard-data")).to_contain_text(
         "2 values checked directly against source bytes"
     )
+    page.get_by_text("How the data were found and checked", exact=False).click()
+    page.locator("summary", has_text="Source checks:").first.click()
     page.get_by_text("Executed Python and validation", exact=True).click()
     expect(
         page.get_by_text("The model wrote and executed the extraction in 2 attempt(s).", exact=True)
@@ -154,8 +156,8 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     expect(
         page.get_by_text("Model review does not replace expert validation.", exact=True)
     ).to_be_visible()
-    page.get_by_text("Annual observations and source rows", exact=True).click()
-    expect(page.get_by_role("cell", name="0,04", exact=True)).to_be_visible()
+    page.get_by_text("Annual values and source rows", exact=True).click()
+    expect(page.get_by_role("cell", name="0.04", exact=True)).to_be_visible()
     expect(page.get_by_role("cell", name="Missing", exact=True)).to_be_visible()
     page.get_by_text("Why sources were used or could not be used", exact=True).click()
     expect(
@@ -241,7 +243,6 @@ def test_many_statistical_series_are_expandable_with_country_and_sex_labels(
     expect(page.locator("#dashboard-data svg")).to_have_count(0)
     page.get_by_text("Netherlands · Females", exact=True).first.click()
     expect(page.locator("#dashboard-data svg")).to_have_count(1)
-    expect(page.get_by_text("Unit: Year. Missing years: none.", exact=True)).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.close()
 
@@ -268,24 +269,24 @@ def test_chart_uses_round_ticks_and_preserves_observations(live_browser_url, chr
         }""")
         assert result[0]["ticks"] == [
             "0",
-            "100.000",
-            "200.000",
-            "300.000",
-            "400.000",
-            "500.000",
-            "600.000",
+            "100,000",
+            "200,000",
+            "300,000",
+            "400,000",
+            "500,000",
+            "600,000",
         ]
-        assert result[0]["title"] == "2017: 539.921 ha"
+        assert result[0]["title"] == "2017: 539,921 ha"
         assert result[1]["ticks"] == [
             "0",
-            "0,0001",
-            "0,0002",
-            "0,0003",
-            "0,0004",
-            "0,0005",
-            "0,0006",
+            "0.0001",
+            "0.0002",
+            "0.0003",
+            "0.0004",
+            "0.0005",
+            "0.0006",
         ]
-        assert result[2]["ticks"][0] == "-600.000"
+        assert result[2]["ticks"][0] == "-600,000"
         assert result[2]["ticks"][-1] == "0"
         for chart in result:
             assert 27 <= chart["y"] <= 195

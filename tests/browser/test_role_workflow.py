@@ -21,14 +21,14 @@ def test_role_controls_and_cross_project_api_denial(
     expect(reviewer.get_by_role("button", name="Accept evidence")).to_be_visible()
     expect(reviewer.get_by_role("button", name="Add authorized full text")).to_be_hidden()
     expect(
-        reviewer.get_by_role("button", name="Review question", include_hidden=True)
+        reviewer.get_by_role("button", name="Check question", include_hidden=True)
     ).to_be_disabled()
 
     viewer = chromium_browser.new_page()
     _login_as(viewer, live_browser_url, "viewer")
     expect(viewer.get_by_role("button", name="Accept evidence")).to_have_count(0)
     expect(
-        viewer.get_by_role("button", name="Review question", include_hidden=True)
+        viewer.get_by_role("button", name="Check question", include_hidden=True)
     ).to_be_disabled()
     denied = viewer.evaluate(
         """async () => {
@@ -41,11 +41,11 @@ def test_role_controls_and_cross_project_api_denial(
     editor = chromium_browser.new_page()
     _login_as(editor, live_browser_url, "editor")
     expect(editor.get_by_role("button", name="Add authorized full text")).to_be_visible()
-    editor.get_by_role("button", name="New research question", exact=True).click()
-    expect(editor.get_by_role("button", name="Review question")).to_be_enabled()
+    editor.get_by_role("button", name="+ New question", exact=True).click()
+    expect(editor.get_by_role("button", name="Check question")).to_be_enabled()
     editor.get_by_label("Research question").fill("What evidence is available?")
-    editor.get_by_role("button", name="Review question").click()
-    editor.get_by_role("button", name="Approve and start review").click()
+    editor.get_by_role("button", name="Check question").click()
+    editor.get_by_role("button", name="Start research").click()
     expect(editor.locator("#run-status")).to_have_text("queued")
     editor.get_by_label("Publication or candidate identifier").fill("candidate-1")
     output = BytesIO()

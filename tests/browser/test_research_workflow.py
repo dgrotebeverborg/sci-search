@@ -19,12 +19,12 @@ def test_start_cancel_evidence_validation_and_download_workflow(
     page.get_by_label("Research question").fill(
         "What round-trip efficiencies have been reported for iron-air batteries?"
     )
-    page.get_by_role("button", name="Review question").click()
-    page.get_by_role("button", name="Approve and start review").click()
+    page.get_by_role("button", name="Check question").click()
+    page.get_by_role("button", name="Start research").click()
     expect(page.locator("#run-status")).to_have_text("queued")
     expect(page.get_by_label("Research question")).to_be_hidden()
     expect(page.locator("#question-brief")).to_be_hidden()
-    page.get_by_role("button", name="Cancel review").click()
+    page.get_by_role("button", name="Cancel").click()
     expect(page.locator("#run-status")).to_have_text("cancel requested")
     expect(page.get_by_text("A source-linked scientific finding")).not_to_be_visible()
     expect(page.get_by_text("provenance", exact=True)).not_to_be_visible()
@@ -59,8 +59,8 @@ def test_running_review_shows_actual_activity_and_can_return_to_new_question(
     try:
         _login(page, live_browser_url)
         page.get_by_label("Research question").fill("Annual burned area")
-        page.get_by_role("button", name="Review question").click()
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Check question").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#research")).to_be_hidden()
         expect(page.locator("#run-question")).to_have_text("Annual burned area")
         expect(page.locator("#run-progress")).to_have_text("Checking dataset 2: EFFIS")
@@ -71,7 +71,7 @@ def test_running_review_shows_actual_activity_and_can_return_to_new_question(
             "Executing Python extraction", timeout=6000
         )
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-        page.get_by_role("button", name="New research question", exact=True).click()
+        page.get_by_role("button", name="+ New question", exact=True).click()
         expect(page.get_by_label("Research question")).to_be_visible()
         expect(page.locator("#run-panel")).to_be_hidden()
     finally:
@@ -86,8 +86,8 @@ def test_failed_start_preserves_question_and_confirmation(live_browser_url, chro
     try:
         _login(page, live_browser_url)
         page.get_by_label("Research question").fill("Annual burned area")
-        page.get_by_role("button", name="Review question").click()
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Check question").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#global-status")).to_have_text("Worker unavailable")
         expect(page.locator("#approval-status")).to_have_text("Worker unavailable")
         expect(page.get_by_label("Research question")).to_have_value("Annual burned area")
@@ -121,8 +121,8 @@ def test_progress_poll_recovers_after_network_failure(live_browser_url, chromium
     try:
         _login(page, live_browser_url)
         page.get_by_label("Research question").fill("Annual population")
-        page.get_by_role("button", name="Review question").click()
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Check question").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#run-connection")).to_contain_text(
             "Retrying automatically", timeout=5000
         )
@@ -142,7 +142,7 @@ def test_research_controls_wait_for_javascript_initialization(
     try:
         page.route("**/static/**/app.js", lambda route: route.abort())
         _login(page, live_browser_url)
-        expect(page.get_by_role("button", name="Review question")).to_be_disabled()
+        expect(page.get_by_role("button", name="Check question")).to_be_disabled()
         expect(page.get_by_label("Research question")).to_be_disabled()
         page.get_by_text("New project", exact=True).click()
         expect(page.get_by_role("button", name="Create project")).to_be_disabled()
@@ -151,8 +151,8 @@ def test_research_controls_wait_for_javascript_initialization(
         page.unroute("**/static/**/app.js")
         page.reload()
         page.get_by_label("Research question").fill("What evidence is available?")
-        page.get_by_role("button", name="Review question").click()
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Check question").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#run-status")).to_have_text("queued")
         expect(page).to_have_url(f"{live_browser_url}/app")
     finally:
@@ -204,8 +204,8 @@ def test_completed_review_refreshes_results_without_switching_projects(
         _login(page, live_browser_url)
         expect(page.locator(".evidence-card")).to_have_count(0)
         page.get_by_label("Research question").fill("What does the evidence say?")
-        page.get_by_role("button", name="Review question").click()
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Check question").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#run-status")).to_have_text("Processing complete")
         expect(page.get_by_text("Fresh research finding", exact=True)).to_be_visible()
     finally:
@@ -228,7 +228,7 @@ def test_start_screen_does_not_fetch_or_display_previous_project_results(
     )
     try:
         _login(page, live_browser_url)
-        expect(page.get_by_role("button", name="Review question")).to_be_enabled()
+        expect(page.get_by_role("button", name="Check question")).to_be_enabled()
         for name in ("evidence", "validation", "exports"):
             expect(page.locator("#" + name)).to_be_hidden()
         expect(page.get_by_text("A source-linked scientific finding")).not_to_be_visible()

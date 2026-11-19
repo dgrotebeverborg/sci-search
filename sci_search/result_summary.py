@@ -10,6 +10,7 @@ from typing import Any
 
 MAX_SOURCES = 5
 MAX_LEFT_OUT = 10
+MAX_FINDINGS = 8
 LABELS = {
     "strong": "Strong evidence",
     "moderate": "Moderate evidence",
@@ -42,6 +43,8 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
     included = [_study(s, documents) for s in studies if _decision(s) == "included"]
     missing = _missing(adequacy, scope, question)
     data_part = _data(data) if data else None
+    if data:
+        missing += [gap for gap in _data_gaps(data) if gap not in missing]
     return {
         "answer": _answer(answer),
         "certainty": _certainty(
@@ -101,11 +104,20 @@ def _join(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
+# Navigation phrases from older data summaries; the page layout already says where to look.
+_POINTERS = re.compile(
+    r"\s*(?:Inspect the measurements, coverage and source decisions below|"
+    r"See the series and source decisions below|"
+    r"Source decisions and access limitations are shown below)\.",
+)
+
+
 def _answer(answer: dict[str, Any]) -> dict[str, Any] | None:
     summary = _dict(answer.get("executive_summary"))
     if not summary.get("text"):
         return None
-    return {"text": str(summary["text"]), "evidence_ids": list(summary.get("evidence_ids") or [])}
+    text = _POINTERS.sub("", str(summary["text"])).strip()
+    return {"text": text, "evidence_ids": list(summary.get("evidence_ids") or [])}
 
 
 def _url(item: dict[str, Any], documents: dict[str, Any]) -> str | None:
@@ -239,9 +251,8 @@ def _sentence(adequacy, data_part, included, contributing, missing, question) ->
         # Older results record contributing publications without screening decisions.
         noun = "publication contributes" if contributing == 1 else "publications contribute"
         leads.append(f"{contributing} {noun} to the answer")
-    lead = " and ".join(leads) or "No study or dataset answers the question directly"
-    gaps = [m[:1].lower() + m[1:-1] for m in missing[:2]]
-    return "; ".join([lead, *gaps]) + "."
+    # What is missing is listed right under this sentence, so it is not repeated here.
+    return (" and ".join(leads) or "No study or dataset answers the question directly") + "."
 
 
 def _series(analysis: dict[str, Any]) -> list[dict[str, Any]]:
@@ -285,7 +296,77 @@ def _data(data: dict[str, Any]) -> dict[str, Any]:
         for a in data.get("assessments") or []
         if isinstance(a, dict) and a.get("decision") != "analysed"
     )
-    return {"datasets": datasets, "not_used": not_used}
+    findings = _findings(data)
+    return {
+        "datasets": datasets,
+        "not_used": not_used,
+        "findings": findings[:MAX_FINDINGS],
+        "more_findings": max(0, len(findings) - MAX_FINDINGS),
+    }
+
+
+def _number(value: float) -> str:
+    """English-formatted value for a sentence: 93,297 · 4.6 · 0.032."""
+    if abs(value) >= 100:
+        return f"{value:,.0f}"
+    return f"{value:,.3g}" if abs(value) < 1 else f"{value:,.1f}".removesuffix(".0")
+
+
+def _findings(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """First and last observed value of every analysed series, as the headline numbers."""
+    findings = []
+    for analysis in data.get("analyses") or []:
+        if not isinstance(analysis, dict):
+            continue
+        for series in _series(analysis):
+            rows = [
+                r
+                for r in series.get("annual") or []
+                if isinstance(r, dict)
+                and isinstance(r.get("year"), int)
+                and isinstance(r.get("value"), (int, float))
+                and not isinstance(r.get("value"), bool)
+            ]
+            if not rows:
+                continue
+            first, last = rows[0], rows[-1]
+            unit = str(series.get("unit") or "")
+            entity = str(series.get("entity") or "").strip()
+            label = str(series.get("label") or "").strip()
+            name = entity if entity and entity != label else label
+            if first["year"] == last["year"]:
+                text = f"{name}: {_number(last['value'])} {unit} in {last['year']}"
+            else:
+                text = (
+                    f"{name}: {_number(first['value'])} → {_number(last['value'])} {unit} "
+                    f"({first['year']}–{last['year']})"
+                )
+                change = series.get("change_percent")
+                if isinstance(change, (int, float)) and not isinstance(change, bool):
+                    text += f", {'+' if change > 0 else ''}{_number(change)}%"
+            finding = {"text": " ".join(text.split()), "measurement": label}
+            # Analyses repeat their series per component.
+            if finding not in findings:
+                findings.append(finding)
+    return findings
+
+
+def _data_gaps(data: dict[str, Any]) -> list[str]:
+    sentences = []
+    for cell in _dict(data.get("coverage")).get("cells") or []:
+        if not isinstance(cell, dict) or cell.get("status") in {"complete", None}:
+            continue
+        what = str(cell.get("measurement") or "").strip()
+        where = str(cell.get("entity") or "").strip()
+        subject = f"{what} ({where})" if where else what
+        text = (
+            f"Data are incomplete for {subject}."
+            if cell.get("status") == "partial"
+            else f"No usable data were found for {subject}."
+        )
+        if subject and text not in sentences:
+            sentences.append(text)
+    return sentences
 
 
 def _key_sources(answer, evidence, references, data_part, documents) -> list[dict[str, Any]]:

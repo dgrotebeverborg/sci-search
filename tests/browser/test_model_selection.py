@@ -24,7 +24,7 @@ def test_user_selects_model_and_changing_it_invalidates_brief(
     try:
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        models = page.get_by_label("Analysis model", exact=True)
+        models = page.get_by_label("AI model", exact=True)
         expect(models).to_be_enabled()
         models.select_option(label="OpenAI · model-b")
         page.screenshot(path="/tmp/sci-search-model-chooser.png", full_page=True)
@@ -32,7 +32,7 @@ def test_user_selects_model_and_changing_it_invalidates_brief(
             "How does salinity affect tomato germination?"
         )
         with page.expect_request("**/runs/interpret") as request:
-            page.get_by_role("button", name="Review question", exact=True).click()
+            page.get_by_role("button", name="Check question", exact=True).click()
         assert request.value.post_data_json["analysis_selection"] == {
             "provider": "openai",
             "model": "model-b",
@@ -40,10 +40,10 @@ def test_user_selects_model_and_changing_it_invalidates_brief(
         expect(page.locator("#question-brief")).to_be_visible()
         models.select_option(label="OpenAI · model-a")
         expect(page.locator("#question-brief")).not_to_be_visible()
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#question-brief")).to_be_visible()
         with page.expect_request("**/runs") as started:
-            page.get_by_role("button", name="Approve and start review").click()
+            page.get_by_role("button", name="Start research").click()
         assert started.value.post_data_json["analysis_selection"] == {
             "provider": "openai",
             "model": "model-a",
@@ -69,16 +69,16 @@ def test_failed_model_interpretation_disables_approval(
     try:
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        models = page.get_by_label("Analysis model", exact=True)
+        models = page.get_by_label("AI model", exact=True)
         expect(models).to_be_enabled()
         models.select_option(label="OpenAI · model-a")
         page.get_by_label("Research question", exact=True).fill(
             "How does salinity affect tomato germination?"
         )
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#question-brief")).to_be_visible()
         expect(page.locator("#question-brief")).to_contain_text("could not be validated")
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_disabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_disabled()
         expect(page.locator("#run-panel")).not_to_be_visible()
     finally:
         page.close()
@@ -112,9 +112,7 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
         )
         render = "async snapshot => { const {renderDashboard} = await import(new URL('./dashboard.js', document.querySelector('script[type=module]').src).href); renderDashboard(snapshot); }"
         page.evaluate(render, snapshot)
-        expect(page.locator("#dashboard-model")).to_contain_text(
-            "Analysis model: OpenAI · chosen-model"
-        )
+        expect(page.locator("#dashboard-model")).to_contain_text("AI model: OpenAI · chosen-model")
         expect(page.locator("#dashboard-answer")).to_contain_text("Not enough evidence")
         expect(page.locator("#dashboard-answer")).to_contain_text("expert scientific validation")
         snapshot["analysis"]["fallback_reason"] = "No evidence"
@@ -153,10 +151,8 @@ def test_model_chooser_ignores_pre_upgrade_cached_module(live_browser_url, chrom
         )
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        expect(page.get_by_label("Analysis model", exact=True)).to_be_enabled()
-        expect(page.get_by_label("Analysis model", exact=True)).not_to_contain_text(
-            "Loading models"
-        )
+        expect(page.get_by_label("AI model", exact=True)).to_be_enabled()
+        expect(page.get_by_label("AI model", exact=True)).not_to_contain_text("Loading models")
     finally:
         page.close()
 
@@ -171,8 +167,8 @@ def test_new_search_defaults_to_sol_and_deep_but_user_can_change(
     try:
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        models = page.get_by_label("Analysis model", exact=True)
-        depth = page.get_by_label("Review depth", exact=True)
+        models = page.get_by_label("AI model", exact=True)
+        depth = page.get_by_label("Depth", exact=True)
         expect(models).to_have_value('{"provider":"openai","model":"gpt-6-sol"}')
         expect(depth).to_have_value("deep")
         models.select_option(label="OpenAI · gpt-6-luna")
@@ -205,16 +201,16 @@ def test_codex_default_interpretation_and_run_keep_provider(
     try:
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        models = page.get_by_label("Analysis model", exact=True)
+        models = page.get_by_label("AI model", exact=True)
         expect(models).to_have_value('{"provider":"codex","model":"gpt-6-sol"}')
         expect(models).to_contain_text("Codex (ChatGPT login)")
         page.get_by_label("Research question", exact=True).fill(
             "How does salinity affect tomato germination?"
         )
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#brief-method")).to_contain_text("Codex (ChatGPT login)")
         with page.expect_request("**/runs") as started:
-            page.get_by_role("button", name="Approve and start review").click()
+            page.get_by_role("button", name="Start research").click()
         assert started.value.post_data_json["analysis_selection"] == {
             "provider": "codex",
             "model": "gpt-6-sol",
@@ -236,8 +232,8 @@ def test_unavailable_codex_default_requires_explicit_api_selection(
     try:
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
-        models = page.get_by_label("Analysis model", exact=True)
-        review = page.get_by_role("button", name="Review question", exact=True)
+        models = page.get_by_label("AI model", exact=True)
+        review = page.get_by_role("button", name="Check question", exact=True)
         expect(models).to_be_enabled()
         expect(models).to_have_value('{"provider":"codex","model":"gpt-6-sol"}')
         expect(review).to_be_disabled()

@@ -94,7 +94,7 @@ async function loadModels(project) {
     const candidates = [previous, ...preferredCodex, JSON.stringify({provider: 'openai', model: 'gpt-6-sol'}), JSON.stringify(catalog.default), ...available.map(item => JSON.stringify({provider: item.provider, model: item.model})), ''];
     select.value = candidates.find(value => [...select.options].some(option => option.value === value && (!option.disabled || (value && JSON.parse(value).provider === 'codex')))) ?? '';
     document.getElementById('analysis-model-help').textContent = available.length
-      ? 'Used for question interpretation and research analysis. Your choice is saved with this review.'
+      ? 'Used for question interpretation and research analysis. Your choice is saved with this research.'
       : 'No AI provider is configured. Research will use extractive analysis.';
     modelsLoaded = true;
     configureRunPermissions(project);
@@ -155,17 +155,18 @@ function showBrief(brief) {
   const outcomes = plan?.outcome_measure_terms?.length
     ? [`${plan.subject_terms.join(', ')} (${plan.outcome_measure_terms.join(', ')})`]
     : plan?.subject_terms;
-  const specified = values => values == null ? ['Not resolved automatically — check your question']
-    : values.length ? values : ['Not specified — no restriction'];
+  // Approach, geography and period are already shown as choices above; the remaining
+  // interpretation is folded so the choices and the start button stay together.
+  const full = document.createElement('details'); full.className = 'brief-full';
+  const fullSummary = document.createElement('summary'); fullSummary.textContent = 'How the question will be searched';
+  full.append(fullSummary);
   if (!brief.data_research || brief.data_research.route === 'literature') for (const [label, values] of [
     ['Factor being studied', relationship ? (plan.driver_terms?.length ? plan.driver_terms : ['Not identified — clarify the question']) : []],
     [relationship ? 'Outcome being studied' : plan?.intent === 'comparison' ? 'What is being compared' : 'Topic being studied', outcomes],
     ['Relationship to investigate', relationship ? [plan.relationship_type === 'association'
       ? 'Whether the factor and outcome are associated. An association alone does not establish cause and effect.'
       : 'How the proposed factors relate to the outcome; their effects are not assumed.'] : []],
-    ['People or study subjects', specified(plan?.population_terms)],
-    ['Location', specified(plan?.geography_terms)],
-    ['Time period', specified(plan?.time_terms)],
+    ['People or study subjects', plan?.population_terms],
     ['Automatic evidence filters', brief.research_plan?.evidence_preferences?.map(value => value.replaceAll('_', ' '))],
     ['Excluded terms used in screening', brief.research_plan?.exclusion_terms],
     ['Evidence to look for', brief.evidence_scope], ['Assumptions to check', brief.assumptions],
@@ -175,16 +176,17 @@ function showBrief(brief) {
     const heading = document.createElement('h3'); heading.textContent = label;
     const list = document.createElement('ul');
     for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); }
-    details.append(heading, list);
+    full.append(heading, list);
   }
+  if (full.children.length > 1) details.append(full);
   document.getElementById('approve-question').disabled = needsClarification;
   approvalStatus(needsClarification
-    ? (brief.clarification_question || 'Identify both the factor and the outcome in your question, then review it again.')
-    : 'Ready to start. Approve this interpretation to begin the research.', needsClarification ? 'error' : 'info');
+    ? (brief.clarification_question || 'Name both the factor and the outcome in your question, then check it again.')
+    : '', needsClarification ? 'error' : 'info');
   document.getElementById('question-brief').hidden = false;
   setStatus(needsClarification
-    ? 'Clarify the question above and review it again before starting.'
-    : 'Review the interpretation below. Research starts only when you approve.');
+    ? 'Clarify the question above and check it again before starting.'
+    : '');
 }
 
 // Asks for an interpretation; `extra` carries a steer or a clarification answer.
@@ -267,13 +269,13 @@ function renderRun(run, loadDashboard = true) {
   document.getElementById('run-model').textContent = `Selected model: ${modelLabel(run.analysis_selection)}`;
   document.getElementById('run-status').textContent = run.status === 'completed' ? 'Processing complete' : run.status.replaceAll('_', ' ');
   document.getElementById('run-progress').textContent = (run.status === 'running' && run.progress?.message) || {
-    queued: 'The review is queued for analysis.',
+    queued: 'The research is queued.',
     running: 'Sci-Search is discovering, acquiring, and analyzing evidence.',
     completed: 'Processing is complete. Check the evidence assessment to see whether the findings answer your question.',
-    failed: 'The review stopped after an error. You can retry it safely.',
+    failed: 'The research stopped after an error. You can retry it safely.',
     cancel_requested: 'Cancellation requested. The worker will stop at the next safe checkpoint.',
-    cancelled: 'The review was cancelled.',
-  }[run.status] || `Review status: ${run.status}`;
+    cancelled: 'The research was cancelled.',
+  }[run.status] || `Status: ${run.status}`;
   renderActivity(run);
   document.getElementById('cancel-run').hidden = !['queued', 'running'].includes(run.status);
   document.getElementById('retry-run').hidden = run.status !== 'failed';
@@ -322,8 +324,8 @@ export async function startRun(question, reviewDepth, brief = null) {
   document.getElementById('run-panel').focus({preventScroll: true});
   refreshHistory();
   setStatus(document.getElementById('local-research-notice')
-    ? 'Review started. Your search is saved; real research can take several minutes.'
-    : 'Review started. Keep this tab open to follow progress.');
+    ? 'Research started. It is saved in your list; it can take several minutes.'
+    : 'Research started. Keep this tab open to follow progress.');
   pollRun();
 }
 
@@ -350,7 +352,7 @@ export function initializeRuns() {
   document.getElementById('research-question').addEventListener('input', clearBrief);
   document.getElementById('analysis-model').addEventListener('change', () => {
     clearBrief();
-    document.getElementById('analysis-model-help').textContent = 'Used for question interpretation and research analysis. Your choice is saved with this review.';
+    document.getElementById('analysis-model-help').textContent = 'Used for question interpretation and research analysis. Your choice is saved with this research.';
     configureRunPermissions(currentProject());
   });
   document.getElementById('question-form').addEventListener('submit', async (event) => {
@@ -359,7 +361,7 @@ export function initializeRuns() {
   });
   document.getElementById('approve-question').addEventListener('click', async () => {
     if (!questionBrief) {
-      approvalStatus('The interpretation has expired. Click Review question again before starting.', 'error');
+      approvalStatus('The interpretation has expired. Click Check question again before starting.', 'error');
       return;
     }
     const button = document.getElementById('approve-question');
@@ -371,7 +373,7 @@ export function initializeRuns() {
       await startRun(brief.original_question, document.getElementById('review-depth').value, brief);
       if (questionBrief === brief) clearBrief();
     } catch (error) { approvalStatus(error.message, 'error'); setStatus(error.message, 'error'); }
-    finally { button.disabled = false; button.textContent = 'Approve and start review'; }
+    finally { button.disabled = false; button.textContent = 'Start research'; }
   });
   document.getElementById('cancel-run').addEventListener('click', async () => {
     const project = currentProject();

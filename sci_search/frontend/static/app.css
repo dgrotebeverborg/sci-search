@@ -175,7 +175,6 @@ h1 { max-width: 900px; margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 5rem
 .dashboard-block h2 { margin: .35rem 0 1rem; font-size: 1.25rem; line-height: 1.25; letter-spacing: -.02em; }
 .dashboard-block h3 { font-size: 1rem; margin: 1.25rem 0 .5rem; }
 .adequacy-decision { padding: .75rem 1rem; background: #f6f1df; border-left: 3px solid #c7a74c; font-size: .9rem; }
-#dashboard-scope, #dashboard-gaps, #dashboard-findings, #dashboard-comparisons { grid-column: span 1; height: 100%; }
 .section-intro { color: #607079; line-height: 1.6; font-size: .9rem; }
 .review-narrative { line-height: 1.75; }
 .review-narrative article { border-top: 1px solid #e8ecef; margin-top: 1rem; }
@@ -192,7 +191,6 @@ h1 { max-width: 900px; margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 5rem
 .dashboard-block .empty-state { font-size: .88rem; background: #f5f7f8; border-radius: 7px; padding: .8rem 1rem; }
 @media (max-width: 700px) {
   #dashboard-blocks { grid-template-columns: minmax(0, 1fr); }
-  #dashboard-scope, #dashboard-gaps, #dashboard-findings, #dashboard-comparisons { grid-column: 1; }
   .dashboard-block { padding: 1.1rem; }
   .dashboard-header h1 { font-size: 1.7rem; }
 }
@@ -353,7 +351,19 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 
 .history-hidden-toggle { display: flex; align-items: center; gap: .4rem; font-size: .75rem; margin: .6rem 0; }
 .history-hidden-toggle input { width: auto; margin: 0; }
-.history-hide { padding: .2rem .45rem; margin: .2rem 0 .5rem; font-size: .7rem; }
+/* One line per item: date (and a status only when unfinished), with a quiet Hide link. */
+#research-history li { padding: .2rem 0 .45rem; }
+.history-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 0 .7rem; }
+.history-meta .history-status { padding-left: 0; margin: 0; }
+.history-hide { background: none; border: 0; padding: .1rem 0; font-size: .7rem; color: var(--muted); text-decoration: underline; cursor: pointer; opacity: 0; }
+#research-history li:hover .history-hide, #research-history li:focus-within .history-hide { opacity: 1; }
+@media (hover: none) { .history-hide { opacity: 1; } }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.result-list.result-findings { font-size: 1.05rem; font-weight: 600; list-style: disc; padding-left: 1.2rem; margin: .75rem 0 1.1rem; display: block; }
+.result-list.result-findings li { margin: .15rem 0; line-height: 1.5; }
+.data-provenance { margin-top: 1.5rem; border-top: 1px solid var(--line); padding-top: .6rem; }
+.brief-full { margin: 1rem 0; }
+.brief-full > summary { cursor: pointer; color: var(--muted); }
 
 .data-plan-controls { display: grid; gap: .8rem; }
 .data-plan-controls label { display: flex; flex-direction: column; gap: .3rem; }
@@ -443,3 +453,4 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 .choice-adjusted:empty { display: none; }
 .choice-adjusted { margin: -.25rem 0 0; padding-left: .6rem; border-left: 4px solid var(--uu-yellow); font-size: .9rem; }
 .choice-busy { opacity: .6; }
+

@@ -24,7 +24,7 @@
       <h2 id="workspace-name">Personal workspace</h2>
       <label for="project-select">Project</label>
       <select disabled id="project-select" aria-describedby="project-help"></select>
-      <p class="help" id="project-help">Research runs and evidence stay inside the selected project.</p>
+      <p class="help" id="project-help">Your research is kept per project.</p>
       <details class="new-project">
         <summary>New project</summary>
         <form id="new-project-form">
@@ -38,13 +38,13 @@
         </form>
       </details>
       <details class="history-panel" open>
-        <summary>Saved scientific dashboards</summary>
-        <label for="history-search">Find a search</label>
-        <input id="history-search" type="search" placeholder="Search your questions">
-        <label class="history-hidden-toggle"><input id="history-show-hidden" type="checkbox"> Show hidden searches</label>
+        <summary>Your research</summary>
+        <label for="history-search" class="visually-hidden">Find research</label>
+        <input id="history-search" type="search" placeholder="Find research">
+        <label class="history-hidden-toggle"><input id="history-show-hidden" type="checkbox"> Show hidden</label>
         <p class="help" id="history-empty">Saved research will appear here.</p>
         <ol id="research-history"></ol>
-        <button id="history-more" class="button button-quiet" type="button" hidden>Load more searches</button>
+        <button id="history-more" class="button button-quiet" type="button" hidden>Show more</button>
       </details>
       <div class="nav-links" aria-label="Project sections">
         <a href="#research">Research</a>
@@ -58,9 +58,7 @@
       {% if local_research_enabled %}
       <aside id="local-research-notice" class="preview-notice" role="note">
         <strong>Local research demo · Real results</strong>
-        <p>Ask a question to search scientific literature and build a source-linked report.
-        Your searches and scientific dashboards are saved in this local workspace. Reopen them from the left panel.
-        Reviews can take several minutes. Cancellation takes effect after the current research step.</p>
+        <p>Your research is saved on this computer, under “Your research”. A search can take several minutes.</p>
       </aside>
       {% endif %}
       {% if workspace_preview %}
@@ -73,22 +71,22 @@
       <section class="hero" id="research">
         <p class="eyebrow">Scientific evidence search</p>
         <h1>Start with a research question.</h1>
-        <p class="lede">Sci-Search discovers literature, analyzes retained full texts, and keeps every conclusion traceable to its source.</p>
+        <p class="lede">Sci-Search searches scientific literature and public data, and links every conclusion to its source.</p>
         <form class="question-form" id="question-form">
           <label for="research-question">Research question</label>
           <div class="question-row">
             <textarea disabled id="research-question" name="question" rows="3" maxlength="5000" required></textarea>
-            <button disabled class="button button-primary" type="submit">Review question</button>
+            <button disabled class="button button-primary" type="submit">Check question</button>
           </div>
           <div class="review-setting">
-            <label for="review-depth">Review depth</label>
+            <label for="review-depth">Depth</label>
             <select disabled id="review-depth">
-              <option value="focused">Focused review</option>
-              <option value="deep" selected>Deep review</option>
+              <option value="focused">Focused</option>
+              <option value="deep" selected>Deep</option>
             </select>
           </div>
           <div class="review-setting">
-            <label for="analysis-model">Analysis model</label>
+            <label for="analysis-model">AI model</label>
             <select disabled id="analysis-model" aria-describedby="analysis-model-help"><option>Loading models…</option></select>
           </div>
           <p id="analysis-model-help" class="help">This model is used for question interpretation and research analysis.</p>
@@ -102,16 +100,16 @@
           <p id="brief-adjustments" class="choice-adjusted"></p>
           <div id="brief-choices"></div>
           <div id="brief-details"></div>
-          <p class="help">Choose the version that fits and adjust its details. You can also edit your question above and review it again.</p>
+          <p class="help">Pick the version that fits and adjust it if needed. Nothing is searched until you click Start research.</p>
           <p class="status" id="approval-status" role="status" aria-live="polite"></p>
-          <button class="button button-primary" id="approve-question" type="button" aria-describedby="approval-status">Approve and start review</button>
+          <button class="button button-primary" id="approve-question" type="button" aria-describedby="approval-status">Start research</button>
         </section>
       </section>
       <div class="status" id="global-status" aria-live="polite"></div>
 
       <section class="panel" id="run-panel" hidden aria-labelledby="run-question" tabindex="-1">
         <div class="section-heading">
-          <div><p class="eyebrow">Current review</p><h2 id="run-question"></h2></div>
+          <div><p class="eyebrow">Current research</p><h2 id="run-question"></h2></div>
           <span class="status-badge" id="run-status"></span>
         </div>
         <p id="run-model" class="help"></p>
@@ -125,22 +123,22 @@
           <ol id="run-activity"></ol>
         </details>
         <div class="button-row">
-          <button class="button button-secondary" id="cancel-run" type="button">Cancel review</button>
-          <button class="button button-secondary" id="retry-run" type="button" hidden>Retry review</button>
-          <button class="button button-quiet" id="run-new-search" type="button">New research question</button>
+          <button class="button button-secondary" id="cancel-run" type="button">Cancel</button>
+          <button class="button button-secondary" id="retry-run" type="button" hidden>Retry</button>
+          <button class="button button-quiet" id="run-new-search" type="button">+ New question</button>
         </div>
       </section>
 
       <section id="dashboard-panel" hidden>
         <header class="dashboard-header">
-          <div class="dashboard-topline"><p class="eyebrow">Your research / Saved dashboard</p>
-          <button id="new-search" class="button button-secondary" type="button">+ New search</button></div>
+          <div class="dashboard-topline"><p class="eyebrow">Your research</p>
+          <button id="new-search" class="button button-secondary" type="button">+ New question</button></div>
           <h1 id="dashboard-question"></h1>
           <p id="dashboard-model" class="help" aria-live="polite"></p>
-          <div class="dashboard-meta"><span class="saved-indicator">Saved to your workspace</span>
+          <div class="dashboard-meta"><span class="saved-indicator">Saved</span>
           <details class="revision-menu"><summary>Version history</summary>
           <p id="dashboard-version" class="help"></p>
-          <label for="dashboard-revisions">Dashboard revision</label>
+          <label for="dashboard-revisions">Version</label>
           <select id="dashboard-revisions"></select>
           <button id="current-dashboard" class="button button-quiet" type="button" hidden>Open current revision</button>
           </details></div>

@@ -14,14 +14,14 @@ def test_wildfire_plan_exposes_route_scope_and_years(live_browser_url, chromium_
     page.get_by_label("Research question", exact=True).fill(
         "What are the developments in European wildfire numbers and km2 this century?"
     )
-    page.get_by_role("button", name="Review question", exact=True).click()
+    page.get_by_role("button", name="Check question", exact=True).click()
     expect(page.get_by_label("Research approach", exact=True)).to_have_value("data")
     expect(page.get_by_label("Country scope", exact=True)).to_have_value("europe")
     page.get_by_label("First year", exact=True).fill("2020")
     page.get_by_label("Last year", exact=True).fill("2010")
-    expect(page.get_by_role("button", name="Approve and start review")).to_be_disabled()
+    expect(page.get_by_role("button", name="Start research")).to_be_disabled()
     page.get_by_label("Last year", exact=True).fill("2024")
-    expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
+    expect(page.get_by_role("button", name="Start research")).to_be_enabled()
     page.close()
 
 

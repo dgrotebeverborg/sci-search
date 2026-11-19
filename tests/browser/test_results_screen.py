@@ -23,9 +23,8 @@ def test_one_clean_page_with_the_answer_first(live_browser_url: str, chromium_br
     answer = page.locator("#dashboard-answer")
     expect(answer.locator(".certainty-pill")).to_have_text("Weak evidence")
     expect(answer).to_contain_text("covering the Netherlands and Sweden")
-    expect(page.locator("#dashboard-why")).to_contain_text(
-        "No included study covers the United Kingdom."
-    )
+    # What is missing sits with the answer, not further down.
+    expect(answer).to_contain_text("No included study covers the United Kingdom.")
     expect(page.locator("#dashboard-why")).to_contain_text("Cervical screening in Brazil")
     expect(page.locator("#dashboard-why")).to_contain_text("Literature coverage is not verified")
     # Three tabs; the landscape and details are separate views, the landscape drawn when shown.
@@ -69,7 +68,12 @@ def test_a_data_answer_shows_the_data_part_only(live_browser_url: str, chromium_
     )
     assert order == ["answer", "data", "details"]
     expect(page.locator("#dashboard-data")).to_contain_text("Krefeld S1 Dataset")
-    expect(page.locator("#dashboard-data")).to_contain_text("Germany · 1989–2016 · g/day")
+    # The headline figures lead the answer; the charts follow under the dataset name.
+    expect(page.locator("#dashboard-answer .result-findings")).to_contain_text(
+        "Germany: plot ORB1: 1 → 0.2 g/day (1989–2016)"
+    )
+    expect(page.locator("#dashboard-data svg")).to_have_count(2)
+    expect(page.locator("#dashboard-data")).not_to_contain_text("could not be shown")
     page.close()
 
 

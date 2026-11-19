@@ -303,7 +303,7 @@ function list(items, render) { const ul = element('ul', '', 'result-list'); for 
 // Partial findings the review could support, with their quotes, even without an overall answer.
 function investigationReview(review, parent) {
   const details = element('details', '', 'result-more'); details.open = Boolean(review.partial_findings?.length);
-  details.append(element('summary', review.partial_findings?.length ? `Partial evidence (${review.partial_findings.length})` : 'Investigation review'));
+  details.append(element('summary', review.partial_findings?.length ? `Partial evidence (${review.partial_findings.length})` : 'Additional checks'));
   if (review.qualification) details.append(element('p', review.qualification));
   for (const finding of review.partial_findings || []) {
     details.append(element('h3', finding.subject || ''), element('p', finding.title || ''), element('blockquote', finding.quote || ''));
@@ -320,27 +320,30 @@ function answerSection(summary, answer, snapshot) {
   if (text) node.append(element('p', text, 'result-answer'));
   const ids = summary.answer?.evidence_ids || answer.executive_summary?.evidence_ids || [];
   if (ids.length) node.append(evidenceLinks(ids));
+  // The numbers are the answer of a data search; they lead, before any qualification.
+  const findings = summary.data?.findings || [];
+  if (findings.length) {
+    node.append(list(findings, item => element('li', item.text)));
+    node.lastChild.classList.add('result-findings');
+    if (summary.data.more_findings) node.append(element('p', `${summary.data.more_findings} more series in the charts below.`, 'help'));
+  }
   const certainty = summary.certainty || {level: 'not_assessed', label: 'Not assessed', sentence: ''};
   const line = element('p', '', 'certainty');
   line.append(element('span', certainty.label, `certainty-pill certainty-${certainty.level}`));
   if (certainty.sentence) line.append(document.createTextNode(` ${certainty.sentence}`));
   node.append(line);
-  if (snapshot.result_quality?.validation_note) node.append(element('p', snapshot.result_quality.validation_note, 'help'));
+  if (summary.missing?.length) node.append(element('h3', 'What is missing'), list(summary.missing, text => element('li', text)));
   if (answer.investigation_review) safely(node, () => investigationReview(answer.investigation_review, node));
   contestNote(answer.answer_contest, node);
-  if (summary.key_sources?.length) node.append(element('h3', 'Key sources'), list(summary.key_sources, item => sourceItem(item)));
+  // Datasets are named with their charts; key sources here are the publications.
+  const sources = (summary.key_sources || []).filter(item => item.kind !== 'dataset' || !summary.data);
+  if (sources.length) node.append(element('h3', 'Key sources'), list(sources, item => sourceItem(item)));
+  if (snapshot.result_quality?.validation_note) node.append(element('p', snapshot.result_quality.validation_note, 'help'));
   return node;
 }
 function dataSection(summary, analysis) {
   const node = resultSection('data', 'What the data show');
-  const datasets = summary.data.datasets || [];
-  if (datasets.length) node.append(list(datasets, d => sourceItem(d, [d.entities?.join(', '), d.first_year ? `${d.first_year}–${d.last_year}` : '', d.unit].filter(Boolean).join(' · '))));
-  else node.append(element('p', 'No dataset gave a supported numerical answer.', 'help'));
-  // Open by default: the chart is part of what the data show.
-  const more = element('details', '', 'result-more'); more.open = true;
-  more.append(element('summary', `Charts, values and sources${summary.data.not_used ? ` · ${summary.data.not_used} sources not used` : ''}`));
-  safely(more, () => renderDataResearch(analysis, more));
-  node.append(more);
+  safely(node, () => renderDataResearch(analysis, node));
   return node;
 }
 function literatureSection(summary, blocks, snapshot) {
@@ -365,10 +368,9 @@ function studyItem(study, withDecision) {
 function whySection(summary, blocks) {
   const gaps = blocks.gaps || {};
   const papers = blocks.landscape?.papers || [];
-  if (!summary.missing?.length && !summary.included?.length && !summary.left_out?.length && !gaps.limitations?.length && !gaps.follow_up_questions?.length && !papers.length) return null;
+  if (!summary.included?.length && !summary.left_out?.length && !gaps.limitations?.length && !gaps.follow_up_questions?.length && !papers.length) return null;
   const node = resultSection('why', 'Why this certainty');
   if (papers.length) safely(node, () => renderCoverageNotice(papers, node));
-  if (summary.missing?.length) node.append(element('h3', 'What is missing'), list(summary.missing, text => element('li', text)));
   if (summary.included?.length) node.append(element('h3', `Counted as evidence (${summary.included.length})`), list(summary.included, s => studyItem(s, false)));
   if (summary.left_out?.length) node.append(element('h3', 'Read but not counted'), list(summary.left_out, s => studyItem(s, true)));
   if (gaps.limitations?.length) { node.append(element('h3', 'Limitations')); fields(gaps.limitations, node); }
@@ -441,13 +443,12 @@ export function renderDashboard(snapshot, context = {}) {
   const usedFallback = Boolean(analysis.fallback_reason || method === 'deterministic_extractive_fallback' || (analysis.status && !['complete', 'coverage_limited'].includes(analysis.status)));
   const selected = analysis.selection;
   const fallback = usedFallback ? `Extractive analysis${selected ? ` · selected: ${providerLabel(selected.provider)} · ${selected.model}` : ''}${analysis.fallback_reason ? ` — ${analysis.fallback_reason}` : ''}` : null;
-  document.getElementById('dashboard-model').textContent = fallback || (actual ? `Analysis model: ${actual}` : ['complete', 'coverage_limited'].includes(analysis.status) ? 'AI was used · model not recorded' : 'Analysis model: not recorded for this saved result');
+  document.getElementById('dashboard-model').textContent = fallback || (actual ? `AI model: ${actual}` : ['complete', 'coverage_limited'].includes(analysis.status) ? 'AI was used · model not recorded' : 'AI model not recorded for this saved result');
   const dataset = snapshot.blocks?.find(b => b.data?.data_analysis)?.data.data_analysis;
-  const combined = dataset?.strategy?.route === 'both' || dataset?.literature_status === 'complete';
   if (dataset) {
     const discovery = dataset.discovery;
     document.getElementById('dashboard-model').textContent = discovery
-      ? `Source discovery and assessment: ${discovery.provider} · ${discovery.model} · Calculations from downloaded data${combined && actual ? ' · Literature: ' + actual : ''}`
+      ? `AI model: ${providerLabel(discovery.provider)} · ${discovery.model}${dataset.analyses?.length ? ' · Numbers calculated from downloaded data' : ''}`
       : dataset.kind === 'discovered' ? 'Dataset discovery unavailable — see the recorded reason'
       : 'Reproducible data calculations · no AI-generated numerical values';
   }

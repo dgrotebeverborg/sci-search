@@ -26,7 +26,7 @@ def open_question(page, url, responses):
     page.goto(url)
     page.get_by_role("button", name="Continue with development account").click()
     page.get_by_label("Research question", exact=True).fill(QUESTION)
-    page.get_by_role("button", name="Review question", exact=True).click()
+    page.get_by_role("button", name="Check question", exact=True).click()
     expect(page.locator("#question-brief")).to_be_visible()
     return requests
 
@@ -64,7 +64,7 @@ def test_versions_and_details_are_chosen_by_clicking(live_browser_url, chromium_
 
         # Starting sends the chosen, adjusted brief without its choices.
         with page.expect_request("**/api/v1/projects/*/runs") as started:
-            page.get_by_role("button", name="Approve and start review").click()
+            page.get_by_role("button", name="Start research").click()
         sent = started.value.post_data_json["question_brief"]
         assert "options" not in sent and "clarification_options" not in sent
         assert sent["research_plan"]["geography_terms"] == ["Indus basin"]
@@ -100,13 +100,13 @@ def test_a_clarification_is_answered_by_clicking(live_browser_url, chromium_brow
     page = chromium_browser.new_page()
     try:
         requests = open_question(page, live_browser_url, [unclear, interpretation()])
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_disabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_disabled()
         clarify = page.locator(".choice-clarify")
         expect(clarify).to_contain_text("Which rivers do you mean?")
         clarify.get_by_role("button", name="Indus", exact=True).click()
         expect(page.locator(".choice-card")).to_have_count(2)
         assert requests[1]["clarification"] == "Indus"
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_enabled()
     finally:
         page.close()
 
@@ -131,7 +131,7 @@ def test_a_late_change_never_replaces_the_version_chosen_since(live_browser_url,
             "projected to change until 2100"
         )
         with page.expect_request("**/api/v1/projects/*/runs") as started:
-            page.get_by_role("button", name="Approve and start review").click()
+            page.get_by_role("button", name="Start research").click()
         sent = started.value.post_data_json["question_brief"]
         assert sent["interpreted_question"] == CLOSEST_OPTION["interpreted_question"]
         assert sent["research_plan"]["geography_terms"] == ["Himalaya"]

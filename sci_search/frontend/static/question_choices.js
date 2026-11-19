@@ -20,10 +20,10 @@ function chip(text, onClick, {selected = false} = {}) {
 }
 function period(strategy, plan) {
   if (strategy?.start_year || strategy?.end_year) return `${strategy.start_year || 'earliest'}–${strategy.end_year || 'latest'}`;
-  return plan?.time_terms?.join(', ') || 'Not restricted';
+  return plan?.time_terms?.join(', ') || 'Any period';
 }
 function geography(strategy, plan) {
-  return plan?.geography_terms?.join(', ') || strategy?.geography || 'Not restricted';
+  return plan?.geography_terms?.join(', ') || strategy?.geography || 'Anywhere';
 }
 
 // Renders cards, detail rows, steering and clarification into `container`.
@@ -128,11 +128,12 @@ export function renderChoices(interpretation, {container, projectId, onBrief, on
     const route = strategy?.route || 'literature';
     rows.append(row('Approach', ROUTES[route], Object.entries(ROUTES).map(([value, text]) => [text, item => apply('route', value, item), value === route]), null));
     const measurements = strategy?.measurements || [];
-    const measurementRow = row('Measurements', measurements.join(', ') || (route === 'literature' ? 'None — not needed for a literature review' : 'Required for data research'),
+    // A literature review needs no measurements; the row appears once data is chosen.
+    const measurementRow = route === 'literature' ? null : row('Measurements', measurements.join(', ') || 'Required for data research',
       (alternatives.measurements || []).map(names => [names.join(', '), item => apply('measurements', names, item), names.join() === measurements.join()]),
       item => editForm(item, [['Measurements, separated by commas', 'text', measurements.join(', ')]], ([text]) => ({detail: 'measurements', value: text.split(',').map(v => v.trim()).filter(Boolean)})));
-    if (route !== 'literature' && !measurements.length) measurementRow.classList.add('choice-required');
-    rows.append(measurementRow);
+    if (measurementRow && !measurements.length) measurementRow.classList.add('choice-required');
+    if (measurementRow) rows.append(measurementRow);
     rows.append(row('Geography', geography(strategy, plan),
       (alternatives.geography || []).map(place => [place.label, item => apply('geography', place, item), false]),
       item => editForm(item, [['Geography', 'text', plan?.geography_terms?.join(', ') || strategy?.geography || '']], ([text]) => ({detail: 'geography', value: {label: text, geography_terms: text ? [text] : [], countries: []}}))));

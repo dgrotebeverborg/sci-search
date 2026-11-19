@@ -6,6 +6,7 @@ import {selectRun, clearRun} from './runs.js';
 let generation = 0, historyGeneration = 0, controller = null, timer = null;
 let selectedRun = null, selectedRevision = null, cursor = null;
 let historyProject = null;
+const STATUS = {queued: 'Waiting', running: 'Running', cancel_requested: 'Stopping', cancelled: 'Stopped', failed: 'Failed'};
 export function selectedDashboard() { return {runId: selectedRun, revision: selectedRevision}; }
 function path(projectId, runId) { return `/api/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}`; }
 function updateUrl(projectId, runId, revision, replace = false) {
@@ -112,9 +113,9 @@ export async function loadHistory(projectId, {query = '', cursor: next = null} =
       const link = element('a', run.question); link.dataset.runId = run.id;
       link.href = `/app?${new URLSearchParams({project: projectId, run: run.id})}`;
       link.onclick = event => { if (event.ctrlKey || event.metaKey || event.shiftKey) return; event.preventDefault(); selectRun(run); openDashboard(projectId, run.id); };
-      const hide = element('button', hidden.has(run.id) ? 'Restore' : 'Hide', 'history-hide button button-quiet');
+      const hide = element('button', hidden.has(run.id) ? 'Restore' : 'Hide', 'history-hide');
       hide.type = 'button';
-      hide.setAttribute('aria-label', `${hidden.has(run.id) ? 'Restore' : 'Hide'} search: ${run.question}`);
+      hide.setAttribute('aria-label', `${hidden.has(run.id) ? 'Restore' : 'Hide'}: ${run.question}`);
       hide.title = 'Changes history visibility in this browser. Research data and project memory are kept.';
       hide.onclick = () => {
         const updated = hiddenRuns(projectId);
@@ -123,14 +124,19 @@ export async function loadHistory(projectId, {query = '', cursor: next = null} =
         try { localStorage.setItem(hiddenHistoryKey(projectId), JSON.stringify([...updated])); }
         catch { setStatus('This browser could not save your history preference.', 'error'); return; }
         if (!wasHidden && selectedRun === run.id) beginNewSearch(projectId);
-        setStatus(wasHidden ? 'Search restored to history.' : 'Search hidden in this browser. Use Show hidden searches to restore it. Research data is kept.');
+        setStatus(wasHidden ? 'Restored to your list.' : 'Hidden in this browser. Use Show hidden to restore it. The research itself is kept.');
         refreshHistory();
       };
-      item.append(link, element('span', `${(run.status || 'saved').replaceAll('_', ' ')}${hidden.has(run.id) ? ' · hidden' : ''}`, 'history-status'), hide); list.append(item);
+      // Date first so repeated questions can be told apart; status only when it is not a finished result.
+      const meta = element('div', '', 'history-meta');
+      const created = new Date(run.created_at);
+      const status = run.status === 'completed' ? '' : STATUS[run.status] || (run.status || '').replaceAll('_', ' ');
+      meta.append(element('span', [Number.isNaN(created.getTime()) ? '' : created.toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'}), status, hidden.has(run.id) ? 'hidden' : ''].filter(Boolean).join(' · '), 'history-status'), hide);
+      item.append(link, meta); list.append(item);
     }
     cursor = data.next_cursor; document.getElementById('history-more').hidden = !cursor;
     document.getElementById('history-empty').hidden = Boolean(list.children.length);
-    document.getElementById('history-empty').textContent = hidden.size ? 'No visible searches on this page. Show hidden searches or load more.' : 'Saved research will appear here.';
+    document.getElementById('history-empty').textContent = hidden.size ? 'Nothing visible here. Use Show hidden or Show more.' : 'Saved research will appear here.';
   } catch (error) {
     if (token !== historyGeneration) return;
     document.getElementById('history-empty').textContent = error.status === 404 ? 'Saved research will appear here.' : `History unavailable: ${error.message}`;
@@ -138,6 +144,7 @@ export async function loadHistory(projectId, {query = '', cursor: next = null} =
 }
 export function refreshHistory() { if (currentProject()) loadHistory(currentProject().id, {query: document.getElementById('history-search').value}); }
 export function initializeHistory() {
+  if (window.matchMedia('(max-width: 800px)').matches) document.querySelector('.history-panel').open = false;
   window.addEventListener('workspace-logout', () => { clearDashboard(); historyGeneration++; });
   onProjectChange(project => {
     clearDashboard(); historyGeneration++;

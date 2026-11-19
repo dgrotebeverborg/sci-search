@@ -121,7 +121,7 @@ def test_saved_dashboard_history_refresh_and_feedback(
     with page.expect_download() as download:
         page.get_by_role("link", name="Download all", exact=True).click()
     assert download.value.suggested_filename == "research-package.zip"
-    expect(page.locator("#dashboard-model")).to_have_text("Analysis model: OpenAI · chosen-model")
+    expect(page.locator("#dashboard-model")).to_have_text("AI model: OpenAI · chosen-model")
     expect(page.locator("#dashboard-model")).to_be_visible()
     page.screenshot(path="/tmp/sci-search-model-dashboard.png", full_page=True)
     before = page.locator("[data-result-section]").all_text_contents()
@@ -150,7 +150,7 @@ def test_saved_dashboard_history_refresh_and_feedback(
             "idempotency_key": submissions[0]["idempotency_key"],
         }
     ]
-    page.get_by_role("button", name="+ New search").click()
+    page.get_by_role("button", name="+ New question").click()
     expect(page.locator("#dashboard-panel")).to_be_hidden()
     expect(page.get_by_label("Research question", exact=True)).to_be_visible()
     for name in ("evidence", "validation", "exports"):
@@ -377,7 +377,7 @@ def test_history_pagination_and_delayed_selection_cannot_replace_current(
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app")
-    page.get_by_role("button", name="Load more searches", exact=True).click()
+    page.get_by_role("button", name="Show more", exact=True).click()
     page.get_by_role("link", name="Question A", exact=True).click()
     page.get_by_role("link", name="Question B", exact=True).click()
     expect(page.locator("#dashboard-question")).to_have_text("Question B")
@@ -422,7 +422,7 @@ def test_dashboard_leads_with_qualified_answer_and_groups_provenance(
         "Evidence is limited to one laboratory study."
     )
     expect(answer.locator(".certainty-pill")).to_be_visible()
-    expect(page.locator("#dashboard-why")).to_contain_text("Field evidence is missing.")
+    expect(answer).to_contain_text("Field evidence is missing.")
     open_section(page, "dashboard-methods")
     page.locator("#dashboard-methods").get_by_text(
         "Search and screening record", exact=True
@@ -559,7 +559,7 @@ def test_real_extractive_result_renders_complete_scientific_dashboard(
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     expect(page.locator("#dashboard-answer")).to_be_visible()
     expect(page.locator("#research")).not_to_be_visible()
-    page.get_by_role("button", name="+ New search", exact=True).click()
+    page.get_by_role("button", name="+ New question", exact=True).click()
     expect(page.locator("#research")).to_be_visible()
     page.go_back()
     expect(page.locator("#dashboard-panel")).to_be_visible()
@@ -835,7 +835,7 @@ def test_hide_search_persists_and_can_be_restored(live_browser_url: str, chromiu
     )
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project")
-    page.get_by_role("button", name="Hide search: A search to hide", exact=True).click()
+    page.get_by_role("button", name="Hide: A search to hide", exact=True).click()
     expect(
         page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
     ).to_have_count(0)
@@ -846,9 +846,9 @@ def test_hide_search_persists_and_can_be_restored(live_browser_url: str, chromiu
     expect(
         page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
     ).to_have_count(0)
-    page.get_by_label("Show hidden searches", exact=True).check()
-    page.get_by_role("button", name="Restore search: A search to hide", exact=True).click()
-    page.get_by_label("Show hidden searches", exact=True).uncheck()
+    page.get_by_label("Show hidden", exact=True).check()
+    page.get_by_role("button", name="Restore: A search to hide", exact=True).click()
+    page.get_by_label("Show hidden", exact=True).uncheck()
     expect(
         page.locator("#research-history").get_by_role("link", name="A search to hide", exact=True)
     ).to_be_visible()

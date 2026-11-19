@@ -12,16 +12,16 @@ def test_question_is_interpreted_before_explicit_approval(
         page.get_by_label("Research question").fill(
             "How do energy markets affect European consumers?"
         )
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#question-brief")).to_be_visible()
         expect(page.locator("#run-panel")).not_to_be_visible()
         page.get_by_label("Research question").fill(
             "How do energy markets affect household electricity prices in Europe?"
         )
         expect(page.locator("#question-brief")).not_to_be_visible()
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#brief-question")).to_contain_text("household electricity prices")
-        page.get_by_role("button", name="Approve and start review").click()
+        page.get_by_role("button", name="Start research").click()
         expect(page.locator("#run-status")).to_have_text("queued")
     finally:
         page.close()
@@ -54,9 +54,10 @@ def test_confirmation_shows_executable_evidence_filters_and_screening_exclusions
         page.get_by_role("button", name="Continue with development account").click()
         expect(page.get_by_role("link", name="Saved evidence review", exact=True)).to_be_visible()
         page.get_by_label("Research question", exact=True).fill(question)
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#question-brief")).to_be_visible()
         details = page.locator("#brief-details")
+        details.get_by_text("How the question will be searched", exact=True).click()
         filters = details.get_by_role("heading", name="Automatic evidence filters", exact=True)
         expect(filters).to_be_visible()
         expect(
@@ -70,9 +71,7 @@ def test_confirmation_shows_executable_evidence_filters_and_screening_exclusions
             exclusions.locator("xpath=following-sibling::ul[1]").get_by_role("listitem")
         ).to_have_text(["wheat", "rice"])
         expect(details.get_by_text("Studies of other crops", exact=True)).to_be_visible()
-        expect(
-            page.get_by_role("button", name="Approve and start review", exact=True)
-        ).to_be_enabled()
+        expect(page.get_by_role("button", name="Start research", exact=True)).to_be_enabled()
         expect(page.locator("#run-panel")).not_to_be_visible()
     finally:
         page.close()
@@ -110,14 +109,15 @@ def test_relationship_confirmation_separates_roles_and_requires_resolving_missin
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
         page.get_by_label("Research question").fill(question)
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         details = page.locator("#brief-details")
+        details.get_by_text("How the question will be searched", exact=True).click()
+        # Place and period are shown as choices above; empty roles are not listed.
+        for heading in ("Location", "Time period", "People or study subjects"):
+            expect(details.get_by_role("heading", name=heading, exact=True)).to_have_count(0)
         for label, value in [
             ("Factor being studied", "neighborhood green space"),
             ("Outcome being studied", "type 2 diabetes (risk)"),
-            ("Location", "Not specified — no restriction"),
-            ("People or study subjects", "Not specified — no restriction"),
-            ("Time period", "Not specified — no restriction"),
         ]:
             expect(
                 details.get_by_role("heading", name=label, exact=True).locator(
@@ -126,11 +126,11 @@ def test_relationship_confirmation_separates_roles_and_requires_resolving_missin
             ).to_have_text(value)
         expect(details.get_by_role("heading", name="Subject or outcome")).to_have_count(0)
         expect(details).to_contain_text("does not establish cause and effect")
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_enabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_enabled()
         structure["driver_terms"] = []
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(details).to_contain_text("Not identified — clarify the question")
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_disabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_disabled()
     finally:
         page.close()
 
@@ -157,8 +157,8 @@ def test_data_question_shows_why_approval_is_blocked(live_browser_url, chromium_
         page.goto(live_browser_url)
         page.get_by_role("button", name="Continue with development account").click()
         page.get_by_label("Research question").fill(question)
-        page.get_by_role("button", name="Review question", exact=True).click()
+        page.get_by_role("button", name="Check question", exact=True).click()
         expect(page.locator("#question-brief")).to_contain_text("Which years should be compared?")
-        expect(page.get_by_role("button", name="Approve and start review")).to_be_disabled()
+        expect(page.get_by_role("button", name="Start research")).to_be_disabled()
     finally:
         page.close()

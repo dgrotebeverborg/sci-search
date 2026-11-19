@@ -136,11 +136,8 @@ def test_partial_evidence_names_what_supports_it_and_what_is_missing():
     certainty = summary["certainty"]
     assert certainty["level"] == "weak"
     assert certainty["label"] == "Weak evidence"
-    assert certainty["sentence"].startswith(
-        "2 studies count as evidence, covering the Netherlands and Sweden;"
-    )
     assert (
-        "the United Kingdom" in certainty["sentence"] or "United Kingdom" in certainty["sentence"]
+        certainty["sentence"] == "2 studies count as evidence, covering the Netherlands and Sweden."
     )
     assert summary["missing"][:2] == [
         "No included study covers the United Kingdom.",
@@ -246,6 +243,17 @@ def test_a_data_answer_lists_its_dataset_and_has_no_literature_part():
             }
         ],
         "not_used": 2,
+        "findings": [
+            {
+                "text": "Germany: plot ORB1: 1 → 0.2 g/day (1989–2016)",
+                "measurement": "insect biomass",
+            },
+            {
+                "text": "Germany: plot WAH1: 1 → 0.3 g/day (1990–2015)",
+                "measurement": "insect biomass",
+            },
+        ],
+        "more_findings": 0,
     }
     assert summary["literature"] is None
     assert summary["key_sources"][0]["title"] == "Krefeld S1 Dataset"
@@ -362,3 +370,47 @@ def test_the_sentence_uses_contributing_publications_without_screening_decisions
     adequacy_of(snapshot)["qualifying_publications"] = 3
     sentence = summarize(snapshot)["certainty"]["sentence"]
     assert sentence.startswith("3 publications contribute to the answer"), sentence
+
+
+def test_data_headlines_gaps_and_no_navigation_phrases():
+    investigation = {
+        "question": "How did burnt area change in Spain and Portugal?",
+        "answer_summary": "Analysed 1 downloaded dataset(s) for burnt area. "
+        "Inspect the measurements, coverage and source decisions below.",
+        "data_analysis": {
+            "kind": "discovered",
+            "strategy": {"route": "data"},
+            "coverage": {
+                "cells": [
+                    {"measurement": "burnt area", "entity": "Spain", "status": "complete"},
+                    {"measurement": "burnt area", "entity": "Portugal", "status": "missing"},
+                    {"measurement": "fire count", "entity": "", "status": "partial"},
+                ]
+            },
+            "analyses": [
+                {
+                    "source": {"title": "EFFIS"},
+                    "series": [
+                        {
+                            "entity": "Spain",
+                            "label": "burnt area",
+                            "unit": "ha",
+                            "change_percent": -48.86,
+                            "annual": [
+                                {"year": 2001, "value": 93297.0},
+                                {"year": 2002, "value": None},
+                                {"year": 2024, "value": 47711.13},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+    summary = summarize(build_dashboard(investigation, run_id="fires", revision=1))
+    assert summary["answer"]["text"] == "Analysed 1 downloaded dataset(s) for burnt area."
+    assert summary["data"]["findings"] == [
+        {"text": "Spain: 93,297 → 47,711 ha (2001–2024), -48.9%", "measurement": "burnt area"}
+    ]
+    assert "No usable data were found for burnt area (Portugal)." in summary["missing"]
+    assert "Data are incomplete for fire count." in summary["missing"]
