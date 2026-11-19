@@ -60,11 +60,38 @@ PLAN_SCHEMA = _object(
 )
 
 
+def _check(schema: dict[str, Any], value: Any, where: str) -> None:
+    """The value has the schema's shape, and its text fields are not empty."""
+    kind = schema["type"]
+    if kind == "string":
+        if not isinstance(value, str) or not value.strip():
+            raise PlanError(f"{where} must be non-empty text.")
+        if "enum" in schema and value not in schema["enum"]:
+            raise PlanError(f"{where} must be one of {', '.join(schema['enum'])}.")
+    elif kind == "array":
+        if not isinstance(value, list):
+            raise PlanError(f"{where} must be a list.")
+        for number, item in enumerate(value, 1):
+            _check(schema["items"], item, f"{where} item {number}")
+    elif kind == "object":
+        if not isinstance(value, dict):
+            raise PlanError(f"{where} must be an object.")
+        for key, rule in schema["properties"].items():
+            if key not in value:
+                raise PlanError(f"{where} lacks {key}.")
+            _check(rule, value[key], f"{where} {key}")
+
+
 def validate_plan(plan: dict[str, Any], scan: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """A cleaned copy and notes; unknown sources are dropped, structural faults raise."""
     missing = [s for s in SECTIONS if s not in plan]
     if missing:
         raise PlanError("The plan lacks: " + ", ".join(missing))
+    for section in SECTIONS:
+        _check(PLAN_SCHEMA["properties"][section], plan[section], section)
+    ids = [q["id"] for q in plan["subquestions"]]
+    if len(set(ids)) != len(ids):
+        raise PlanError("Sub-question ids must be unique.")
     cleaned = copy.deepcopy({s: plan[s] for s in SECTIONS})
     notes: list[str] = []
     for section, pool in (("existing_work", "publications"), ("data", "datasets")):

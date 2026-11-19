@@ -35,6 +35,9 @@ def create_app(service: StudyService) -> FastAPI:
             raise HTTPException(409, str(error)) from error
         except (PlanError, ValueError) as error:
             raise HTTPException(400, str(error)) from error
+        except OSError as error:
+            # Model or network failures: the plan keeps its last version; show why.
+            raise HTTPException(503, str(error) or "The AI model could not be reached.") from error
 
     @app.get("/")
     def page() -> FileResponse:

@@ -68,3 +68,28 @@ def test_schema_is_strict_and_covers_every_section():
     )
     assert PLAN_SCHEMA["required"] == list(SECTIONS)
     assert PLAN_SCHEMA["additionalProperties"] is False
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"definitions": [{"term": "x"}]},
+        {"definitions": [{"term": "x", "definition": ""}]},
+        {"limits": "abc"},
+        {"question": ["a"]},
+        {"question": "   "},
+        {"scope": [{"a": 1}]},
+        {"subquestions": [{"id": "Q1", "text": ""}]},
+        {"chapters": [{"title": "T", "method": "model", "answers": ["Q1"], "output": "o"}]},
+        {"existing_work": [{"scan_id": "P1"}]},
+    ],
+)
+def test_malformed_items_raise(change):
+    with pytest.raises(PlanError):
+        validate_plan(make_plan(**change), SCAN)
+
+
+def test_duplicate_subquestion_ids_raise():
+    plan = make_plan(subquestions=[{"id": "Q1", "text": "a"}, {"id": "Q1", "text": "b"}])
+    with pytest.raises(PlanError):
+        validate_plan(plan, SCAN)

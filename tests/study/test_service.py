@@ -169,3 +169,53 @@ def test_search_more_reports_what_it_found(tmp_path):
         "Extra search found 1 new publication and 0 new datasets. "
         "Ask for a change in a section to use them."
     )
+
+
+class BlockingAnalyzer(FakeAnalyzer):
+    """Writes the first plan, then blocks the next model call until released."""
+
+    def __init__(self):
+        super().__init__(make_plan(), make_plan(scope=["Revised"]))
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.calls = 0
+
+    def complete_json(self, body, headers):
+        self.calls += 1
+        if self.calls > 1:
+            self.entered.set()
+            self.release.wait(5)
+        return super().complete_json(body, headers)
+
+
+def test_changes_wait_for_a_running_revision(tmp_path):
+    analyzer = BlockingAnalyzer()
+    svc = service(tmp_path, analyzer=analyzer)
+    sid = svc.start("Q")
+    worker = threading.Thread(target=lambda: svc.revise(sid, "scope", "Revise"))
+    worker.start()
+    assert analyzer.entered.wait(5)
+    assert svc.store.get(sid)["working"] is True
+    for action in (
+        lambda: svc.edit(sid, "definitions", []),
+        lambda: svc.approve(sid),
+        lambda: svc.restore(sid, 1),
+    ):
+        with pytest.raises(Busy):
+            action()
+    analyzer.release.set()
+    worker.join(5)
+    assert svc.store.get(sid)["working"] is False
+    assert svc.store.get(sid)["version"] == 2 and svc.store.get(sid)["status"] == "draft"
+
+
+def test_interrupted_extra_search_keeps_the_plan_and_says_so(tmp_path):
+    svc = service(tmp_path)
+    sid = svc.start("Q")
+    svc.store.update(sid, working=True)
+    svc.recover()
+    study = svc.store.get(sid)
+    assert study["status"] == "draft" and study["working"] is False
+    assert study["error"] == "The last search or revision was interrupted; the plan is unchanged."
+    svc.edit(sid, "scope", ["x"])
+    assert svc.store.get(sid)["error"] is None

@@ -101,3 +101,35 @@ def test_hidden_controls_stay_hidden():
     # .button sets display, which would otherwise override the hidden attribute.
     css = Path("sci_search/study/static/study.css").read_text()
     assert "[hidden] { display: none !important; }" in css
+
+
+def test_malformed_edit_is_400_and_writes_no_version(client):
+    sid = client.post("/api/studies", json={"question": "Q"}).json()["id"]
+    response = client.post(
+        f"/api/studies/{sid}/edit", json={"section": "definitions", "value": [{"term": "x"}]}
+    )
+    assert response.status_code == 400
+    assert client.get(f"/api/studies/{sid}").json()["study"]["version"] == 1
+
+
+def test_model_failure_during_revision_is_readable(tmp_path):
+    class Failing(FakeAnalyzer):
+        def complete_json(self, body, headers):
+            if self.replies:
+                return super().complete_json(body, headers)
+            raise OSError("The selected Codex model is at capacity")
+
+    analyzer = Failing(make_plan())
+    service = StudyService(
+        StudyStore(tmp_path),
+        analyzer_factory=lambda: analyzer,
+        scan=lambda q, progress: dict(SCAN),
+        background=False,
+    )
+    client = TestClient(create_app(service))
+    sid = client.post("/api/studies", json={"question": "Q"}).json()["id"]
+    analyzer.replies.clear()
+    response = client.post(
+        f"/api/studies/{sid}/revise", json={"section": "scope", "instruction": "x"}
+    )
+    assert response.status_code == 503 and "at capacity" in response.json()["detail"]

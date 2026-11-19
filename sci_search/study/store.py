@@ -118,6 +118,10 @@ class StudyStore:
             path = folder / f"plan-v{number}.json"
             if path.exists():
                 raise FileExistsError(path)
+            # Rendered first: a plan that cannot be shown is never stored as a version.
+            markdown = render_markdown(
+                self.get(study_id)["question"], plan, self.read_scan(study_id)
+            )
             self._write(
                 path,
                 {
@@ -128,11 +132,8 @@ class StudyStore:
                     "plan": plan,
                 },
             )
-            study = self.update(study_id, version=number)
-            self._write(
-                folder / "plan.md",
-                render_markdown(study["question"], plan, self.read_scan(study_id)),
-            )
+            self.update(study_id, version=number)
+            self._write(folder / "plan.md", markdown)
             return number
 
     def version(self, study_id: str, number: int) -> dict[str, Any]:

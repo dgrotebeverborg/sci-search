@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from sci_search.study.planner import edit_plan, revise_plan, write_plan
@@ -12,6 +13,7 @@ from sci_search.study.store import StudyStore
 
 MAX_QUESTION = 2000
 INTERRUPTED = "Interrupted; start the plan again."
+INTERRUPTED_WORK = "The last search or revision was interrupted; the plan is unchanged."
 
 
 class Busy(RuntimeError):
@@ -55,13 +57,10 @@ class StudyService:
 
     def recover(self) -> None:
         for study in self.store.list():
-            if study["status"] == "scanning" or study.get("working"):
-                self.store.update(
-                    study["id"],
-                    status="failed" if study["status"] == "scanning" else study["status"],
-                    working=False,
-                    error=INTERRUPTED,
-                )
+            if study["status"] == "scanning":
+                self.store.update(study["id"], status="failed", working=False, error=INTERRUPTED)
+            elif study.get("working"):
+                self.store.update(study["id"], working=False, error=INTERRUPTED_WORK)
 
     def join(self, timeout: float | None = None) -> None:
         if self._thread is not None:
@@ -76,6 +75,15 @@ class StudyService:
     def _claim(self) -> None:
         if not self._work.acquire(blocking=False):
             raise Busy("Another study is being worked on; wait until it has finished.")
+
+    @contextmanager
+    def _exclusive(self) -> Iterator[None]:
+        """Every change to a plan waits for running work, so none is lost or bypasses approval."""
+        self._claim()
+        try:
+            yield
+        finally:
+            self._work.release()
 
     def _run(self, job: Callable[[], None]) -> None:
         """Runs a claimed job inline or in the background and always releases the claim."""
@@ -134,25 +142,34 @@ class StudyService:
         return study_id
 
     def revise(self, study_id: str, section: str, instruction: str) -> dict[str, Any]:
-        self._editable(study_id)
         analyzer = self._analyzer()
-        self._claim()
-        try:
-            plan, changed = revise_plan(
-                self._plan(study_id), section, instruction, self.store.read_scan(study_id), analyzer
-            )
-            version = self.store.add_version(
-                study_id, plan, f"instruction: {instruction.strip()}", section
-            )
-            self.store.update(study_id, notice=None)
-            return {"version": version, "changed": changed}
-        finally:
-            self._work.release()
+        with self._exclusive():
+            self._editable(study_id)
+            # Marked as working so the page disables changes while the model runs.
+            self.store.update(study_id, working=True)
+            try:
+                plan, changed = revise_plan(
+                    self._plan(study_id),
+                    section,
+                    instruction,
+                    self.store.read_scan(study_id),
+                    analyzer,
+                )
+                version = self.store.add_version(
+                    study_id, plan, f"instruction: {instruction.strip()}", section
+                )
+                self.store.update(study_id, notice=None, error=None)
+                return {"version": version, "changed": changed}
+            finally:
+                self.store.update(study_id, working=False)
 
     def edit(self, study_id: str, section: str, value: Any) -> int:
-        self._editable(study_id)
-        plan = edit_plan(self._plan(study_id), section, value, self.store.read_scan(study_id))
-        return self.store.add_version(study_id, plan, "edit", section)
+        with self._exclusive():
+            self._editable(study_id)
+            plan = edit_plan(self._plan(study_id), section, value, self.store.read_scan(study_id))
+            version = self.store.add_version(study_id, plan, "edit", section)
+            self.store.update(study_id, error=None)
+            return version
 
     def search_more(self, study_id: str, terms: list[str]) -> None:
         self._editable(study_id)
@@ -184,15 +201,20 @@ class StudyService:
         self._run(job)
 
     def restore(self, study_id: str, number: int) -> int:
-        self._editable(study_id)
-        plan = self.store.version(study_id, number)["plan"]
-        return self.store.add_version(study_id, plan, f"restore v{int(number)}", None)
+        with self._exclusive():
+            self._editable(study_id)
+            plan = self.store.version(study_id, number)["plan"]
+            version = self.store.add_version(study_id, plan, f"restore v{int(number)}", None)
+            self.store.update(study_id, error=None)
+            return version
 
     def approve(self, study_id: str) -> None:
-        study = self._editable(study_id)
-        self.store.update(study_id, status="approved", approved_version=study["version"])
+        with self._exclusive():
+            study = self._editable(study_id)
+            self.store.update(study_id, status="approved", approved_version=study["version"])
 
     def reopen(self, study_id: str) -> None:
-        if self.store.get(study_id)["status"] != "approved":
-            raise ValueError("Only an approved plan can be reopened.")
-        self.store.update(study_id, status="draft", approved_version=None)
+        with self._exclusive():
+            if self.store.get(study_id)["status"] != "approved":
+                raise ValueError("Only an approved plan can be reopened.")
+            self.store.update(study_id, status="draft", approved_version=None)
