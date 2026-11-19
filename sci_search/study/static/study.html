@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sci-Search · Study plans</title>
+  <link rel="stylesheet" href="/static/study.css">
+</head>
+<body>
+  <header class="top">
+    <span class="brand">Sci-Search · Study plans</span>
+    <span id="model" class="muted"></span>
+  </header>
+  <div class="layout">
+    <nav class="side" aria-label="Studies">
+      <button id="new-study" class="button" type="button">+ New study</button>
+      <ol id="studies"></ol>
+    </nav>
+    <main id="main">
+      <section id="start">
+        <h1>Plan a study</h1>
+        <p class="muted">Sci-Search interprets your question, scans existing studies, models and data, and writes a study plan for you to correct and approve. Only desk research and computation; work that needs real-world experiments is listed as out of reach.</p>
+        <form id="start-form">
+          <label for="question">Research question</label>
+          <textarea id="question" rows="3" maxlength="2000" required></textarea>
+          <button class="button primary" type="submit">Make study plan</button>
+          <p id="start-status" class="status" role="status"></p>
+        </form>
+      </section>
+      <section id="study" hidden>
+        <div class="study-head">
+          <h1 id="study-question"></h1>
+          <div class="actions">
+            <button id="approve" class="button primary" type="button">Approve plan</button>
+            <button id="reopen" class="button" type="button" hidden>Reopen</button>
+            <label class="versions">Version <select id="versions"></select></label>
+            <button id="restore" class="button" type="button" hidden>Restore this version</button>
+            <a id="download" class="button" href="#">Download plan (.md)</a>
+          </div>
+          <p id="study-status" class="status" role="status"></p>
+        </div>
+        <ol id="progress" class="progress"></ol>
+        <div id="plan"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/static/study.js"></script>
+</body>
+</html>
