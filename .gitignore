@@ -22,3 +22,4 @@ data/validation_runs/
 data/connector-catalogues/
 # Separate repository for the promotional site.
 promo/
+data/studies/
