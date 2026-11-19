@@ -368,3 +368,21 @@ def test_the_interpretation_has_room_for_four_options():
         QUESTION, MistralAnalyzer("key", model="mistral-small", complete_json=complete)
     )
     assert bodies[0]["max_tokens"] >= 6000
+
+
+def test_interpretation_asks_between_a_total_and_a_per_unit_reading():
+    """'Battery capacity' was read as capacity per battery and installed totals were rejected."""
+    import json
+
+    from sci_search.mistral_analysis import MistralAnalyzer
+    from sci_search.question_interpretation import interpret_question
+
+    systems = []
+
+    def complete(body, headers):
+        systems.append(body["messages"][0]["content"])
+        return {"choices": [{"message": {"content": json.dumps(model_payload())}}]}
+
+    interpret_question(QUESTION, MistralAnalyzer("key", model="m", complete_json=complete))
+    assert "total" in systems[0] and "per unit" in systems[0]
+    assert "never pick the per-unit reading silently" in systems[0]

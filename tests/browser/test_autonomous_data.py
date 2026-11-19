@@ -140,14 +140,17 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     )
     page.request.post(live_browser_url + "/auth/development")
     page.goto(live_browser_url + "/app?project=development-project&run=auto-data")
-    expect(page.locator("#dashboard-data svg")).to_have_count(1)
+    # The answer shows the chart and its source; how it was checked is in the details.
+    expect(page.locator("#dashboard-answer svg")).to_have_count(1)
+    expect(page.locator("#dashboard-answer")).to_contain_text("Source: Official table")
+    expect(page.locator("#dashboard-answer")).not_to_contain_text("source bytes")
     expect(page.locator("#dashboard-model")).to_contain_text("OpenAI · fixture")
-    expect(page.locator("#dashboard-data")).to_contain_text("1 of 2 requested combinations covered")
-    expect(page.locator("#dashboard-data")).to_contain_text("Second station")
-    expect(page.locator("#dashboard-data")).to_contain_text(
-        "2 values checked directly against source bytes"
-    )
-    page.get_by_text("How the data were found and checked", exact=False).click()
+    page.get_by_role("tab", name="Details").click()
+    checks = page.locator("#dashboard-data-checks")
+    checks.locator("summary").first.click()
+    expect(checks).to_contain_text("1 of 2 requested combinations covered")
+    expect(checks).to_contain_text("Second station")
+    expect(checks).to_contain_text("2 values checked directly against source bytes")
     page.locator("summary", has_text="Source checks:").first.click()
     page.get_by_text("Executed Python and validation", exact=True).click()
     expect(
@@ -156,6 +159,7 @@ def test_generic_series_preserves_small_values_and_model_provenance(
     expect(
         page.get_by_text("Model review does not replace expert validation.", exact=True)
     ).to_be_visible()
+    page.locator("summary", has_text="Annual values: Official table").click()
     page.get_by_text("Annual values and source rows", exact=True).click()
     expect(page.get_by_role("cell", name="0.04", exact=True)).to_be_visible()
     expect(page.get_by_role("cell", name="Missing", exact=True)).to_be_visible()
@@ -239,10 +243,15 @@ def test_many_statistical_series_are_expandable_with_country_and_sex_labels(
     )
     page.request.post(live_browser_url + "/auth/development")
     page.goto(live_browser_url + "/app?project=development-project&run=stats")
-    expect(page.get_by_text("Netherlands · Females", exact=True)).to_have_count(11)
-    expect(page.locator("#dashboard-data svg")).to_have_count(0)
-    page.get_by_text("Netherlands · Females", exact=True).first.click()
-    expect(page.locator("#dashboard-data svg")).to_have_count(1)
+    # Many series: one chart and a picker, named by their country and sex labels.
+    answer = page.locator("#dashboard-answer")
+    expect(answer.locator("svg")).to_have_count(1)
+    picker = answer.get_by_label("Series to show")
+    expect(picker.locator("option")).to_have_count(11)
+    expect(picker.locator("option").first).to_have_text("Netherlands, Females")
+    expect(answer.locator("figcaption")).to_have_text("Life expectancy (years)")
+    picker.select_option("3")
+    expect(answer.locator("svg")).to_have_count(1)
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.close()
 
@@ -302,6 +311,8 @@ def test_partial_investigation_review_is_visible_without_claiming_overall_answer
     from pathlib import Path
 
     snapshot = json.loads((Path(__file__).parents[1] / "fixtures/dashboard_v1.json").read_text())
+    from sci_search.result_summary import summarize
+
     for block in snapshot["blocks"]:
         if block["id"] == "answer":
             block["status"] = "ready"
@@ -324,6 +335,7 @@ def test_partial_investigation_review_is_visible_without_claiming_overall_answer
                 ],
                 "stop_reason": "No evidence for 2026.",
             }
+    snapshot["summary"] = summarize(snapshot)
     page = chromium_browser.new_page()
     try:
         page.route(
@@ -339,16 +351,20 @@ def test_partial_investigation_review_is_visible_without_claiming_overall_answer
         )
         page.request.post(live_browser_url + "/auth/development")
         page.goto(live_browser_url + "/app?project=development-project&run=reflection")
+        # Without an overall answer the partial finding is what came closest, quoted.
+        answer = page.locator("#dashboard-answer")
+        expect(answer.locator(".result-answer")).to_have_text(
+            "No study answers the whole question; the closest findings are below."
+        )
         expect(
-            page.get_by_text("Coral cover declined at the surveyed sites.", exact=True)
+            answer.get_by_text("Coral cover declined at the surveyed sites.", exact=True)
         ).to_be_visible()
         expect(
-            page.get_by_text(
-                "Partial evidence only; the whole question remains unresolved.", exact=True
-            )
-        ).to_be_visible()
-        expect(page.get_by_role("link", name="Source publication", exact=True)).to_have_attribute(
-            "href", "https://doi.org/10.123/example"
+            answer.get_by_role("link", name="Observed reef sites", exact=True)
+        ).to_have_attribute("href", "https://doi.org/10.123/example")
+        # The review's own reasoning sits with the other checks.
+        expect(page.locator("#dashboard-review-steps")).to_contain_text(
+            "Partial evidence only; the whole question remains unresolved."
         )
     finally:
         page.close()
@@ -461,7 +477,9 @@ def test_complete_raw_data_does_not_hide_missing_calculations(live_browser_url, 
     )
     page.request.post(live_browser_url + "/auth/development")
     page.goto(live_browser_url + "/app?project=development-project&run=derived-data")
-    host = page.locator("#dashboard-data")
+    page.get_by_role("tab", name="Details").click()
+    host = page.locator("#dashboard-data-checks")
+    host.locator("summary").first.click()
     expect(host).to_contain_text("Requested input data complete")
     expect(host).to_contain_text("Requested calculations unavailable")
     expect(host).to_contain_text("Requested numerical outputs incomplete")

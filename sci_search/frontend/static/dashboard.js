@@ -1,5 +1,5 @@
 import {providerLabel} from './api.js';
-import {renderDataResearch} from './data_research.js';
+import {renderDataResearch, answerCharts, dataDetails} from './data_research.js';
 import {request} from './api.js';
 import {articleControls} from './article_feedback.js';
 import {renderLandscape, renderCoverageNotice} from './landscape.js';
@@ -301,44 +301,50 @@ function sourceItem(item, note = '') {
 }
 function list(items, render) { const ul = element('ul', '', 'result-list'); for (const item of items) ul.append(render(item)); return ul; }
 // Partial findings the review could support, with their quotes, even without an overall answer.
-function investigationReview(review, parent) {
-  const details = element('details', '', 'result-more'); details.open = Boolean(review.partial_findings?.length);
-  details.append(element('summary', review.partial_findings?.length ? `Partial evidence (${review.partial_findings.length})` : 'Additional checks'));
-  if (review.qualification) details.append(element('p', review.qualification));
-  for (const finding of review.partial_findings || []) {
-    details.append(element('h3', finding.subject || ''), element('p', finding.title || ''), element('blockquote', finding.quote || ''));
-    if (finding.qualification) details.append(element('p', finding.qualification, 'help'));
-    if (finding.doi) details.append(safeLink('Source publication', 'https://doi.org/' + finding.doi));
-  }
-  for (const step of review.steps || []) details.append(element('p', `${step.decision?.reason || 'Review attempt'} · ${step.outcome?.status || 'stopped'}`, 'help'));
-  if (review.stop_reason) details.append(element('p', review.stop_reason, 'help'));
+function closestItem(item) {
+  const li = element('li');
+  li.append(item.url ? safeLink(item.title, item.url) : element('strong', item.title));
+  if (item.note) li.append(element('p', item.note, 'help'));
+  if (item.quote) li.append(element('blockquote', item.quote, 'closest-quote'));
+  return li;
+}
+function relatedFindings(findings, parent) {
+  if (!findings?.length) return;
+  const items = findings.map(f => ({title: f.title || f.subject || 'Publication', url: f.doi ? 'https://doi.org/' + f.doi : null, note: f.qualification || '', quote: f.quote || null}));
+  const details = element('details', '', 'result-more');
+  details.append(element('summary', `Related findings from studies (${items.length})`));
+  details.append(list(items, closestItem));
   parent.append(details);
 }
+function reviewSteps(review, parent) {
+  const lines = [...(review.steps || []).map(step => `${step.decision?.reason || 'Review attempt'} · ${step.outcome?.status || 'stopped'}`), review.stop_reason, review.qualification].filter(Boolean);
+  for (const line of lines) parent.append(element('p', line, 'help'));
+}
+// The answer tab: one sentence, the numbers and their chart, how sure, and what is not covered.
 function answerSection(summary, answer, snapshot) {
   const node = resultSection('answer', 'Answer');
-  const text = summary.answer?.text || answer.executive_summary?.text;
-  if (text) node.append(element('p', text, 'result-answer'));
+  const headline = summary.headline || {kind: 'literature', text: summary.answer?.text || answer.executive_summary?.text || ''};
+  if (headline.text) node.append(element('p', headline.text, `result-answer result-answer-${headline.kind}`));
   const ids = summary.answer?.evidence_ids || answer.executive_summary?.evidence_ids || [];
-  if (ids.length) node.append(evidenceLinks(ids));
-  // The numbers are the answer of a data search; they lead, before any qualification.
+  if (headline.kind === 'literature' && ids.length) node.append(evidenceLinks(ids));
   const findings = summary.data?.findings || [];
-  if (findings.length) {
+  // One series is already the headline; several are listed with their numbers.
+  if (findings.length > 1) {
     node.append(list(findings, item => element('li', item.text)));
     node.lastChild.classList.add('result-findings');
-    if (summary.data.more_findings) node.append(element('p', `${summary.data.more_findings} more series in the charts below.`, 'help'));
+    if (summary.data.more_findings) node.append(element('p', `And ${summary.data.more_findings} more series; pick one in the chart.`, 'help'));
   }
+  const analysis = answer.data_analysis;
+  if (analysis?.kind === 'discovered' && findings.length) safely(node, () => answerCharts(analysis, node));
   const certainty = summary.certainty || {level: 'not_assessed', label: 'Not assessed', sentence: ''};
   const line = element('p', '', 'certainty');
   line.append(element('span', certainty.label, `certainty-pill certainty-${certainty.level}`));
   if (certainty.sentence) line.append(document.createTextNode(` ${certainty.sentence}`));
   node.append(line);
-  if (summary.missing?.length) node.append(element('h3', 'What is missing'), list(summary.missing, text => element('li', text)));
-  if (answer.investigation_review) safely(node, () => investigationReview(answer.investigation_review, node));
   contestNote(answer.answer_contest, node);
-  // Datasets are named with their charts; key sources here are the publications.
-  const sources = (summary.key_sources || []).filter(item => item.kind !== 'dataset' || !summary.data);
-  if (sources.length) node.append(element('h3', 'Key sources'), list(sources, item => sourceItem(item)));
-  if (snapshot.result_quality?.validation_note) node.append(element('p', snapshot.result_quality.validation_note, 'help'));
+  if (summary.missing?.length) node.append(element('h3', 'Not covered'), list(summary.missing, text => element('li', text)));
+  if (summary.closest?.length) node.append(element('h3', 'Closest we found'), list(summary.closest, closestItem));
+  if (summary.key_sources?.length) node.append(element('h3', 'Sources'), list(summary.key_sources, item => sourceItem(item)));
   return node;
 }
 function dataSection(summary, analysis) {
@@ -347,13 +353,13 @@ function dataSection(summary, analysis) {
   return node;
 }
 function literatureSection(summary, blocks, snapshot) {
-  const node = resultSection('literature', 'What the literature says');
+  const node = resultSection('literature', 'What studies report');
   const l = summary.literature;
   if (l) node.append(element('p', `${l.found} studies found · ${l.full_texts} full texts read · ${l.included} counted as evidence`, 'help'));
   if (blocks.findings?.claims?.length) fields(blocks.findings.claims, node);
   if (blocks.comparisons?.contradiction_groups?.length) safely(node, () => contradictionGroups(blocks.comparisons.contradiction_groups, node, snapshot));
-  if (blocks.comparisons?.comparison_groups?.length) { node.append(element('h3', 'How the studies compare')); fields(blocks.comparisons.comparison_groups, node); }
-  if (blocks.comparisons?.comparability) node.append(expandable('Comparability and measurement details', {comparability: blocks.comparisons.comparability, measurements: blocks.comparisons.measurements}));
+  // When nothing answered, these findings are already the closest matches in the answer.
+  if (summary.headline?.kind !== 'none') relatedFindings(blocks.answer?.investigation_review?.partial_findings, node);
   if (blocks.literature_review && Object.keys(blocks.literature_review).length) {
     const review = element('details', '', 'result-more'); review.id = 'dashboard-literature_review';
     review.append(element('summary', 'Read the full review')); safely(review, () => reviewBlock(blocks.literature_review, review)); node.append(review);
@@ -365,18 +371,19 @@ function studyItem(study, withDecision) {
   if (study.reason) li.append(element('p', study.reason, 'help'));
   return li;
 }
-function whySection(summary, blocks) {
+function whyPart(summary, blocks, node) {
   const gaps = blocks.gaps || {};
   const papers = blocks.landscape?.papers || [];
-  if (!summary.included?.length && !summary.left_out?.length && !gaps.limitations?.length && !gaps.follow_up_questions?.length && !papers.length) return null;
-  const node = resultSection('why', 'Why this certainty');
   if (papers.length) safely(node, () => renderCoverageNotice(papers, node));
   if (summary.included?.length) node.append(element('h3', `Counted as evidence (${summary.included.length})`), list(summary.included, s => studyItem(s, false)));
   if (summary.left_out?.length) node.append(element('h3', 'Read but not counted'), list(summary.left_out, s => studyItem(s, true)));
   if (gaps.limitations?.length) { node.append(element('h3', 'Limitations')); fields(gaps.limitations, node); }
   if (gaps.quality_flags?.length) node.append(expandable('Evidence limitations in detail', gaps.quality_flags));
   if (gaps.follow_up_questions?.length) { node.append(element('h3', 'Next questions')); fields(gaps.follow_up_questions, node); }
-  return node;
+}
+function hasWhy(summary, blocks) {
+  const gaps = blocks.gaps || {};
+  return Boolean(summary.included?.length || summary.left_out?.length || gaps.limitations?.length || gaps.follow_up_questions?.length || blocks.landscape?.papers?.length);
 }
 function landscapeSection(summary, landscape) {
   const node = resultSection('landscape', 'Research landscape');
@@ -388,11 +395,20 @@ function detailPart(parent, id, title, draw) {
   const part = element('details', '', 'result-part'); part.id = `dashboard-${id}`;
   part.append(element('summary', title)); safely(part, () => draw(part)); parent.append(part);
 }
-function detailsSection(blocks, snapshot, context) {
+function detailsSection(blocks, snapshot, context, summary) {
   const node = resultSection('details', 'Details');
-  node.append(element('p', 'Question interpretation, methods, all studies and passages, validation, references and downloads.', 'result-line'));
+  node.append(element('p', 'How the answer was found and checked: data sources, studies, passages, methods and downloads.', 'result-line'));
+  const analysis = blocks.answer?.data_analysis;
+  if (analysis?.kind === 'discovered') detailPart(node, 'data-checks', 'How the data were found and checked', part => dataDetails(analysis, part));
+  if (hasWhy(summary, blocks)) detailPart(node, 'why', 'Studies counted and not counted', part => whyPart(summary, blocks, part));
+  if (blocks.answer?.investigation_review?.steps?.length || blocks.answer?.investigation_review?.stop_reason) detailPart(node, 'review-steps', 'Extra literature checks', part => reviewSteps(blocks.answer.investigation_review, part));
+  if (snapshot.result_quality?.validation_note) node.append(element('p', snapshot.result_quality.validation_note, 'help'));
   const checks = blocks.answer?.answer_adequacy?.checks || [];
   if (checks.length) detailPart(node, 'adequacy', 'Evidence adequacy checks', part => part.append(dataTable(checks.map(c => ({part: c.label || c.id, kind: c.kind, passed: c.passed ? 'Passed' : 'Not passed', publications: c.publication_count})), [['part', 'Part of the question'], ['kind', 'Type'], ['passed', 'Result'], ['publications', 'Publications']])));
+  if (blocks.comparisons?.comparison_groups?.length || blocks.comparisons?.comparability) detailPart(node, 'comparisons', 'How the studies compare', part => {
+    if (blocks.comparisons.comparison_groups?.length) fields(blocks.comparisons.comparison_groups, part);
+    if (blocks.comparisons.comparability) part.append(expandable('Comparability and measurement details', {comparability: blocks.comparisons.comparability, measurements: blocks.comparisons.measurements}));
+  });
   if (blocks.scope) detailPart(node, 'scope', 'Question and scope', part => {
     fields(blocks.scope.question_brief, part);
     const scope = blocks.scope.research_scope || {};
@@ -442,14 +458,16 @@ export function renderDashboard(snapshot, context = {}) {
   const method = analysis.method || retained.method;
   const usedFallback = Boolean(analysis.fallback_reason || method === 'deterministic_extractive_fallback' || (analysis.status && !['complete', 'coverage_limited'].includes(analysis.status)));
   const selected = analysis.selection;
-  const fallback = usedFallback ? `Extractive analysis${selected ? ` · selected: ${providerLabel(selected.provider)} · ${selected.model}` : ''}${analysis.fallback_reason ? ` — ${analysis.fallback_reason}` : ''}` : null;
+  // Why a fallback was used is recorded in the details; the header names the model only.
+  const fallback = usedFallback ? `${selected ? `AI model: ${providerLabel(selected.provider)} · ${selected.model} · ` : ''}answer taken directly from source passages` : null;
   document.getElementById('dashboard-model').textContent = fallback || (actual ? `AI model: ${actual}` : ['complete', 'coverage_limited'].includes(analysis.status) ? 'AI was used · model not recorded' : 'AI model not recorded for this saved result');
   const dataset = snapshot.blocks?.find(b => b.data?.data_analysis)?.data.data_analysis;
   if (dataset) {
     const discovery = dataset.discovery;
     document.getElementById('dashboard-model').textContent = discovery
       ? `AI model: ${providerLabel(discovery.provider)} · ${discovery.model}${dataset.analyses?.length ? ' · Numbers calculated from downloaded data' : ''}`
-      : dataset.kind === 'discovered' ? 'Dataset discovery unavailable — see the recorded reason'
+      : dataset.kind === 'discovered' && analysis.selection ? `AI model: ${providerLabel(analysis.selection.provider)} · ${analysis.selection.model}`
+      : dataset.kind === 'discovered' ? ''
       : 'Reproducible data calculations · no AI-generated numerical values';
   }
   document.getElementById('download-all')?.remove();
@@ -473,12 +491,12 @@ export function renderDashboard(snapshot, context = {}) {
   const panels = {
     answer: tabPanel('answer', [
       answerSection(summary, blocks.answer || {}, snapshot),
-      summary.data && blocks.answer?.data_analysis ? dataSection(summary, blocks.answer.data_analysis) : null,
+      // Older fixed-panel data results keep their own complete view.
+      blocks.answer?.data_analysis && blocks.answer.data_analysis.kind !== 'discovered' ? dataSection(summary, blocks.answer.data_analysis) : null,
       literature ? literatureSection(summary, blocks, snapshot) : null,
-      whySection(summary, blocks),
     ]),
     landscape: blocks.landscape ? tabPanel('landscape', [landscapeSection(summary, blocks.landscape)]) : null,
-    details: tabPanel('details', [detailsSection(blocks, snapshot, context)]),
+    details: tabPanel('details', [detailsSection(blocks, snapshot, context, summary)]),
   };
   root.append(tabBar(Object.keys(panels).filter(name => panels[name])));
   for (const panel of Object.values(panels)) if (panel) root.append(panel);

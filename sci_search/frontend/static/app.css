@@ -454,3 +454,17 @@ details.contradiction-group > summary h4 { flex: 1 1 auto; }
 .choice-adjusted { margin: -.25rem 0 0; padding-left: .6rem; border-left: 4px solid var(--uu-yellow); font-size: .9rem; }
 .choice-busy { opacity: .6; }
 
+
+/* Answer: the sentence, its chart and source; nothing about how it was checked. */
+.result-answer-data, .result-answer-literature { font-size: 1.3rem; font-weight: 600; line-height: 1.45; }
+.result-answer-none { font-size: 1.2rem; font-weight: 600; }
+.answer-chart { margin: 1rem 0 1.25rem; padding: 0; }
+.answer-chart figcaption { font-weight: 600; font-size: .95rem; margin-bottom: .35rem; }
+.answer-chart svg { width: 100%; height: auto; display: block; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .3rem 0 0; font-size: .85rem; }
+.chart-legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: .4rem; vertical-align: middle; background: var(--swatch); }
+.chart-source { color: var(--muted); font-size: .85rem; margin: .35rem 0 0; }
+.chart-pick { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .2rem 0 .4rem; }
+.chart-pick select { max-width: 100%; padding: .3rem; }
+.closest-quote { font-size: .9rem; color: var(--muted); margin: .3rem 0 0 .25rem; }
+.result-list.result-findings { font-weight: 400; font-size: 1rem; }

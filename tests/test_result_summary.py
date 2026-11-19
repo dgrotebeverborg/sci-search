@@ -143,7 +143,12 @@ def test_partial_evidence_names_what_supports_it_and_what_is_missing():
         "No included study covers the United Kingdom.",
         "No included study links HPV vaccination to the outcome.",
     ]
-    assert "1 of 2 required studies answer the whole question." in summary["missing"]
+    # How many studies answer it is the certainty's job, not a missing item.
+    assert len(summary["missing"]) == 2
+    assert summary["headline"] == {
+        "kind": "literature",
+        "text": "Vaccination programmes lowered incidence in the Netherlands and Sweden.",
+    }
 
 
 def test_answer_key_sources_and_studies():
@@ -256,8 +261,12 @@ def test_a_data_answer_lists_its_dataset_and_has_no_literature_part():
         "more_findings": 0,
     }
     assert summary["literature"] is None
-    assert summary["key_sources"][0]["title"] == "Krefeld S1 Dataset"
-    assert summary["certainty"]["sentence"].startswith("1 dataset analysed (Germany, 1989–2016)")
+    # The dataset is named with its chart, not repeated as a key source.
+    assert summary["key_sources"] == []
+    assert summary["certainty"]["sentence"] == "1 dataset from PLOS ONE, 1989–2016."
+    assert summary["headline"]["text"] == (
+        "Insect biomass fell in Germany: plot ORB1 and Germany: plot WAH1 (1989–2016)."
+    )
 
 
 def test_a_saved_snapshot_without_adequacy_is_not_assessed():
@@ -414,3 +423,278 @@ def test_data_headlines_gaps_and_no_navigation_phrases():
     ]
     assert "No usable data were found for burnt area (Portugal)." in summary["missing"]
     assert "Data are incomplete for fire count." in summary["missing"]
+
+
+# The overhauled answer: a real headline, honest closest matches, short gaps.
+
+
+def series(entity, label, unit, points, **extra):
+    return {
+        "entity": entity,
+        "label": label,
+        "unit": unit,
+        "annual": [{"year": y, "value": v} for y, v in points],
+        **extra,
+    }
+
+
+def data_result(
+    question, analyses, *, cells=(), assessments=(), answer="Analysed 1 downloaded dataset(s)."
+):
+    investigation = {
+        "question": question,
+        "answer_summary": answer,
+        "answer_adequacy": {
+            "status": "partial",
+            "checks": [
+                check("geography:netherlands", "netherlands", "geography", False, 0),
+                check(
+                    "independent_publications",
+                    "independent contributing publications",
+                    "evidence_base",
+                    False,
+                    0,
+                ),
+            ],
+        },
+        "data_analysis": {
+            "kind": "discovered",
+            "strategy": {"route": "data"},
+            "coverage": {"cells": list(cells)},
+            "analyses": analyses,
+            "assessments": list(assessments),
+        },
+    }
+    return summarize(build_dashboard(investigation, run_id="d", revision=1))
+
+
+PV = series(
+    "Netherlands",
+    "installed solar photovoltaic capacity",
+    "gigawatts",
+    [(2001, 0.021), (2010, 0.09), (2025, 25.878)],
+    change_percent=123128.6,
+)
+
+
+def test_a_data_answer_leads_with_the_numbers():
+    summary = data_result(
+        "how much did pv increase in holland in this century?",
+        [
+            {
+                "source": {
+                    "title": "Solar panels cumulative capacity",
+                    "publisher": "Our World in Data",
+                },
+                "series": [PV],
+            }
+        ],
+        cells=[
+            {
+                "measurement": "installed solar photovoltaic capacity",
+                "entity": "Netherlands",
+                "status": "complete",
+            }
+        ],
+    )
+    assert summary["headline"] == {
+        "kind": "data",
+        "text": "Installed solar photovoltaic capacity in the Netherlands rose from 0.021 gigawatts "
+        "in 2001 to 25.9 gigawatts in 2025.",
+    }
+    # A huge percentage from a tiny start says nothing; the ratio does.
+    assert summary["data"]["findings"][0]["text"] == (
+        "Netherlands: 0.021 → 25.9 gigawatts (2001–2025), 1,232 times as high"
+    )
+    assert summary["certainty"]["label"] == "Measured data"
+    assert summary["certainty"]["sentence"] == "1 dataset from Our World in Data, 2001–2025."
+    # Literature gaps do not contradict a measured answer.
+    assert summary["missing"] == []
+    assert summary["key_sources"] == [] and summary["closest"] == []
+
+
+def test_several_series_say_where_it_rose_and_fell():
+    rows = [
+        series("Netherlands", "renewable electricity share", "%", [(2000, 3.4), (2025, 51.2)]),
+        series("Germany", "renewable electricity share", "%", [(2000, 6.2), (2025, 58.5)]),
+        series("Poland", "renewable electricity share", "%", [(2000, 20.0), (2025, 10.0)]),
+    ]
+    summary = data_result(
+        "How have renewable shares changed?", [{"source": {"title": "Ember"}, "series": rows}]
+    )
+    assert summary["headline"]["text"] == (
+        "Renewable electricity share rose in the Netherlands and Germany and fell in Poland (2000–2025)."
+    )
+    assert summary["data"]["findings"][0]["text"] == (
+        "Netherlands: 3.4 → 51.2 % (2000–2025), +47.8 percentage points"
+    )
+
+
+def test_many_series_are_counted_and_codes_are_cleaned():
+    rows = [
+        series(
+            f"geo={code} ({name}) | sex=F (Females)",
+            "life expectancy by country and sex",
+            "YR",
+            [(1970, 70), (2024, 80 + i)],
+        )
+        for i, (code, name) in enumerate(
+            [
+                ("AL", "Albania"),
+                ("AT", "Austria"),
+                ("BE", "Belgium"),
+                ("BG", "Bulgaria"),
+                ("CH", "Switzerland"),
+            ]
+        )
+    ]
+    rows.append(
+        series(
+            "geo=XK (Kosovo) | sex=F (Females)",
+            "life expectancy by country and sex",
+            "YR",
+            [(1970, 80), (2024, 75)],
+        )
+    )
+    summary = data_result(
+        "Life expectancy in Europe?",
+        [
+            {
+                "source": {"title": "Eurostat"},
+                "series": rows,
+                "preparation": {"selection": {"code_labels": {"unit": {"YR": "Year"}}}},
+            }
+        ],
+    )
+    assert (
+        summary["headline"]["text"]
+        == "Life expectancy rose in 5 of 6 series and fell in 1 (1970–2024)."
+    )
+    assert summary["data"]["findings"][0]["text"].startswith("Albania, Females: 70 → 80 years")
+
+
+def test_missing_data_is_grouped_and_short():
+    cells = [
+        {"measurement": "number of wildfires", "entity": c, "status": "missing"}
+        for c in "ABCDEFGHIJ"
+    ]
+    cells += [{"measurement": "number of wildfires", "entity": "Europe", "status": "complete"}]
+    summary = data_result(
+        "Wildfires in Europe?",
+        [
+            {
+                "source": {"title": "OWID"},
+                "series": [
+                    series("Europe", "number of wildfires", "wildfires", [(2012, 5), (2025, 3)])
+                ],
+            }
+        ],
+        cells=cells,
+    )
+    assert summary["missing"] == [
+        "10 of 11 requested places have no usable data for number of wildfires."
+    ]
+    assert (
+        summary["headline"]["text"]
+        == "Number of wildfires in Europe fell from 5 in 2012 to 3 in 2025."
+    )
+    assert summary["certainty"]["label"] == "Partial data"
+
+
+BLOCKED = [
+    {
+        "decision": "blocked",
+        "title": "Batteries power capacities and energy storage",
+        "url": "https://ec.europa.eu/x",
+        "reason": "Measurement meaning not confirmed: battery energy capacity/definition: The selected field is total "
+        "battery storage capacity per country. It is not capacity per battery.",
+    },
+    {
+        "decision": "blocked",
+        "title": "Batteries power capacities and energy storage",
+        "url": "https://ec.europa.eu/x",
+        "reason": "Measurement meaning not confirmed: battery energy capacity/definition: Duplicate.",
+    },
+    {
+        "decision": "blocked",
+        "title": "Data on lithium-ion batteries",
+        "reason": "Dataset server returned HTTP 202",
+    },
+]
+
+
+def test_no_answer_says_so_and_shows_what_came_closest():
+    investigation = {
+        "question": "How much has battery capacity increased this century?",
+        "answer_summary": "The retrieved evidence is relevant but does not support an overall answer to the complete question.",
+        "answer_adequacy": {
+            "status": "insufficient",
+            "checks": [
+                check(
+                    "independent_publications",
+                    "independent contributing publications",
+                    "evidence_base",
+                    False,
+                    0,
+                ),
+                check("temporal_nature", "change over time", "trend", False, 0),
+            ],
+        },
+        "evidence": [
+            {"id": "e1", "publication_id": "p1", "statement": "s", "passage": "Ferry batteries."}
+        ],
+        "literature_review_report": {
+            "references": [{"number": 1, "publication_id": "p1", "title": "Hybrid ferry"}]
+        },
+        "data_analysis": {
+            "kind": "discovered",
+            "strategy": {"route": "data"},
+            "analyses": [],
+            "assessments": BLOCKED,
+        },
+    }
+    summary = summarize(build_dashboard(investigation, run_id="b", revision=1))
+    assert summary["headline"] == {"kind": "none", "text": "No direct answer was found."}
+    assert summary["closest"] == [
+        {
+            "title": "Batteries power capacities and energy storage",
+            "url": "https://ec.europa.eu/x",
+            "note": "Found, but not used: the selected field is total battery storage capacity per country.",
+            "quote": None,
+        }
+    ]
+    # Studies that answer nothing are not shown as key sources.
+    assert summary["key_sources"] == []
+    assert "No single passage answers the whole question." not in summary["missing"]
+    assert summary["missing"] == ["No study reports a change over time for the requested period."]
+    assert summary["certainty"]["sentence"] == "No study or dataset answers the question directly."
+
+
+def test_partial_findings_are_the_closest_evidence_when_there_is_no_answer():
+    snapshot = hpv_snapshot()
+    snapshot["result_quality"] = {**snapshot["result_quality"], "status": "insufficient"}
+    answer = next(b for b in snapshot["blocks"] if b["id"] == "answer")["data"]
+    answer["investigation_review"] = {
+        "partial_findings": [
+            {
+                "subject": "cervical cancer",
+                "title": "Swedish registry",
+                "quote": "Incidence fell 88%.",
+                "qualification": "Covers Sweden only.",
+                "doi": "10.1/x",
+            },
+        ]
+    }
+    summary = summarize(snapshot)
+    assert summary["headline"] == {
+        "kind": "none",
+        "text": "No study answers the whole question; the closest findings are below.",
+    }
+    assert summary["closest"] == [
+        {
+            "title": "Swedish registry",
+            "url": "https://doi.org/10.1/x",
+            "note": "Covers Sweden only.",
+            "quote": "Incidence fell 88%.",
+        }
+    ]

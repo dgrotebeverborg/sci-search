@@ -19,12 +19,17 @@ def test_one_clean_page_with_the_answer_first(live_browser_url: str, chromium_br
     sections = page.locator("[data-result-section]")
     expect(sections.first).to_have_attribute("data-result-section", "answer")
     order = sections.evaluate_all("nodes => nodes.map(n => n.dataset.resultSection)")
-    assert order == ["answer", "literature", "why", "landscape", "details"]
+    assert order == ["answer", "literature", "landscape", "details"]
     answer = page.locator("#dashboard-answer")
     expect(answer.locator(".certainty-pill")).to_have_text("Weak evidence")
     expect(answer).to_contain_text("covering the Netherlands and Sweden")
     # What is missing sits with the answer, not further down.
     expect(answer).to_contain_text("No included study covers the United Kingdom.")
+    expect(answer.locator(".result-answer")).to_have_text(
+        "Vaccination programmes lowered incidence in the Netherlands and Sweden."
+    )
+    expect(answer).to_contain_text("Sources")
+    # Which studies were counted, and why, is part of the details.
     expect(page.locator("#dashboard-why")).to_contain_text("Cervical screening in Brazil")
     expect(page.locator("#dashboard-why")).to_contain_text("Literature coverage is not verified")
     # Three tabs; the landscape and details are separate views, the landscape drawn when shown.
@@ -66,14 +71,20 @@ def test_a_data_answer_shows_the_data_part_only(live_browser_url: str, chromium_
     order = page.locator("[data-result-section]").evaluate_all(
         "nodes => nodes.map(n => n.dataset.resultSection)"
     )
-    assert order == ["answer", "data", "details"]
-    expect(page.locator("#dashboard-data")).to_contain_text("Krefeld S1 Dataset")
-    # The headline figures lead the answer; the charts follow under the dataset name.
-    expect(page.locator("#dashboard-answer .result-findings")).to_contain_text(
+    assert order == ["answer", "details"]
+    answer = page.locator("#dashboard-answer")
+    # The sentence, the figures, one chart with both series, and its source.
+    expect(answer.locator(".result-answer")).to_have_text(
+        "Insect biomass fell in Germany: plot ORB1 and Germany: plot WAH1 (1989–2016)."
+    )
+    expect(answer.locator(".result-findings")).to_contain_text(
         "Germany: plot ORB1: 1 → 0.2 g/day (1989–2016)"
     )
-    expect(page.locator("#dashboard-data svg")).to_have_count(2)
-    expect(page.locator("#dashboard-data")).not_to_contain_text("could not be shown")
+    expect(answer.locator("svg")).to_have_count(1)
+    expect(answer.locator(".chart-legend span")).to_have_count(2)
+    expect(answer).to_contain_text("Source: Krefeld S1 Dataset")
+    expect(answer.locator(".certainty-pill")).to_have_text("Measured data")
+    expect(answer).not_to_contain_text("could not be shown")
     page.close()
 
 

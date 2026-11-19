@@ -131,7 +131,7 @@ def test_saved_dashboard_history_refresh_and_feedback(
     page.get_by_role("link", name="Question B", exact=True).click()
     expect(page.locator("#dashboard-question")).to_have_text("Question B")
     expect(page.locator("#dashboard-model")).to_contain_text(
-        "Extractive analysis · selected: OpenAI · chosen-model"
+        "AI model: OpenAI · chosen-model · answer taken directly from source passages"
     )
     expect(page.get_by_role("link", name="Download all", exact=True)).to_have_count(0)
     page.go_back()
@@ -418,9 +418,8 @@ def test_dashboard_leads_with_qualified_answer_and_groups_provenance(
     page.request.post(f"{live_browser_url}/auth/development")
     page.goto(f"{live_browser_url}/app?project=development-project&run=A")
     answer = page.locator("#dashboard-answer")
-    expect(answer.locator(".result-answer")).to_have_text(
-        "Evidence is limited to one laboratory study."
-    )
+    # Without enough evidence the page says so instead of repeating a qualified summary.
+    expect(answer.locator(".result-answer")).to_have_text("No direct answer was found.")
     expect(answer.locator(".certainty-pill")).to_be_visible()
     expect(answer).to_contain_text("Field evidence is missing.")
     open_section(page, "dashboard-methods")

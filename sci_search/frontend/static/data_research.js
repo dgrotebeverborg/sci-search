@@ -102,7 +102,8 @@ function renderDerived(data, parent) {
     if (output.reason) details.append(element('p', output.reason));
     if (output.formula) details.append(element('p', 'Calculation: ' + output.formula));
     if (output.annual.some(row => row.value != null)) details.append(chart(output.annual, 'value', output.entity + ' — ' + output.label, output.unit));
-    details.append(dataTable(output.annual.map(row => ({year: row.year, value: observation(row.value), reason: row.reason || '', inputs: (row.inputs || []).map(input => `${input.role} (${input.year}): ${input.observation?.source_reference || input.observation?.source_row || 'No source observation'}`).join('; ')})), [['year', 'Year'], ['value', output.unit || 'Value'], ['reason', 'Missing input or limitation'], ['inputs', 'Input references']]));
+    // A table of only missing years says nothing the reason above does not.
+    if (output.annual.some(row => row.value != null)) details.append(dataTable(output.annual.map(row => ({year: row.year, value: observation(row.value), reason: row.reason || '', inputs: (row.inputs || []).map(input => `${input.role} (${input.year}): ${input.observation?.source_reference || input.observation?.source_row || 'No source observation'}`).join('; ')})), [['year', 'Year'], ['value', output.unit || 'Value'], ['reason', 'Missing input or limitation'], ['inputs', 'Input references']]));
     for (const source of output.sources || []) {
       const original = data.analyses[source.analysis_index]?.source;
       if (original) details.append(safeLink(source.role + ': ' + original.title, original.url));
@@ -309,4 +310,134 @@ function meaningDetails(review, parent) {
   }
   for (const question of Array.isArray(review.followup_questions) ? review.followup_questions : []) details.append(element('p', 'Documentation needed: ' + question));
   parent.append(details);
+}
+
+// ---- The answer view: one chart per dataset, its source, nothing about how it was checked.
+
+const COLOURS = ['#28604a', '#c0790a', '#3b6fb6', '#a23b72', '#6b7a2a', '#5b5b5b'];
+const MAX_LINES = 6;
+// 'geo=AL (Albania) | sex=F (Females)' -> 'Albania, Females'
+export const cleanName = text => String(text || '').replace(/\b[A-Za-z_]+=[\w-]+ \(([^)]*)\)/g, '$1').replaceAll(' | ', ', ').trim();
+const UNIT_WORDS = {year: 'years', day: 'days', hour: 'hours', person: 'persons'};
+function unitOf(analysis, series) {
+  const label = analysis.preparation?.selection?.code_labels?.unit?.[series.unit] || series.unit || '';
+  return UNIT_WORDS[String(label).toLowerCase()] || label;
+}
+function nameOf(analysis, series) {
+  // Statistical tables name a series by its codes; their labels read better than the entity key.
+  const selection = analysis.preparation?.selection || {};
+  const dims = (series.annual || []).find(row => row.source_dimensions)?.source_dimensions;
+  if (dims && (selection.series_dimensions || []).length) return selection.series_dimensions.map(d => selection.code_labels?.[d]?.[dims[d]] || dims[d]).join(', ');
+  return cleanName(series.entity) || series.label || 'Series';
+}
+
+function lineChart(lines, unit) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 720 250');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', lines.map(l => l.name).join(', ') + (unit ? ` (${unit})` : ''));
+  const add = (tag, attrs, text) => { const node = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v)); if (text != null) node.textContent = text; svg.append(node); return node; };
+  const points = lines.flatMap(l => l.rows.filter(r => r.value != null));
+  const years = points.map(r => r.year);
+  const first = Math.min(...years), last = Math.max(...years);
+  const {min, max, step} = axisScale(points.map(r => r.value));
+  const x = year => 70 + (last === first ? 300 : (year - first) / (last - first) * 610);
+  const y = value => 205 - (value - min) / (max - min) * 185;
+  for (let v = min; v <= max + step / 2; v += step) {
+    const value = Number(v.toPrecision(12));
+    add('line', {x1: 70, x2: 680, y1: y(value), y2: y(value), stroke: '#e3e8e4'});
+    add('text', {x: 62, y: y(value) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#5b6b62'}, observation(Object.is(value, -0) ? 0 : value));
+  }
+  const tick = Math.max(1, Math.ceil((last - first) / 6 / 5) * 5);
+  for (let year = first; year <= last; year += tick) add('text', {x: x(year), y: 228, 'text-anchor': 'middle', 'font-size': 12, fill: '#5b6b62'}, String(year));
+  if ((last - first) % tick) add('text', {x: x(last), y: 228, 'text-anchor': 'middle', 'font-size': 12, fill: '#5b6b62'}, String(last));
+  lines.forEach((line, index) => {
+    const colour = COLOURS[index % COLOURS.length];
+    let path = [];
+    const flush = () => { if (path.length > 1) add('polyline', {points: path.join(' '), fill: 'none', stroke: colour, 'stroke-width': 2.5}); path = []; };
+    for (const row of line.rows) {
+      if (row.value == null) { flush(); continue; }
+      path.push(`${x(row.year)},${y(row.value)}`);
+      const dot = add('circle', {cx: x(row.year), cy: y(row.value), r: line.rows.length > 40 ? 1.5 : 2.5, fill: colour});
+      const hint = document.createElementNS(ns, 'title'); hint.textContent = `${line.name}, ${row.year}: ${observation(row.value)} ${unit}`; dot.append(hint);
+    }
+    flush();
+  });
+  return svg;
+}
+
+function legend(lines) {
+  const row = element('p', '', 'chart-legend');
+  lines.forEach((line, index) => {
+    const item = element('span', line.name);
+    item.style.setProperty('--swatch', COLOURS[index % COLOURS.length]);
+    row.append(item);
+  });
+  return row;
+}
+
+function sourceLine(source) {
+  const line = element('p', '', 'chart-source');
+  line.append(document.createTextNode('Source: '));
+  line.append(source.url ? safeLink(source.title || source.url, source.url) : element('span', source.title || 'Dataset'));
+  if (source.publisher && !(source.title || '').includes(source.publisher)) line.append(document.createTextNode(` · ${source.publisher}`));
+  return line;
+}
+
+export function answerCharts(data, parent) {
+  const drawn = new Set();
+  for (const analysis of data.analyses || []) {
+    if (analysis.kind === 'wildfire') continue;
+    const series = (analysis.series || []).filter(s => (s.annual || []).some(r => r.value != null));
+    if (!series.length) continue;
+    // Two sources with the same numbers are one chart.
+    const key = JSON.stringify(series.map(s => [s.entity, s.label, s.annual.map(r => r.value)]));
+    if (drawn.has(key)) continue;
+    drawn.add(key);
+    const unit = unitOf(analysis, series[0]);
+    const short = cleanName(series[0].label).split(' by ')[0];
+    const label = short.charAt(0).toUpperCase() + short.slice(1);
+    const figure = element('figure', '', 'answer-chart');
+    figure.append(element('figcaption', unit && !label.toLowerCase().includes(unit.toLowerCase()) ? `${label} (${unit})` : label));
+    const lines = s => s.map(item => ({name: nameOf(analysis, item), rows: item.annual}));
+    if (series.length <= MAX_LINES) {
+      figure.append(lineChart(lines(series), unit));
+      if (series.length > 1) figure.append(legend(lines(series)));
+    } else {
+      const pick = element('select'); pick.setAttribute('aria-label', 'Series to show');
+      series.forEach((item, index) => { const option = element('option', nameOf(analysis, item)); option.value = String(index); pick.append(option); });
+      const holder = element('div');
+      const draw = () => holder.replaceChildren(lineChart(lines([series[Number(pick.value)]]), unit));
+      pick.onchange = draw;
+      const choose = element('label', `${series.length} series · show `, 'chart-pick'); choose.append(pick);
+      figure.append(choose, holder);
+      draw();
+    }
+    figure.append(sourceLine(analysis.source || {}));
+    parent.append(figure);
+  }
+  // A requested calculation is the answer only when no measured series is; otherwise it repeats one.
+  for (const output of drawn.size ? [] : data.derived_outputs?.outputs || []) {
+    if (!(output.annual || []).some(r => r.value != null)) continue;
+    const figure = element('figure', '', 'answer-chart');
+    figure.append(element('figcaption', `${cleanName(output.entity)} — ${output.label}${output.unit ? ` (${output.unit})` : ''}`));
+    figure.append(lineChart([{name: output.label, rows: output.annual}], output.unit || ''));
+    if (output.formula) figure.append(element('p', 'Calculation: ' + output.formula, 'chart-source'));
+    parent.append(figure);
+  }
+}
+
+// ---- The details view: annual values, calculations and every check, folded.
+export function dataDetails(data, parent) {
+  if (data.kind !== 'discovered') { renderDataResearch(data, parent); return; }
+  for (const analysis of data.analyses || []) {
+    if (analysis.kind === 'wildfire') { renderDataResearch(analysis, parent); continue; }
+    const values = element('details');
+    values.append(element('summary', 'Annual values: ' + (analysis.source?.title || 'dataset')));
+    renderSeries(analysis, values);
+    parent.append(values);
+  }
+  renderDerived(data, parent);
+  provenance(data, parent);
 }

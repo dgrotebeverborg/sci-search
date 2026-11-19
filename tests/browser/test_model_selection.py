@@ -114,11 +114,13 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
         page.evaluate(render, snapshot)
         expect(page.locator("#dashboard-model")).to_contain_text("AI model: OpenAI · chosen-model")
         expect(page.locator("#dashboard-answer")).to_contain_text("Not enough evidence")
-        expect(page.locator("#dashboard-answer")).to_contain_text("expert scientific validation")
+        expect(page.locator("#dashboard-details")).to_contain_text("expert scientific validation")
         snapshot["analysis"]["fallback_reason"] = "No evidence"
         snapshot["analysis"]["method"] = "deterministic_extractive_fallback"
         page.evaluate(render, snapshot)
-        expect(page.locator("#dashboard-model")).to_contain_text("Extractive analysis")
+        expect(page.locator("#dashboard-model")).to_contain_text(
+            "answer taken directly from source passages"
+        )
         del snapshot["analysis"]
         next(b for b in snapshot["blocks"] if b["id"] == "methods")["data"]["methodology"] = {
             "model": {
@@ -128,7 +130,9 @@ def test_dashboard_reports_coverage_limited_ai_and_legacy_fallback(
             }
         }
         page.evaluate(render, snapshot)
-        expect(page.locator("#dashboard-model")).to_contain_text("Extractive analysis")
+        expect(page.locator("#dashboard-model")).to_contain_text(
+            "answer taken directly from source passages"
+        )
     finally:
         page.close()
 
