@@ -57,6 +57,7 @@ def test_missing_section_raises():
 def test_schema_is_strict_and_covers_every_section():
     assert SECTIONS == (
         "question",
+        "critique",
         "definitions",
         "subquestions",
         "scope",
@@ -93,3 +94,10 @@ def test_duplicate_subquestion_ids_raise():
     plan = make_plan(subquestions=[{"id": "Q1", "text": "a"}, {"id": "Q1", "text": "b"}])
     with pytest.raises(PlanError):
         validate_plan(plan, SCAN)
+
+
+def test_critique_is_a_section_with_a_status():
+    assert SECTIONS[1] == "critique"
+    bad = make_plan(critique=[{"issue": "i", "why": "w", "alternative": "a", "status": "maybe"}])
+    with pytest.raises(PlanError):
+        validate_plan(bad, SCAN)

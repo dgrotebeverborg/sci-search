@@ -1,6 +1,6 @@
 // Study plans page. All source and model text is set with textContent, never as HTML.
 const HEADINGS = {
-  question: 'Question as understood', definitions: 'Definitions', subquestions: 'Sub-questions',
+  question: 'Question as understood', critique: 'Questions about the question', definitions: 'Definitions', subquestions: 'Sub-questions',
   scope: 'Scope and assumptions', out_of_reach: 'Out of reach', existing_work: 'Existing studies and models',
   data: 'Data', chapters: 'Chapters', limits: 'Limits of this plan',
 };
@@ -120,6 +120,33 @@ function renderValue(section, value, box) {
     const ul = el('ul'); for (const item of items) { const li = el('li'); draw(li, item); ul.append(li); } box.append(ul);
   };
   if (section === 'question') box.append(el('p', value));
+  else if (section === 'critique') {
+    if (!value.length) { box.append(el('p', 'None.', 'muted')); return; }
+    const intro = el('p', 'Points a critical reviewer raises about the question itself. Adopt one to reshape the plan, or dismiss it.', 'muted');
+    box.append(intro);
+    value.forEach((point, index) => {
+      const card = el('div', '', `point point-${point.status}`);
+      card.append(el('strong', point.issue), el('div', point.why), el('div', 'Alternative: ' + point.alternative));
+      if (point.status !== 'open') card.append(el('span', point.status === 'adopted' ? 'Adopted' : 'Dismissed', 'point-status'));
+      else if (!box.readOnly) {
+        const row = el('div', '', 'tools');
+        const message = el('p', '', 'status');
+        const adopt = el('button', 'Adopt', 'button'); adopt.type = 'button';
+        const dismiss = el('button', 'Dismiss', 'button'); dismiss.type = 'button';
+        const send = async (verb, button, wait) => {
+          button.disabled = true; if (wait) status(message, 'Reshaping the plan… this takes a minute.');
+          try {
+            const result = await api(`/api/studies/${current.study.id}/critique/${index}/${verb}`, {method: 'POST'});
+            changed = result.changed || ['critique']; await openStudy(current.study.id);
+          } catch (error) { status(message, error.message, true); button.disabled = false; }
+        };
+        adopt.onclick = () => send('adopt', adopt, true);
+        dismiss.onclick = () => send('dismiss', dismiss, false);
+        row.append(adopt, dismiss); card.append(row, message);
+      }
+      box.append(card);
+    });
+  }
   else if (section === 'definitions') list(value, (li, d) => li.append(el('strong', d.term + ': '), document.createTextNode(d.definition)));
   else if (section === 'subquestions') list(value, (li, q) => li.append(el('strong', q.id + ' '), document.createTextNode(q.text)));
   else if (section === 'out_of_reach') list(value, (li, o) => li.append(el('strong', o.item), document.createTextNode(' — ' + o.reason)));
@@ -148,11 +175,12 @@ const LINES = {
   out_of_reach: [o => `${o.item} — ${o.reason}`, line => { const [item, ...rest] = line.split(' — '); return {item: item.trim(), reason: rest.join(' — ').trim()}; }],
   existing_work: [w => `${w.scan_id}: ${w.why}`, line => { const [id, ...rest] = line.split(':'); return {scan_id: id.trim(), why: rest.join(':').trim()}; }],
   data: [d => `${d.scan_id}: ${d.provides}`, line => { const [id, ...rest] = line.split(':'); return {scan_id: id.trim(), provides: rest.join(':').trim()}; }],
+  critique: [c => `${c.issue} — ${c.why} — ${c.alternative}`, line => { const [issue, why, ...rest] = line.split(' — '); return {issue: (issue || '').trim(), why: (why || '').trim(), alternative: rest.join(' — ').trim(), status: 'open'}; }],
   scope: [s => s, s => s.trim()],
   limits: [s => s, s => s.trim()],
 };
 const HINTS = {
-  definitions: 'One per line: term: definition', subquestions: 'One per line: Q1: question',
+  critique: 'One per line: issue — why it matters — alternative', definitions: 'One per line: term: definition', subquestions: 'One per line: Q1: question',
   out_of_reach: 'One per line: item — reason', existing_work: 'One per line: P1: why it matters',
   data: 'One per line: D1: what it provides', scope: 'One assumption per line', limits: 'One per line',
 };
@@ -209,9 +237,9 @@ function renderPlan(plan, readOnly) {
     const node = el('section', '', 'section');
     const heading = el('h2', HEADINGS[section]);
     if (changed.includes(section) && !viewing) heading.append(el('span', 'Changed', 'changed'));
-    const box = el('div');
+    const box = el('div'); box.readOnly = readOnly;
     node.append(heading, box);
-    renderValue(section, plan[section], box);
+    renderValue(section, plan[section] ?? (section === 'question' ? '' : []), box);
     if (!readOnly) {
       const tools = el('div', '', 'tools');
       const instruction = el('input'); instruction.type = 'text';
@@ -229,7 +257,8 @@ function renderPlan(plan, readOnly) {
         } catch (error) { status(message, error.message, true); apply.disabled = false; }
       };
       instruction.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); apply.click(); } };
-      edit.onclick = () => editor(section, plan[section], box, () => { box.replaceChildren(); renderValue(section, plan[section], box); });
+      const value = plan[section] ?? (section === 'question' ? '' : []);
+      edit.onclick = () => editor(section, value, box, () => { box.replaceChildren(); renderValue(section, value, box); });
       tools.append(instruction, apply, edit);
       node.append(tools);
       if (section === 'existing_work') {

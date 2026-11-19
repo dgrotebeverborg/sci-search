@@ -6,7 +6,7 @@ import pytest
 from sci_search.study.schema import PlanError
 from sci_search.study.service import Busy, Locked, StudyService
 from sci_search.study.store import StudyStore
-from tests.study.conftest import SCAN, make_plan
+from tests.study.conftest import CRITIQUE, SCAN, is_critique_call, make_plan
 
 
 class FakeAnalyzer:
@@ -20,6 +20,8 @@ class FakeAnalyzer:
         self.replies = list(replies) or [make_plan()]
 
     def complete_json(self, body, headers):
+        if is_critique_call(body):
+            return {"choices": [{"message": {"content": json.dumps(CRITIQUE)}}]}
         reply = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
         if isinstance(reply, Exception):
             raise reply
@@ -181,7 +183,8 @@ class BlockingAnalyzer(FakeAnalyzer):
         self.calls = 0
 
     def complete_json(self, body, headers):
-        self.calls += 1
+        if not is_critique_call(body):
+            self.calls += 1
         if self.calls > 1:
             self.entered.set()
             self.release.wait(5)
@@ -219,3 +222,35 @@ def test_interrupted_extra_search_keeps_the_plan_and_says_so(tmp_path):
     assert study["error"] == "The last search or revision was interrupted; the plan is unchanged."
     svc.edit(sid, "scope", ["x"])
     assert svc.store.get(sid)["error"] is None
+
+
+def test_adopting_a_point_revises_the_plan_and_marks_it(tmp_path):
+    reply = make_plan(question="How does storage need change in steps of 10%?")
+    svc = service(tmp_path, analyzer=FakeAnalyzer(make_plan(), reply))
+    sid = svc.start("Q")
+    result = svc.adopt(sid, 0)
+    plan = svc.store.version(sid, result["version"])["plan"]
+    assert plan["question"].startswith("How does storage need change")
+    assert plan["critique"][0]["status"] == "adopted"
+    assert (
+        svc.store.versions(sid)[-1]["origin"] == "adopt: The shares 0, 50 and 100% are arbitrary."
+    )
+
+
+def test_dismissing_a_point_needs_no_model(tmp_path):
+    svc = service(tmp_path)
+    sid = svc.start("Q")
+    version = svc.dismiss(sid, 0)
+    assert svc.store.version(sid, version)["plan"]["critique"][0]["status"] == "dismissed"
+    with pytest.raises(ValueError):
+        svc.dismiss(sid, 5)
+
+
+def test_plans_from_before_the_critique_section_still_work(tmp_path):
+    svc = service(tmp_path)
+    sid = svc.start("Q")
+    old = make_plan()
+    del old["critique"]
+    svc.store.add_version(sid, old, "older format", None)
+    assert svc.edit(sid, "scope", ["x"]) == 3
+    assert svc.store.version(sid, 3)["plan"]["critique"] == []

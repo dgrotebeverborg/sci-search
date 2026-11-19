@@ -133,3 +133,10 @@ def test_model_failure_during_revision_is_readable(tmp_path):
         f"/api/studies/{sid}/revise", json={"section": "scope", "instruction": "x"}
     )
     assert response.status_code == 503 and "at capacity" in response.json()["detail"]
+
+
+def test_critique_points_can_be_adopted_or_dismissed(client):
+    sid = client.post("/api/studies", json={"question": "Q"}).json()["id"]
+    assert client.post(f"/api/studies/{sid}/critique/0/dismiss").json() == {"version": 2}
+    assert client.post(f"/api/studies/{sid}/critique/0/adopt").status_code == 200
+    assert "Questions about the question" in client.get(f"/api/studies/{sid}/plan.md").text

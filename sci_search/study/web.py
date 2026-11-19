@@ -104,6 +104,14 @@ def create_app(service: StudyService) -> FastAPI:
         guarded(lambda: service.search_more(study_id, terms))
         return {"started": True}
 
+    @app.post("/api/studies/{study_id}/critique/{index}/adopt")
+    def adopt(study_id: str, index: int) -> dict[str, Any]:
+        return guarded(lambda: service.adopt(study_id, index))
+
+    @app.post("/api/studies/{study_id}/critique/{index}/dismiss")
+    def dismiss(study_id: str, index: int) -> dict[str, int]:
+        return {"version": guarded(lambda: service.dismiss(study_id, index))}
+
     @app.post("/api/studies/{study_id}/restore")
     def restore(study_id: str, version: Annotated[int, Body(embed=True)]) -> dict[str, int]:
         return {"version": guarded(lambda: service.restore(study_id, version))}

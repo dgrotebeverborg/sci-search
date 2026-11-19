@@ -7,6 +7,7 @@ from typing import Any
 
 SECTIONS = (
     "question",
+    "critique",
     "definitions",
     "subquestions",
     "scope",
@@ -17,6 +18,7 @@ SECTIONS = (
     "limits",
 )
 METHODS = ("literature", "data", "model", "synthesis")
+CRITIQUE_STATUSES = ("open", "adopted", "dismissed")
 
 
 class PlanError(ValueError):
@@ -40,6 +42,14 @@ _TEXT = {"type": "string"}
 PLAN_SCHEMA = _object(
     {
         "question": _TEXT,
+        "critique": _items(
+            {
+                "issue": _TEXT,
+                "why": _TEXT,
+                "alternative": _TEXT,
+                "status": {"type": "string", "enum": list(CRITIQUE_STATUSES)},
+            }
+        ),
         "definitions": _items({"term": _TEXT, "definition": _TEXT}),
         "subquestions": _items({"id": _TEXT, "text": _TEXT}),
         "scope": {"type": "array", "items": _TEXT},

@@ -15,6 +15,7 @@ from typing import Any
 _ID = re.compile(r"^[0-9a-f]{12}$")
 _HEADINGS = {
     "question": "Question as understood",
+    "critique": "Questions about the question",
     "definitions": "Definitions",
     "subquestions": "Sub-questions",
     "scope": "Scope and assumptions",
@@ -171,6 +172,11 @@ def render_markdown(question: str, plan: dict[str, Any], scan: dict[str, Any]) -
         lines += [f"## {heading}", ""]
         if section == "question":
             lines.append(str(value or ""))
+        elif section == "critique":
+            lines += [
+                f"- {c['issue']} {c['why']} Alternative: {c['alternative']} ({c['status']})"
+                for c in value or []
+            ]
         elif section == "definitions":
             lines += [f"- **{d['term']}**: {d['definition']}" for d in value or []]
         elif section == "subquestions":

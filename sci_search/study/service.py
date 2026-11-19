@@ -9,6 +9,7 @@ from typing import Any
 
 from sci_search.study.planner import edit_plan, revise_plan, write_plan
 from sci_search.study.scan import extend_scan, run_scan
+from sci_search.study.schema import SECTIONS
 from sci_search.study.store import StudyStore
 
 MAX_QUESTION = 2000
@@ -109,7 +110,9 @@ class StudyService:
         return study
 
     def _plan(self, study_id: str) -> dict[str, Any]:
-        return self.store.version(study_id, self.store.get(study_id)["version"])["plan"]
+        plan = self.store.version(study_id, self.store.get(study_id)["version"])["plan"]
+        # Plans saved before a section existed get it empty, so they stay editable.
+        return {**{s: [] for s in SECTIONS if s != "question"}, **plan}
 
     def start(self, question: str) -> str:
         question = " ".join(str(question or "").split())
@@ -142,22 +145,60 @@ class StudyService:
         return study_id
 
     def revise(self, study_id: str, section: str, instruction: str) -> dict[str, Any]:
+        return self._revise(study_id, section, instruction, f"instruction: {instruction.strip()}")
+
+    def _point(self, study_id: str, index: int) -> dict[str, Any]:
+        points = self._plan(study_id)["critique"]
+        if not 0 <= int(index) < len(points):
+            raise ValueError("There is no such point about the question.")
+        return points[int(index)]
+
+    def adopt(self, study_id: str, index: int) -> dict[str, Any]:
+        """Revise the plan to follow one point's alternative, and mark the point adopted."""
+        point = self._point(study_id, index)
+        instruction = (
+            f"Adopt point {int(index) + 1} ({point['issue']}): {point['alternative']} "
+            "Change the question, sub-questions, scope and chapters as this requires."
+        )
+        return self._revise(
+            study_id, "critique", instruction, f"adopt: {point['issue']}", mark=(index, "adopted")
+        )
+
+    def dismiss(self, study_id: str, index: int) -> int:
+        with self._exclusive():
+            self._editable(study_id)
+            point = self._point(study_id, index)
+            points = [dict(p) for p in self._plan(study_id)["critique"]]
+            points[int(index)]["status"] = "dismissed"
+            plan = edit_plan(
+                self._plan(study_id), "critique", points, self.store.read_scan(study_id)
+            )
+            return self.store.add_version(study_id, plan, f"dismiss: {point['issue']}", "critique")
+
+    def _revise(
+        self,
+        study_id: str,
+        section: str,
+        instruction: str,
+        origin: str,
+        *,
+        mark: tuple[int, str] | None = None,
+    ) -> dict[str, Any]:
         analyzer = self._analyzer()
         with self._exclusive():
             self._editable(study_id)
             # Marked as working so the page disables changes while the model runs.
             self.store.update(study_id, working=True)
             try:
+                before = self._plan(study_id)
                 plan, changed = revise_plan(
-                    self._plan(study_id),
-                    section,
-                    instruction,
-                    self.store.read_scan(study_id),
-                    analyzer,
+                    before, section, instruction, self.store.read_scan(study_id), analyzer
                 )
-                version = self.store.add_version(
-                    study_id, plan, f"instruction: {instruction.strip()}", section
-                )
+                if mark is not None and int(mark[0]) < len(plan["critique"]):
+                    # The point's status is the researcher's decision, not the model's.
+                    plan["critique"][int(mark[0])]["status"] = mark[1]
+                    changed = [s for s in plan if plan[s] != before[s]]
+                version = self.store.add_version(study_id, plan, origin, section)
                 self.store.update(study_id, notice=None, error=None)
                 return {"version": version, "changed": changed}
             finally:

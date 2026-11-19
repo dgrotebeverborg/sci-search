@@ -43,3 +43,7 @@ form .button { margin-top: .7rem; }
   .side { border-right: 0; border-bottom: 1px solid var(--line); }
   main { padding: 1.2rem 1rem 3rem; }
 }
+.point { border-left: 4px solid var(--accent); background: #fffbea; padding: .6rem .8rem; margin: .5rem 0; border-radius: 0 8px 8px 0; }
+.point-adopted { border-left-color: var(--green); background: #eef5f0; }
+.point-dismissed { border-left-color: var(--line); background: var(--surface); color: var(--muted); }
+.point-status { display: inline-block; margin-top: .3rem; font-size: .75rem; font-weight: 700; }
